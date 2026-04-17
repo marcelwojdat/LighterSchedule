@@ -3,8 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './components/Login';
 import Register from './components/Register';
+import Dashboard from './components/Dashboard';
 
-const DashboardPage = () => <div><h2>Panel Główny (Chroniony!)</h2><p>Widzisz to, bo jesteś zalogowany.</p></div>;
 
 function App() {
   return (
@@ -16,7 +16,7 @@ function App() {
           path="/dashboard" 
           element={
             <ProtectedRoute>
-              <DashboardPage />
+              <Dashboard />
             </ProtectedRoute>
           } 
         />
