@@ -21,7 +21,7 @@ const Auth = {
       throw error;
     }
   },
-
+ 
   async login(username, password) {
     try {
       const response = await fetch(`${BASE_URL}/token/`, {
@@ -40,6 +40,7 @@ const Auth = {
 
       if (data.access) {
         localStorage.setItem('access', data.access);
+        localStorage.setItem('refresh', data.refresh);
         console.log('Token został zapisany!');
       }
 
@@ -48,6 +49,21 @@ const Auth = {
       console.error('Login Error:', error);
       throw error;
     }
+  },
+
+  async refreshToken() {
+  const refresh = localStorage.getItem('refresh');
+  const response = await fetch(`${BASE_URL}/token/refresh/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh })
+  });
+  const data = await response.json();
+  if (data.access) {
+    localStorage.setItem('access', data.access);
+    return data.access;
+  }
+  throw new Error("Sesja wygasła całkowicie");
   },
 
   logout() {

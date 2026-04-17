@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Auth from './Auth';
 
 const Dashboard = () => {
   const [workdays, setWorkdays] = useState([]); 
@@ -7,27 +8,45 @@ const Dashboard = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const token = localStorage.getItem('access');
+      
+      const fetchWorkdays = async () => {
+        let token = localStorage.getItem('access');
 
-    const fetchWorkdays = async () => {
-      try {
-        const response = await fetch('http://127.0.0.1:8000/api/workdays/', {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        try {
+            let response = await fetch('http://127.0.0.1:8000/api/workdays/', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            if (response.status === 401) {
+                console.log("Token wygasł, próbuję odświeżyć...");
+        
+                try {
+                    token = await Auth.refreshToken(); 
+          
+                    response = await fetch('http://127.0.0.1:8000/api/workdays/', {
+                        method: 'GET',
+                        headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                        }
+                });
+                } catch (refreshErr) {
+            Auth.logout();
+            return;
+                }
+            }
+            if (!response.ok) {
+                throw new Error('Nie udało się pobrać grafika. Może token wygasł?');
+            }
 
-        if (!response.ok) {
-          throw new Error('Nie udało się pobrać grafika. Może token wygasł?');
+            const data = await response.json();
+            setWorkdays(data); 
+        } catch (err) {
+            setError(err.message);
         }
-
-        const data = await response.json();
-        setWorkdays(data); 
-      } catch (err) {
-        setError(err.message);
-      }
     };
 
     fetchWorkdays();
