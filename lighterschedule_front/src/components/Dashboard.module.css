@@ -1,0 +1,5 @@
+.selectedDay {
+  background: #007bff !important; 
+  color: white !important;
+  border-radius: 50%;
+}
