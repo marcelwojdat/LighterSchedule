@@ -103,14 +103,20 @@ const Dashboard = () => {
   };
   
   const getTileClassName = ({ date: tileDate, view }) => {
-  if (view === 'month') {
-    const year = tileDate.getFullYear();
-    const month = String(tileDate.getMonth() + 1).padStart(2, '0');
-    const day = String(tileDate.getDate()).padStart(2, '0');
-    const dateStr = `${year}-${month}-${day}`;
+    if (view === 'month') {
+        const year = tileDate.getFullYear();
+        const month = String(tileDate.getMonth() + 1).padStart(2, '0');
+        const day = String(tileDate.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
 
-    return date.includes(dateStr) ? styles.selectedDay : null;
-  }
+        const isSaved = workdays.some(d => d.date === dateStr);
+        
+        const isSelected = date.includes(dateStr);
+
+        if (isSelected) return 'custom-selected-day';
+        if (isSaved) return 'custom-saved-day';
+    }
+    return null;
 };
 const getUserIdFromToken = () => {
     const token = localStorage.getItem('access');
@@ -133,7 +139,15 @@ const getUserIdFromToken = () => {
   return (
     <div style={{ padding: '20px' }}>
       <h1>Twój Grafik Pracy</h1>
-      <Calendar onChange={setChosenDate} value={null} tileClassName={getTileClassName} />
+      <div className={styles.calendarWrapper}>
+        <div className={styles.calendarContainer}>
+            <Calendar 
+                onChange={setChosenDate} 
+                value={null} 
+                tileClassName={getTileClassName} 
+            />
+        </div>
+    </div>
       <input type='button' onClick={setSchedule} value="Zapisz grafik"/>
       <button onClick={handleLogout} style={{ marginBottom: '20px' }}>Wyloguj się</button>
 
