@@ -1,5 +1,64 @@
-.selectedDay {
-  background: #007bff !important; 
+.calendarWrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.calendarContainer {
+  width: 80vw !important;
+  max-width: none !important;
+  margin: 0 auto;
+}
+.calendarContainer :global(.react-calendar) {
+  width: 100% !important; 
+  margin: 2em auto;
+}
+
+.calendarContainer :global(.react-calendar__navigation) {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  margin-bottom: 20px;
+}
+
+.calendarContainer :global(.react-calendar__navigation__label) {
+  text-transform: uppercase !important; 
+}
+
+.calendarContainer :global(.react-calendar__navigation button) {
+  flex-grow: 0 !important;
+  min-width: 44px;
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+}
+
+.calendarContainer :global(.react-calendar__tile) {
+  flex-basis: calc(100% / 7 - 4px) !important;
+  max-width: calc(100% / 7 - 4px) !important;
+  margin: 2px !important;
+  height: 80px;
+  border: 1px solid black !important;
+  border-radius: 8px !important;
+  background: white; /* Domyślne tło */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.calendarContainer :global(.custom-selected-day) {
+  background: #93A4C1 !important;
   color: white !important;
-  border-radius: 50%;
+  /* border: 2px solid #0056b3 !important; */
+}
+
+.calendarContainer :global(.custom-saved-day) {
+  background: #18202B !important;
+  color: white !important;
+  /* border: 2px solid #28a745 !important; */
+}
+
+.calendarContainer :global(.react-calendar__tile--now) {
+  background: #B1B2AE !important;
+  border: 1.5px solid black !important;
 }
