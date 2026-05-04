@@ -148,12 +148,13 @@ const getUserIdFromToken = () => {
             />
         </div>
     </div>
-      <input type='button' onClick={setSchedule} value="Zapisz grafik"/>
-      <button onClick={handleLogout} style={{ marginBottom: '20px' }}>Wyloguj się</button>
-
+    <div className={styles.buttonContainer}>
+      <input type='button' onClick={setSchedule} value="Zapisz grafik" className={styles.scheduleSetBtn}/>
+      <input type='button' onClick={handleLogout} value="Wyloguj się" className={styles.scheduleSetBtn}/>
+    </div>
       {error && <p style={{ color: 'red' }}>{error}</p>}
 
-      {workdays.length > 0 ? (
+      {/* {workdays.length > 0 ? (
     <ul>
         {[...workdays]
             .sort((a, b) => new Date(a.date) - new Date(b.date))
@@ -167,7 +168,7 @@ const getUserIdFromToken = () => {
     </ul>
 ) : (
     <p>Brak zaplanowanych dni pracy lub trwa ładowanie...</p>
-)}
+)} */}
 
     </div>
   );
