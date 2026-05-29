@@ -5,7 +5,9 @@ import 'react-calendar/dist/Calendar.css';
 import Auth from './Auth';
 import styles from './Dashboard.module.css';
 
+
 const Dashboard = () => {
+  const [choosedDate, setChoosedDate] = useState(true);
   const [workdays, setWorkdays] = useState([]); 
   const [error, setError] = useState('');
   const [date, setDate] = useState([]);
@@ -52,6 +54,8 @@ const Dashboard = () => {
     };
 
   const setChosenDate = (e) => {
+    console.log(choosedDate);
+    setChoosedDate(true);
     const year = e.getFullYear();
     const month = String(e.getMonth() + 1).padStart(2, '0');
     const day = String(e.getDate()).padStart(2, '0');
@@ -60,7 +64,8 @@ const Dashboard = () => {
     if (date.includes(dateStr)) {
         setDate(date.filter(d => d !== dateStr));
     } else {
-        setDate([...date, dateStr]);    
+        setDate([...date, dateStr]);   
+        setChoosedDate(false); 
     }
 };
 
@@ -139,6 +144,17 @@ const getUserIdFromToken = () => {
   return (
     <div style={{ padding: '20px' }}>
       <h1>Twój Grafik Pracy</h1>
+      <div className={styles.hoursWrapper}>
+          {!choosedDate && (
+            <div id={styles.selectedDate}>
+              <h2>{date}</h2>
+              <p>Wybierz godziny pracy</p> 
+              <input type="time" defaultValue="00:00" />
+              <input type="time" defaultValue="22:00" />
+            </div>
+          )}
+      </div>
+      
       <div className={styles.calendarWrapper}>
         <div className={styles.calendarContainer}>
             <Calendar 
