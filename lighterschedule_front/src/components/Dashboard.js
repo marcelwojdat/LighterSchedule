@@ -7,7 +7,10 @@ import styles from './Dashboard.module.css';
 
 
 const Dashboard = () => {
-  const [choosedDate, setChoosedDate] = useState(true);
+  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedDates, setSelectedDates] = useState({});
+  const [timeFrom, setTimeFrom] = useState("00:00");
+  const [timeTo, setTimeTo] = useState("22:00");
   const [workdays, setWorkdays] = useState([]); 
   const [error, setError] = useState('');
   const [date, setDate] = useState([]);
@@ -54,25 +57,108 @@ const Dashboard = () => {
     };
 
   const setChosenDate = (e) => {
-    console.log(choosedDate);
-    setChoosedDate(true);
     const year = e.getFullYear();
     const month = String(e.getMonth() + 1).padStart(2, '0');
     const day = String(e.getDate()).padStart(2, '0');
     const dateStr = `${year}-${month}-${day}`;
 
-    if (date.includes(dateStr)) {
-        setDate(date.filter(d => d !== dateStr));
-    } else {
-        setDate([...date, dateStr]);   
-        setChoosedDate(false); 
+    setSelectedDate(dateStr);
+    setTimeFrom(selectedDates[dateStr]?.start_time?.slice(0, 5) || '12:00');
+    setTimeTo(selectedDates[dateStr]?.end_time?.slice(0, 5) || '22:00');
+  };
+
+  const setChoosedHours = () => {
+    if (!selectedDate) {
+      setError('Wybierz dzień, aby ustawić godziny.');
+      return;
     }
-};
+
+    const newSelectedDates = {
+      ...selectedDates,
+      [selectedDate]: {
+        start_time: `${timeFrom}:00`,
+        end_time: `${timeTo}:00`
+      }
+    };
+
+    setSelectedDates(newSelectedDates);
+    if (!date.includes(selectedDate)) {
+      setDate([...date, selectedDate]);
+    }
+    setSelectedDate('');
+    setError('');
+  };
+
+  const removeDateFromSelection = async (dateStr) => {
+    const existing = workdays.find(d => d.date === dateStr);
+    if (existing) {
+      let token = localStorage.getItem('access');
+      try {
+        let response = await fetch(`http://127.0.0.1:8000/api/workdays/${existing.id}/`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.status === 401) {
+          try {
+            token = await Auth.refreshToken();
+            response = await fetch(`http://127.0.0.1:8000/api/workdays/${existing.id}/`, {
+              method: 'DELETE',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              }
+            });
+          } catch (refreshErr) {
+            Auth.logout();
+            return;
+          }
+        }
+
+        if (!response.ok) {
+          throw new Error('Nie udało się usunąć dyspozycyjności.');
+        }
+
+        setWorkdays(prev => prev.filter(d => d.date !== dateStr));
+      } catch (err) {
+        setError(err.message || 'Błąd przy usuwaniu dyspozycyjności.');
+        return;
+      }
+    }
+
+    setSelectedDates(prev => {
+      const updated = { ...prev };
+      delete updated[dateStr];
+      return updated;
+    });
+    setDate(prev => prev.filter(d => d !== dateStr));
+    if (selectedDate === dateStr) {
+      setSelectedDate('');
+    }
+  };
 
     const setSchedule = async () => {
     let token = localStorage.getItem('access');
     const userId = getUserIdFromToken();
-    const requests = date.map(oneDate => {
+    const requests = Object.entries(selectedDates).map(([oneDate, times]) => {
+        const existing = workdays.find(d => d.date === oneDate);
+        if (existing) {
+            return fetch(`http://127.0.0.1:8000/api/workdays/${existing.id}/`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            }).then(async response => {
+                if (response.ok) {
+                    removeDateFromSelection(oneDate);
+                }
+                return response;
+            });
+        }
         return fetch('http://127.0.0.1:8000/api/workdays/', {
             method: 'POST',
             headers: {
@@ -81,8 +167,8 @@ const Dashboard = () => {
             },
             body: JSON.stringify({ 
                 date: oneDate, 
-                start_time: "12:00:00",
-                end_time: "22:00:00",
+                start_time: times.start_time,
+                end_time: times.end_time,
                 employee: userId
             }),
         });
@@ -90,9 +176,10 @@ const Dashboard = () => {
 
     try {
         const responses = await Promise.all(requests);
-        if (responses.every(r => r.status === 201)) {
+        if (responses.every(r => r.status === 201 || r.status === 204)) {
             alert("Grafik zapisany pomyślnie!");
-            setDate([]); 
+            setDate([]);
+            setSelectedDates({});
             fetchWorkdays();
         } else {
             setError("Część dni nie została zapisana. Sprawdź czy grafik się nie dubluje.");
@@ -115,7 +202,6 @@ const Dashboard = () => {
         const dateStr = `${year}-${month}-${day}`;
 
         const isSaved = workdays.some(d => d.date === dateStr);
-        
         const isSelected = date.includes(dateStr);
 
         if (isSelected) return 'custom-selected-day';
@@ -123,6 +209,27 @@ const Dashboard = () => {
     }
     return null;
 };
+
+  const getTileContent = ({ date: tileDate, view }) => {
+    if (view !== 'month') return null;
+
+    const year = tileDate.getFullYear();
+    const month = String(tileDate.getMonth() + 1).padStart(2, '0');
+    const day = String(tileDate.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+
+    const selected = selectedDates[dateStr];
+    if (!selected) return null;
+
+    return (
+      <div className={styles.tileContent}>
+        <div>
+            {selected.start_time.slice(0, 5)} - {selected.end_time.slice(0, 5)}
+        </div>
+      </div>
+    );
+  };
+
 const getUserIdFromToken = () => {
     const token = localStorage.getItem('access');
     if (!token) return null;
@@ -139,20 +246,29 @@ const getUserIdFromToken = () => {
   useEffect(() => {
     fetchWorkdays();
   }, []); 
-
+const selectedDayExists =
+  selectedDates[selectedDate] ||
+  workdays.some(d => d.date === selectedDate);
 
   return (
     <div style={{ padding: '20px' }}>
       <h1>Twój Grafik Pracy</h1>
       <div className={styles.hoursWrapper}>
-          {!choosedDate && (
+          {selectedDate ? (
+            selectedDayExists ? (
+              <div id={styles.selectedDate}>
+                <input type="button" onClick={() => removeDateFromSelection(selectedDate)} value={`Usuń dyspozycyjność z ${selectedDate}`}/>
+              </div>
+            ) : (
             <div id={styles.selectedDate}>
-              <h2>{date}</h2>
+              <h2>{selectedDate}</h2>
               <p>Wybierz godziny pracy</p> 
-              <input type="time" defaultValue="00:00" />
-              <input type="time" defaultValue="22:00" />
+              <input type="time" onChange={e => setTimeFrom(e.target.value)} value={timeFrom} />
+              <input type="time" onChange={e => setTimeTo(e.target.value)} value={timeTo} />
+              <input type="button" onClick={setChoosedHours} value="Zatwierdź" />
             </div>
-          )}
+            )
+          ) : null}
       </div>
       
       <div className={styles.calendarWrapper}>
@@ -160,7 +276,8 @@ const getUserIdFromToken = () => {
             <Calendar 
                 onChange={setChosenDate} 
                 value={null} 
-                tileClassName={getTileClassName} 
+                tileClassName={getTileClassName}
+                tileContent={getTileContent}
             />
         </div>
     </div>
