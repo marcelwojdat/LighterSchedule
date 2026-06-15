@@ -14,6 +14,10 @@ const Dashboard = () => {
   const [workdays, setWorkdays] = useState([]); 
   const [error, setError] = useState('');
   const [date, setDate] = useState([]);
+  const [statsMonth, setStatsMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
   const navigate = useNavigate();
 
   const fetchWorkdays = async () => {
@@ -170,6 +174,39 @@ const Dashboard = () => {
     });
   };
 
+  const formatCurrency = (value) => {
+    const amount = Number(value) || 0;
+    return amount.toFixed(2).replace('.', ',') + ' zł';
+  };
+
+  const getMonthStats = (monthValue) => {
+    const [year, month] = monthValue.split('-');
+    const prefix = `${year}-${month}-`;
+    const monthWorkdays = workdays.filter(d => d.date.startsWith(prefix));
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const workedDays = monthWorkdays.filter(d => d.date <= todayStr);
+
+    const totalHoursToDate = workedDays.reduce((sum, day) => sum + Number(day.total_hours || 0), 0);
+    const earnedToDate = workedDays.reduce((sum, day) => sum + Number(day.earnings || 0), 0);
+    const totalDays = monthWorkdays.length;
+    const totalEarnings = monthWorkdays.reduce((sum, day) => sum + Number(day.earnings || 0), 0);
+
+    const monthName = new Date(Number(year), Number(month) - 1).toLocaleString('pl-PL', { month: 'long' });
+
+    return {
+      monthWorkdays,
+      totalHoursToDate,
+      earnedToDate,
+      totalDays,
+      totalEarnings,
+      monthTitle: `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${year}`
+    };
+  };
+
+  const monthStats = getMonthStats(statsMonth);
+
   const setSchedule = async () => {
     let token = localStorage.getItem('access');
     const userId = getUserIdFromToken();
@@ -294,8 +331,69 @@ const selectedDayExists =
   workdays.some(d => d.date === selectedDate);
 
   return (
-    <div style={{ padding: '20px' }}>
-      <h1>Twój Grafik Pracy</h1>
+    <div className={styles.dashboardPage}>
+      <h1 className={styles.dashboardTitle}>Twój Grafik Pracy</h1>
+      <div className={styles.dashboardBody}>
+        <div className={styles.statsWrapper}>
+          <div className={styles.statsHeader}>
+            <div>
+              <div className={styles.statsLabel}>Statystyki miesiąca</div>
+              <div className={styles.statsTitle}>{monthStats.monthTitle}</div>
+            </div>
+            <div className={styles.statsMonthPicker}>
+              <label htmlFor="stats-month">Wybierz miesiąc</label>
+              <input
+                id="stats-month"
+                type="month"
+                value={statsMonth}
+                onChange={(e) => setStatsMonth(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className={styles.statsGrid}>
+            <div className={styles.statCard}>
+              <h3>Godziny przepracowane</h3>
+              <p>{monthStats.totalHoursToDate.toFixed(2)}</p>
+              <small>do dnia dzisiejszego</small>
+            </div>
+            <div className={styles.statCard}>
+              <h3>Zarobki do dziś</h3>
+              <p>{formatCurrency(monthStats.earnedToDate)}</p>
+              <small>za dni w tym miesiącu</small>
+            </div>
+            <div className={styles.statCard}>
+              <h3>Dni do przepracowania</h3>
+              <p>{monthStats.totalDays}</p>
+              <small>zaplanowane w miesiącu</small>
+            </div>
+            <div className={styles.statCard}>
+              <h3>Zarobki w miesiącu</h3>
+              <p>{formatCurrency(monthStats.totalEarnings)}</p>
+              <small>za wszystkie dni w miesiącu</small>
+            </div>
+          </div>
+        </div>
+
+        <div className={styles.calendarPanel}>
+          <div className={styles.calendarHeader}>
+            <div>
+              <p className={styles.calendarLabel}>Kalendarz</p>
+              <div className={styles.calendarHeaderTitle}>Widok miesiąca i edycja grafiku</div>
+            </div>
+          </div>
+          <div className={styles.calendarWrapper}>
+            <div className={styles.calendarContainer}>
+              <Calendar
+                onChange={setChosenDate}
+                value={null}
+                tileClassName={getTileClassName}
+                tileContent={getTileContent}
+              />
+            </div>
+          </div>
+          <input type='button' onClick={setSchedule} value="Zapisz grafik" className={`${styles.scheduleSetBtn} ${styles.saveScheduleBtn}`} />
+        </div>
+      </div>
       {selectedDate ? (
         <div className={styles.popupBackdrop} onClick={cancelSelection}>
           <div className={styles.popupBox} onClick={(e) => e.stopPropagation()}>
@@ -338,37 +436,8 @@ const selectedDayExists =
         </div>
       ) : null}
       
-      <div className={styles.calendarWrapper}>
-        <div className={styles.calendarContainer}>
-            <Calendar 
-                onChange={setChosenDate} 
-                value={null} 
-                tileClassName={getTileClassName}
-                tileContent={getTileContent}
-            />
-        </div>
-    </div>
-    <div className={styles.buttonContainer}>
-      <input type='button' onClick={setSchedule} value="Zapisz grafik" className={styles.scheduleSetBtn}/>
-      <input type='button' onClick={handleLogout} value="Wyloguj się" className={styles.scheduleSetBtn}/>
-    </div>
+      <input type='button' onClick={handleLogout} value="Wyloguj się" className={`${styles.scheduleSetBtn} ${styles.logOutBtn}`} />
       {error && <p style={{ color: 'red' }}>{error}</p>}
-
-      {/* {workdays.length > 0 ? (
-    <ul>
-        {[...workdays]
-            .sort((a, b) => new Date(a.date) - new Date(b.date))
-            .map((day, index) => (
-                <li key={index}>
-                    <strong>{day.date}</strong> | {day.start_time} - {day.end_time} 
-                    (Stawka: {day.rate_at_time} zł)
-                </li>
-            ))
-        }
-    </ul>
-) : (
-    <p>Brak zaplanowanych dni pracy lub trwa ładowanie...</p>
-)} */}
 
     </div>
   );

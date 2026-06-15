@@ -1,24 +1,92 @@
-﻿.calendarWrapper {
+﻿.dashboardPage {
+  padding: 24px;
+  max-width: 1450px;
+  margin: 0 auto;
+}
+
+.dashboardBody {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  margin-top: 3em;
+}
+
+@media (min-width: 1024px) {
+  .dashboardBody {
+    grid-template-columns: 420px minmax(0, 1fr);
+    align-items: stretch;
+  }
+}
+
+.calendarPanel {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 24px;
+  padding: 22px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+  max-height: 68vh;
+}
+
+.calendarHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.calendarLabel {
+  margin: 0;
+  font-size: 0.85rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #475569;
+}
+
+.calendarHeaderTitle {
+  margin: 4px 0 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.calendarWrapper {
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: stretch;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  min-height: 0;
 }
 
 .calendarContainer {
-  width: 80vw !important;
-  max-width: none !important;
+  width: 100%;
+  max-width: 760px;
   margin: 0 auto;
+  padding: 14px;
+  border-radius: 20px;
+  background: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+  min-height: 0; 
 }
+
 .calendarContainer :global(.react-calendar) {
-  width: 100% !important; 
-  margin: 2em auto;
-}
+  width: 100% !important;  margin: 0 auto;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;  border-radius: 18px !important;}
 
 .calendarContainer :global(.react-calendar__navigation) {
   display: flex !important;
   justify-content: center !important;
   align-items: center !important;
-  margin-bottom: 20px;
+  /* margin-bottom: 4px !important; */
+  padding-bottom: 0 !important;
 }
 
 .calendarContainer :global(.react-calendar__navigation__label) {
@@ -31,36 +99,56 @@
   background: none;
   border: none;
   font-size: 1.2rem;
+  color: hsl(217, 33%, 17%);
+}
+
+.calendarContainer :global(.react-calendar__navigation button:enabled:hover),
+.calendarContainer :global(.react-calendar__navigation button:enabled:focus) {
+  background: rgba(59, 130, 246, 0.08) !important;
+  border-radius: 10px;
 }
 
 .calendarContainer :global(.react-calendar__tile) {
   flex-basis: calc(100% / 7 - 4px) !important;
   max-width: calc(100% / 7 - 4px) !important;
   margin: 2px !important;
-  height: 80px;
-  border: 1px solid black !important;
-  border-radius: 8px !important;
-  background: white; 
+  min-height: 72px;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  border-radius: 14px !important;
+  background: #ffffff;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;}
+
+.calendarContainer :global(.react-calendar__tile:focus) {
+  outline: none !important;
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18) !important;
+}
+
+.calendarContainer :global(.react-calendar__tile:hover) {
+  transform: translateY(-2px);
+  background: #eff6ff !important;
 }
 
 .calendarContainer :global(.custom-selected-day) {
-  background: #93A4C1 !important;
+  background: #3b82f6 !important;
   color: white !important;
+  box-shadow: 0 8px 18px rgba(59, 130, 246, 0.25);
 }
 
 .calendarContainer :global(.custom-saved-day) {
-  background: #18202B !important;
+  background: #0f172a !important;
   color: white !important;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
 }
 
 .calendarContainer :global(.react-calendar__tile--now) {
-  background: #c8c9c6 !important;
-  color: black !important;
-  border: 1.5px solid black !important;
+  background: #dbeafe !important;
+  color: #1e293b !important;
+  border: 1.5px solid rgba(37, 99, 235, 0.9) !important;
 }
 
 .buttonContainer {
@@ -69,6 +157,99 @@
   gap: 15px;              
   margin-top: 0.5em;        
   width: 100%;            
+}
+
+.dashboardTitle {
+  text-align: center;
+  margin-top: 0;
+  font-size: 2rem;
+  color: #333333;
+}
+
+.statsWrapper {
+  margin-bottom: 24px;
+  padding: 22px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
+  border-radius: 22px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+}
+
+.statsHeader {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.statsLabel {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: #475569;
+}
+
+.statsTitle {
+  font-size: 1.55rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.statsMonthPicker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 180px;
+}
+
+.statsMonthPicker label {
+  font-size: 0.85rem;
+  color: #334155;
+}
+
+.statsMonthPicker input {
+  height: 42px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.statCard {
+  padding: 18px 20px;
+  background: #ffffff;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.06);
+}
+
+.statCard h3 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.statCard p {
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.statCard small {
+  display: block;
+  margin-top: 10px;
+  color: #475569;
 }
 
 .scheduleSetBtn {
@@ -87,6 +268,16 @@
   background-color: #d4d5d5;
   border-color: #3d3d3d;
   transform: translateY(-1px); 
+}
+.saveScheduleBtn {
+  max-width: 20%;
+  justify-content: center;
+  align-self: center;
+}
+.logOutBtn {
+  position: absolute;
+  right: 2em;
+  top: 2em;
 }
 
 .hoursWrapper {
