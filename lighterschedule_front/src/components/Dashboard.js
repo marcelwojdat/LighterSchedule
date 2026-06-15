@@ -13,6 +13,7 @@ const Dashboard = () => {
   const [timeTo, setTimeTo] = useState("22:00");
   const [workdays, setWorkdays] = useState([]); 
   const [error, setError] = useState('');
+  const [showPastDateWarning, setShowPastDateWarning] = useState(false);
   const [date, setDate] = useState([]);
   const [statsMonth, setStatsMonth] = useState(() => {
     const now = new Date();
@@ -92,6 +93,11 @@ const Dashboard = () => {
       return;
     }
 
+    if (isPastDate(selectedDate)) {
+      setShowPastDateWarning(true);
+      return;
+    }
+
     const newSelectedDates = {
       ...selectedDates,
       [selectedDate]: {
@@ -167,6 +173,7 @@ const Dashboard = () => {
     const existing = workdays.some(d => d.date === selectedDate);
     setSelectedDate('');
     setError('');
+    setShowPastDateWarning(false);
     setSelectedDates(prev => {
       if (existing) return prev;
       const updated = { ...prev };
@@ -473,7 +480,15 @@ const fetchUserData = async () => {
       {selectedDate ? (
         <div className={styles.popupBackdrop} onClick={cancelSelection}>
           <div className={styles.popupBox} onClick={(e) => e.stopPropagation()}>
-            {selectedDayExists && !isPastDate(selectedDate) ? (
+            {showPastDateWarning ? (
+              <>
+                <h2 className={styles.popupTitle}>Nie można dodawać przeszłych dni</h2>
+                <p>Wybrany dzień {selectedDate} już minął i nie można go dodać.</p>
+                <div className={styles.popupButtons}>
+                  <input type="button" className={`${styles.popupBtn} ${styles.popupBtnSecondary}`} onClick={cancelSelection} value="Wróć"/>
+                </div>
+              </>
+            ) : selectedDayExists && !isPastDate(selectedDate) ? (
               <>
                 <h2 className={styles.popupTitle}>Usuń grafik z {selectedDate}?</h2>
                 <p>Jeśli klikniesz <strong>Usuń</strong>, dzień zostanie usunięty z deklaracji.</p>
@@ -499,12 +514,8 @@ const fetchUserData = async () => {
                   <input type="time" onChange={e => setTimeTo(e.target.value)} value={timeTo} />
                 </div>
                 <div className={styles.popupButtons}>
-                  <button className={styles.popupBtn} onClick={setChoosedHours}>
-                    Zatwierdź
-                  </button>
-                  <button className={`${styles.popupBtn} ${styles.popupBtnSecondary}`} onClick={cancelSelection}>
-                    Wróć
-                  </button>
+                  <input type='button' onClick={cancelSelection} value="Wróć" className={`${styles.popupBtn} ${styles.popupBtnSecondary}`} />
+                  <input type='button' onClick={setChoosedHours} value="Zatwierdź" className={styles.popupBtn} />
                 </div>
               </>
             )}
@@ -513,7 +524,6 @@ const fetchUserData = async () => {
       ) : null}
       
       <input type='button' onClick={handleLogout} value="Wyloguj się" className={`${styles.scheduleSetBtn} ${styles.logOutBtn}`} />
-      {error && <p style={{ color: 'red' }}>{error}</p>}
 
     </div>
   );
