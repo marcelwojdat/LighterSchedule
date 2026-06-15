@@ -50,17 +50,16 @@
 .calendarContainer :global(.custom-selected-day) {
   background: #93A4C1 !important;
   color: white !important;
-  /* border: 2px solid #0056b3 !important; */
 }
 
 .calendarContainer :global(.custom-saved-day) {
   background: #18202B !important;
   color: white !important;
-  /* border: 2px solid #28a745 !important; */
 }
 
 .calendarContainer :global(.react-calendar__tile--now) {
-  background: #B1B2AE !important;
+  background: #c8c9c6 !important;
+  color: black !important;
   border: 1.5px solid black !important;
 }
 
@@ -96,17 +95,74 @@
   align-items: center;
 }
 
-#selectedDate {
-  position: absolute;
-  width: 28%;
-  height: 35%;
-  border: 1px solid #000000;
-  border-radius: 8px;
-  background-color: #fff;
+.popupBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
   display: flex;
   justify-content: center;
-  flex-direction: column;
   align-items: center;
-  margin: 20em auto 0;
+  z-index: 1000;
+}
 
+.popupBox {
+  width: min(90%, 380px);
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.popupTitle {
+  margin: 0 0 8px;
+  font-size: 1.3rem;
+  text-align: center;
+}
+
+.popupField {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.popupField input {
+  width: 45%;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #c4c4c4;
+}
+
+.popupButtons {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.popupBtn {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #000000;
+  background-color: #f8f9fa;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.popupBtn:hover {
+  background-color: #e6e7e8;
+}
+
+.popupBtnDanger {
+  background-color: #d9534f;
+  color: white;
+  border-color: #c9302c;
+}
+
+.popupBtnSecondary {
+  background-color: #6c757d;
+  color: white;
+  border-color: #565e64;
 }

@@ -56,6 +56,14 @@ const Dashboard = () => {
         }
     };
 
+  const isPastDate = (dateStr) => {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const selectedDateObj = new Date(year, month - 1, day);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return selectedDateObj < today;
+  };
+
   const setChosenDate = (e) => {
     const year = e.getFullYear();
     const month = String(e.getMonth() + 1).padStart(2, '0');
@@ -63,8 +71,14 @@ const Dashboard = () => {
     const dateStr = `${year}-${month}-${day}`;
 
     setSelectedDate(dateStr);
+    setError('');
     setTimeFrom(selectedDates[dateStr]?.start_time?.slice(0, 5) || '12:00');
     setTimeTo(selectedDates[dateStr]?.end_time?.slice(0, 5) || '22:00');
+
+    const existing = workdays.find(d => d.date === dateStr);
+    if (existing && isPastDate(dateStr)) {
+      setError('');
+    }
   };
 
   const setChoosedHours = () => {
@@ -91,6 +105,10 @@ const Dashboard = () => {
 
   const removeDateFromSelection = async (dateStr) => {
     const existing = workdays.find(d => d.date === dateStr);
+    if (existing && isPastDate(dateStr)) {
+      return;
+    }
+
     if (existing) {
       let token = localStorage.getItem('access');
       try {
@@ -140,7 +158,19 @@ const Dashboard = () => {
     }
   };
 
-    const setSchedule = async () => {
+  const cancelSelection = () => {
+    const existing = workdays.some(d => d.date === selectedDate);
+    setSelectedDate('');
+    setError('');
+    setSelectedDates(prev => {
+      if (existing) return prev;
+      const updated = { ...prev };
+      delete updated[selectedDate];
+      return updated;
+    });
+  };
+
+  const setSchedule = async () => {
     let token = localStorage.getItem('access');
     const userId = getUserIdFromToken();
     const requests = Object.entries(selectedDates).map(([oneDate, times]) => {
@@ -219,15 +249,28 @@ const Dashboard = () => {
     const dateStr = `${year}-${month}-${day}`;
 
     const selected = selectedDates[dateStr];
-    if (!selected) return null;
-
-    return (
-      <div className={styles.tileContent}>
-        <div>
+    if (selected) {
+      return (
+        <div className={styles.tileContent}>
+          <div>
             {selected.start_time.slice(0, 5)} - {selected.end_time.slice(0, 5)}
+          </div>
         </div>
-      </div>
-    );
+      );
+    }
+
+    const saved = workdays.find(d => d.date === dateStr);
+    if (saved) {
+      return (
+        <div className={styles.tileContent}>
+          <div>
+            {saved.start_time.slice(0, 5)} - {saved.end_time.slice(0, 5)}
+          </div>
+        </div>
+      );
+    }
+
+    return null;
   };
 
 const getUserIdFromToken = () => {
@@ -253,23 +296,47 @@ const selectedDayExists =
   return (
     <div style={{ padding: '20px' }}>
       <h1>Twój Grafik Pracy</h1>
-      <div className={styles.hoursWrapper}>
-          {selectedDate ? (
-            selectedDayExists ? (
-              <div id={styles.selectedDate}>
-                <input type="button" onClick={() => removeDateFromSelection(selectedDate)} value={`Usuń dyspozycyjność z ${selectedDate}`}/>
-              </div>
+      {selectedDate ? (
+        <div className={styles.popupBackdrop} onClick={cancelSelection}>
+          <div className={styles.popupBox} onClick={(e) => e.stopPropagation()}>
+            {selectedDayExists && !isPastDate(selectedDate) ? (
+              <>
+                <h2 className={styles.popupTitle}>Usuń grafik z {selectedDate}?</h2>
+                <p>Jeśli klikniesz <strong>Usuń</strong>, dzień zostanie usunięty z deklaracji.</p>
+                <div className={styles.popupButtons}>
+                  <input type="button" className={`${styles.popupBtn} ${styles.popupBtnSecondary}`} onClick={cancelSelection} value="Wróć"/>
+                  <input type="button" className={`${styles.popupBtn} ${styles.popupBtnDanger}`} onClick={() => removeDateFromSelection(selectedDate)} value="Usuń" />
+                </div>
+              </>
+            ) : selectedDayExists && isPastDate(selectedDate) ? (
+              <>
+                <h2 className={styles.popupTitle}>Nie można usuwać przeszłych dni</h2>
+                <p>Wybrany dzień {selectedDate} już minął i nie można go usunąć.</p>
+                <div className={styles.popupButtons}>
+                  <input type="button" className={`${styles.popupBtn} ${styles.popupBtnSecondary}`} onClick={cancelSelection} value="Wróć"/>
+                </div>
+              </>
             ) : (
-            <div id={styles.selectedDate}>
-              <h2>{selectedDate}</h2>
-              <p>Wybierz godziny pracy</p> 
-              <input type="time" onChange={e => setTimeFrom(e.target.value)} value={timeFrom} />
-              <input type="time" onChange={e => setTimeTo(e.target.value)} value={timeTo} />
-              <input type="button" onClick={setChoosedHours} value="Zatwierdź" />
-            </div>
-            )
-          ) : null}
-      </div>
+              <>
+                <h2 className={styles.popupTitle}>{selectedDate}</h2>
+                <p>Wybierz godziny pracy</p>
+                <div className={styles.popupField}>
+                  <input type="time" onChange={e => setTimeFrom(e.target.value)} value={timeFrom} />
+                  <input type="time" onChange={e => setTimeTo(e.target.value)} value={timeTo} />
+                </div>
+                <div className={styles.popupButtons}>
+                  <button className={styles.popupBtn} onClick={setChoosedHours}>
+                    Zatwierdź
+                  </button>
+                  <button className={`${styles.popupBtn} ${styles.popupBtnSecondary}`} onClick={cancelSelection}>
+                    Wróć
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      ) : null}
       
       <div className={styles.calendarWrapper}>
         <div className={styles.calendarContainer}>
