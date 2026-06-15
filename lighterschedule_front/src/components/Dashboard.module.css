@@ -38,6 +38,20 @@
   margin-bottom: 18px;
 }
 
+.calendarUserInfo {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.userFullName {
+  margin-right: 2em;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
+  text-align: right;
+}
+
 .calendarLabel {
   margin: 0;
   font-size: 0.85rem;

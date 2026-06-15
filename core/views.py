@@ -2,11 +2,11 @@ from rest_framework import viewsets, permissions
 from django.db import models
 from django.db.models import Q
 from .models import TaskType, WorkDay, SwapRequest, EmployeeProfile
-from .serializers import TaskTypeSerializer, WorkDaySerializer, SwapRequestSerializer
+from .serializers import TaskTypeSerializer, WorkDaySerializer, SwapRequestSerializer, UserSerializer
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth.models import User
 
 
@@ -27,6 +27,12 @@ def register_user(request):
     EmployeeProfile.objects.create(user=user) # Tworzymy profil automatycznie
     
     return Response({'message': 'Zarejestrowano pomyślnie'}, status=status.HTTP_201_CREATED)
+
+
+class UserViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated]
 
 
 class TaskTypeViewSet(viewsets.ModelViewSet):

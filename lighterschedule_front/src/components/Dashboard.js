@@ -18,6 +18,7 @@ const Dashboard = () => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
+  const [userData, setUserData] = useState({ first_name: '', last_name: '' });
   const navigate = useNavigate();
 
   const fetchWorkdays = async () => {
@@ -322,11 +323,81 @@ const getUserIdFromToken = () => {
         return null;
     }
 };
+
+const getUserDataFromToken = () => {
+  const token = localStorage.getItem('access');
+  if (!token) return { first_name: '', last_name: '' };
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(window.atob(base64));
+
+
+
+    console.log("Dane z tokena:", payload);
+    
+    
+    
+    return {
+      first_name: payload.first_name || '',
+      last_name: payload.last_name || ''
+    };
+  } catch (e) {
+    return { first_name: '', last_name: '' };
+  }
+};
+
+const fetchUserData = async () => {
+  console.log("Pobieranie danych użytkownika...");
+  const userId = getUserIdFromToken();
+  if (!userId) return;
+    console.log("Stamp1: Pobieranie danych użytkownika dla ID:", userId);
+
+  let token = localStorage.getItem('access');
+  
+  try {
+    let response = await fetch(`http://127.0.0.1:8000/api/users/${userId}/`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    if (response.status === 401) {
+      try {
+        token = await Auth.refreshToken();
+        response = await fetch(`http://127.0.0.1:8000/api/users/${userId}/`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+      } catch (refreshErr) {
+        Auth.logout();
+        return;
+      }
+    }
+    
+    if (response.ok) {
+        console.log("Stamp2 pobrane dane użytkownika:", response);
+
+      const data = await response.json();
+      setUserData({
+        first_name: data.first_name || '',
+        last_name: data.last_name || ''
+      });
+    }
+  } catch (err) {
+    console.error('Błąd przy pobieraniu danych użytkownika:', err);
+  }
+};
   
   useEffect(() => {
     fetchWorkdays();
-  }, []); 
-const selectedDayExists =
+    fetchUserData();
+  }, []);const selectedDayExists =
   selectedDates[selectedDate] ||
   workdays.some(d => d.date === selectedDate);
 
@@ -379,6 +450,11 @@ const selectedDayExists =
             <div>
               <p className={styles.calendarLabel}>Kalendarz</p>
               <div className={styles.calendarHeaderTitle}>Widok miesiąca i edycja grafiku</div>
+            </div>
+            <div className={styles.calendarUserInfo}>
+              <p className={styles.userFullName}>
+                {userData.first_name} {userData.last_name}
+              </p>
             </div>
           </div>
           <div className={styles.calendarWrapper}>
