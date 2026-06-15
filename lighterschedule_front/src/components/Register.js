@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Auth from './Auth';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import styles from './Register.module.css';
 
 const Register = () => {
   const [username, setUsername] = useState('');
@@ -21,26 +22,54 @@ const Register = () => {
   };
 
   return (
-    <div style={{ padding: '20px' }}>
-      <h2>Zarejestruj się</h2>
-      <form onSubmit={handleRegister}>
-        <input 
-          type="text" 
-          placeholder="Nowy login" 
-          value={username} 
-          onChange={(e) => setUsername(e.target.value)} 
-        />
-        <br /><br />
-        <input 
-          type="password" 
-          placeholder="Nowe hasło" 
-          value={password} 
-          onChange={(e) => setPassword(e.target.value)} 
-        />
-        <br /><br />
-        <button type="submit">Załóż konto</button>
-      </form>
-      {message && <p>{message}</p>}
+    <div className={styles.registerPage}>
+      <div className={styles.registerContainer}>
+        <div className={styles.registerHeader}>
+          <h2 className={styles.registerTitle}>Zarejestruj się</h2>
+          <p className={styles.registerSubtitle}>Stwórz konto i zacznij planować</p>
+        </div>
+
+        {message && (
+          <div className={message.includes('Rejestracja udana') ? styles.successMessage : styles.errorMessage}>
+            {message}
+          </div>
+        )}
+
+        <form className={styles.registerForm} onSubmit={handleRegister}>
+          <div className={styles.formGroup}>
+            <label htmlFor="username">Login</label>
+            <input
+              id="username"
+              type="text"
+              placeholder="Wpisz nową nazwę użytkownika"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="password">Hasło</label>
+            <input
+              id="password"
+              type="password"
+              placeholder="Wpisz nowe hasło"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+
+          <button className={styles.registerButton} type="submit">
+            Załóż konto
+          </button>
+        </form>
+
+        <div className={styles.registerFooter}>
+          <p>
+            Masz już konto?{' '}
+            <Link to="/login">Zaloguj się tutaj</Link>
+          </p>
+        </div>
+      </div>
     </div>
   );
 };

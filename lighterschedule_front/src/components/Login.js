@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Auth from './Auth';
 import { useNavigate, Link } from 'react-router-dom';
+import styles from './Login.module.css';
 
 const Login = () => {
   const [username, setUsername] = useState('');
@@ -23,31 +24,50 @@ const Login = () => {
   };
 
   return (
-    <div style={{ padding: '20px' }}>
-      <h2>Zaloguj się</h2>
-      <form onSubmit={handleSubmit}>
-        <div>
-          <label>Login: </label>
-          <input 
-            type="text" 
-            value={username} 
-            onChange={(e) => setUsername(e.target.value)} 
-          />
+    <div className={styles.loginPage}>
+      <div className={styles.loginContainer}>
+        <div className={styles.loginHeader}>
+          <h2 className={styles.loginTitle}>Zaloguj się</h2>
+          <p className={styles.loginSubtitle}>Wróć do swojego grafiku pracy</p>
         </div>
-        <br />
-        <div>
-          <label>Hasło: </label>
-          <input 
-            type="password" 
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)} 
-          />
+
+        {error && <div className={styles.errorMessage}>{error}</div>}
+
+        <form className={styles.loginForm} onSubmit={handleSubmit}>
+          <div className={styles.formGroup}>
+            <label htmlFor="username">Login</label>
+            <input
+              id="username"
+              type="text"
+              placeholder="Wpisz swoją nazwę użytkownika"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="password">Hasło</label>
+            <input
+              id="password"
+              type="password"
+              placeholder="Wpisz swoje hasło"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+
+          <button className={styles.loginButton} type="submit">
+            Zaloguj
+          </button>
+        </form>
+
+        <div className={styles.loginFooter}>
+          <p>
+            Nie masz konta?{' '}
+            <Link to="/register">Zarejestruj się tutaj</Link>
+          </p>
         </div>
-        <br />
-        <button type="submit">Zaloguj</button>
-      </form>
-    <p>Nie masz konta? <Link to="/register">Zarejestruj się tutaj</Link></p>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      </div>
     </div>
   );
 };
