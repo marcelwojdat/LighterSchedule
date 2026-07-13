@@ -160,6 +160,22 @@
   background: #fffbeb;
 }
 
+.swapQueueItem {
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+}
+
+.swapTransfer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 0.92rem;
+  color: #334155;
+}
+
 .queueItemHeader {
   display: flex;
   justify-content: space-between;

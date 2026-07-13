@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import Calendar from 'react-calendar';
-import { useNavigate } from 'react-router-dom';
 import 'react-calendar/dist/Calendar.css';
 import Auth from './Auth';
 import UserMenu from './UserMenu';
@@ -10,6 +9,13 @@ const STATUS_LABELS = {
   proposed: 'Oczekuje',
   approved: 'Zatwierdzony',
   rejected: 'Odrzucony',
+};
+
+const SWAP_STATUS_LABELS = {
+  pending_target: 'Oczekuje na kolegę',
+  pending_manager: 'Oczekuje na kierownika',
+  approved: 'Zatwierdzona',
+  rejected: 'Odrzucona',
 };
 
 const Dashboard = () => {
@@ -27,7 +33,11 @@ const Dashboard = () => {
   });
   const [currentUser, setCurrentUser] = useState(null);
   const [darkMode, setDarkMode] = useState(false);
-  const navigate = useNavigate();
+  const [swaps, setSwaps] = useState([]);
+  const [colleagues, setColleagues] = useState([]);
+  const [swapWorkDayId, setSwapWorkDayId] = useState('');
+  const [swapTargetId, setSwapTargetId] = useState('');
+  const [swapSuccess, setSwapSuccess] = useState('');
 
   const authFetch = async (url, options = {}) => {
     let token = localStorage.getItem('access');
@@ -53,6 +63,101 @@ const Dashboard = () => {
     }
 
     return response;
+  };
+
+  const fetchSwaps = async () => {
+    try {
+      const response = await authFetch('http://127.0.0.1:8000/api/swaps/');
+      if (!response.ok) throw new Error('Nie udało się pobrać zamian.');
+      const data = await response.json();
+      setSwaps(data);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const fetchColleagues = async () => {
+    try {
+      const response = await authFetch('http://127.0.0.1:8000/api/users/');
+      if (!response.ok) throw new Error('Nie udało się pobrać listy pracowników.');
+      const data = await response.json();
+      setColleagues(data.filter((user) => !user.is_manager));
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const isActiveSwap = (swap) => !swap.is_rejected && !swap.approved_by_manager;
+
+  const hasActiveSwapForWorkday = (workdayId) =>
+    swaps.some((swap) => swap.work_day === workdayId && isActiveSwap(swap));
+
+  const swappableWorkdays = workdays.filter(
+    (day) =>
+      day.status === 'approved' &&
+      !isPastDate(day.date) &&
+      !hasActiveSwapForWorkday(day.id)
+  );
+
+  const createSwapRequest = async () => {
+    if (!swapWorkDayId || !swapTargetId) {
+      setError('Wybierz zmianę i pracownika, do którego wysyłasz prośbę.');
+      return;
+    }
+
+    try {
+      const response = await authFetch('http://127.0.0.1:8000/api/swaps/', {
+        method: 'POST',
+        body: JSON.stringify({
+          work_day: Number(swapWorkDayId),
+          target_user: Number(swapTargetId),
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        const message = data.work_day?.[0] || data.target_user?.[0] || data.non_field_errors?.[0] || data.error || 'Nie udało się wysłać prośby.';
+        throw new Error(message);
+      }
+
+      setSwapWorkDayId('');
+      setSwapTargetId('');
+      setSwapSuccess('Prośba o zamianę została wysłana.');
+      setError('');
+      await fetchSwaps();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const acceptSwap = async (swapId) => {
+    try {
+      const response = await authFetch(`http://127.0.0.1:8000/api/swaps/${swapId}/accept/`, { method: 'POST' });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Nie udało się zaakceptować prośby.');
+      }
+      setSwapSuccess('Zaakceptowano prośbę. Czeka na zatwierdzenie kierownika.');
+      setError('');
+      await fetchSwaps();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const rejectSwap = async (swapId) => {
+    try {
+      const response = await authFetch(`http://127.0.0.1:8000/api/swaps/${swapId}/reject/`, { method: 'POST' });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Nie udało się odrzucić prośby.');
+      }
+      setSwapSuccess('Prośba została odrzucona.');
+      setError('');
+      await fetchSwaps();
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   const fetchWorkdays = async () => {
@@ -291,6 +396,8 @@ const Dashboard = () => {
   useEffect(() => {
     fetchWorkdays();
     fetchCurrentUser();
+    fetchSwaps();
+    fetchColleagues();
   }, []);
 
   const getTileClassName = ({ date: tileDate, view }) => {
@@ -484,6 +591,9 @@ const Dashboard = () => {
     );
   };
 
+  const sentSwaps = swaps.filter((swap) => swap.requested_by === currentUser?.id);
+  const receivedSwaps = swaps.filter((swap) => swap.target_user === currentUser?.id);
+
   return (
     <div className={styles.dashboardPage}>
       <div className={styles.pageHeader}>
@@ -503,6 +613,7 @@ const Dashboard = () => {
         ) : null}
       </div>
       {error ? <div className={styles.rejectionReason}>{error}</div> : null}
+      {swapSuccess ? <div className={styles.swapSuccess}>{swapSuccess}</div> : null}
       <div className={styles.dashboardBody}>
         <div className={styles.statsWrapper}>
           <div className={styles.statsHeader}>
@@ -587,6 +698,102 @@ const Dashboard = () => {
           />
         </div>
       </div>
+
+      <section className={styles.swapsSection}>
+        <h3 className={styles.swapsTitle}>Zamiany zmian</h3>
+        <p className={styles.swapsHint}>
+          Możesz poprosić kolegę o przejęcie swojej zatwierdzonej zmiany. Wymaga to akceptacji kolegi i zatwierdzenia kierownika.
+        </p>
+
+        <div className={styles.swapForm}>
+          <select value={swapWorkDayId} onChange={(e) => setSwapWorkDayId(e.target.value)}>
+            <option value="">Wybierz swoją zmianę</option>
+            {swappableWorkdays.map((day) => (
+              <option key={day.id} value={day.id}>
+                {day.date} ({day.start_time.slice(0, 5)} - {day.end_time.slice(0, 5)})
+              </option>
+            ))}
+          </select>
+          <select value={swapTargetId} onChange={(e) => setSwapTargetId(e.target.value)}>
+            <option value="">Wybierz kolegę</option>
+            {colleagues
+              .filter((colleague) => colleague.id !== currentUser?.id)
+              .map((colleague) => (
+                <option key={colleague.id} value={colleague.id}>
+                  {`${colleague.first_name || ''} ${colleague.last_name || ''}`.trim() || colleague.username}
+                </option>
+              ))}
+          </select>
+          <button type="button" className={styles.swapSubmitBtn} onClick={createSwapRequest}>
+            Wyślij prośbę
+          </button>
+        </div>
+
+        <div className={styles.swapLists}>
+          <div className={styles.swapListCard}>
+            <h4>Wysłane prośby</h4>
+            {sentSwaps.length === 0 ? (
+              <p className={styles.swapEmpty}>Brak wysłanych próśb.</p>
+            ) : (
+              <ul className={styles.swapList}>
+                {sentSwaps.map((swap) => (
+                  <li key={swap.id} className={styles.swapListItem}>
+                    <div>
+                      <strong>{swap.work_day_details?.date}</strong>
+                      <div>
+                        {swap.work_day_details?.start_time?.slice(0, 5)} - {swap.work_day_details?.end_time?.slice(0, 5)}
+                      </div>
+                      <small>Do: {swap.target_user_name}</small>
+                    </div>
+                    <div className={styles.swapListActions}>
+                      <span className={styles.swapStatusTag}>{SWAP_STATUS_LABELS[swap.status]}</span>
+                      {swap.status === 'pending_target' ? (
+                        <button type="button" className={styles.swapRejectBtn} onClick={() => rejectSwap(swap.id)}>
+                          Anuluj
+                        </button>
+                      ) : null}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className={styles.swapListCard}>
+            <h4>Otrzymane prośby</h4>
+            {receivedSwaps.length === 0 ? (
+              <p className={styles.swapEmpty}>Brak otrzymanych próśb.</p>
+            ) : (
+              <ul className={styles.swapList}>
+                {receivedSwaps.map((swap) => (
+                  <li key={swap.id} className={styles.swapListItem}>
+                    <div>
+                      <strong>{swap.work_day_details?.date}</strong>
+                      <div>
+                        {swap.work_day_details?.start_time?.slice(0, 5)} - {swap.work_day_details?.end_time?.slice(0, 5)}
+                      </div>
+                      <small>Od: {swap.requested_by_name}</small>
+                    </div>
+                    <div className={styles.swapListActions}>
+                      <span className={styles.swapStatusTag}>{SWAP_STATUS_LABELS[swap.status]}</span>
+                      {swap.status === 'pending_target' ? (
+                        <>
+                          <button type="button" className={styles.swapAcceptBtn} onClick={() => acceptSwap(swap.id)}>
+                            Akceptuję
+                          </button>
+                          <button type="button" className={styles.swapRejectBtn} onClick={() => rejectSwap(swap.id)}>
+                            Odrzucam
+                          </button>
+                        </>
+                      ) : null}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </section>
 
       {selectedDate ? (
         <div className={styles.popupBackdrop} onClick={cancelSelection}>

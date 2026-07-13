@@ -283,6 +283,145 @@
   font-size: 0.9rem;
 }
 
+.swapSuccess {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #d1fae5;
+  color: #065f46;
+  font-size: 0.9rem;
+}
+
+.swapsSection {
+  margin-top: 24px;
+  padding: 22px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
+  border-radius: 22px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+}
+
+.swapsTitle {
+  margin: 0 0 8px;
+  font-size: 1.35rem;
+}
+
+.swapsHint {
+  margin: 0 0 16px;
+  color: #64748b;
+  font-size: 0.92rem;
+}
+
+.swapForm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.swapForm select {
+  min-width: 220px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+}
+
+.swapSubmitBtn {
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: none;
+  background: #3b82f6;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.swapLists {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 900px) {
+  .swapLists {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.swapListCard {
+  padding: 16px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+}
+
+.swapListCard h4 {
+  margin: 0 0 12px;
+}
+
+.swapEmpty {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.swapList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.swapListItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.swapListActions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.swapStatusTag {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.swapAcceptBtn,
+.swapRejectBtn {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+.swapAcceptBtn {
+  background: #059669;
+  color: #fff;
+}
+
+.swapRejectBtn {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 .calendarContainer :global(.react-calendar__tile--now) {
   background: #dbeafe !important;
   color: #1e293b !important;

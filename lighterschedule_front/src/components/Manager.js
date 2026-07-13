@@ -11,6 +11,13 @@ const STATUS_LABELS = {
   rejected: 'Odrzucony',
 };
 
+const SWAP_STATUS_LABELS = {
+  pending_target: 'Oczekuje na kolegę',
+  pending_manager: 'Oczekuje na kierownika',
+  approved: 'Zatwierdzona',
+  rejected: 'Odrzucona',
+};
+
 const Manager = () => {
   const [employees, setEmployees] = useState([]);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
@@ -20,6 +27,7 @@ const Manager = () => {
   });
   const [workdays, setWorkdays] = useState([]);
   const [pendingQueue, setPendingQueue] = useState([]);
+  const [swapQueue, setSwapQueue] = useState([]);
   const [selectedDate, setSelectedDate] = useState('');
   const [timeFrom, setTimeFrom] = useState('12:00');
   const [timeTo, setTimeTo] = useState('20:00');
@@ -82,6 +90,17 @@ const Manager = () => {
     }
   };
 
+  const fetchSwapQueue = async () => {
+    try {
+      const res = await authFetch('http://127.0.0.1:8000/api/swaps/?pending_manager=true');
+      if (!res.ok) throw new Error('Nie udało się pobrać zamian do zatwierdzenia');
+      const data = await res.json();
+      setSwapQueue(data);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
   const fetchWorkdaysForEmployee = async (employeeId) => {
     try {
       const res = await authFetch(`http://127.0.0.1:8000/api/workdays/?employee=${employeeId}`);
@@ -97,6 +116,7 @@ const Manager = () => {
     await Promise.all([
       fetchEmployees(),
       fetchPendingQueue(),
+      fetchSwapQueue(),
       employeeId ? fetchWorkdaysForEmployee(employeeId) : Promise.resolve(),
     ]);
   };
@@ -296,6 +316,36 @@ const Manager = () => {
     }
   };
 
+  const approveSwap = async (swap) => {
+    try {
+      const res = await authFetch(`http://127.0.0.1:8000/api/swaps/${swap.id}/approve/`, { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Nie udało się zatwierdzić zamiany.');
+      }
+      setSuccess(`Zatwierdzono zamianę zmiany z dnia ${swap.work_day_details?.date}.`);
+      setError('');
+      await refreshData(selectedEmployee?.id);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const rejectSwap = async (swap) => {
+    try {
+      const res = await authFetch(`http://127.0.0.1:8000/api/swaps/${swap.id}/reject/`, { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Nie udało się odrzucić zamiany.');
+      }
+      setSuccess(`Odrzucono zamianę zmiany z dnia ${swap.work_day_details?.date}.`);
+      setError('');
+      await refreshData(selectedEmployee?.id);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
   const totalForMonth = () => {
     const [year, month] = statsMonth.split('-');
     const prefix = `${year}-${month}-`;
@@ -348,6 +398,9 @@ const Manager = () => {
             </div>
             <div className={styles.statRow}>
               <strong>Oczekujące deklaracje:</strong> {pendingQueue.length}
+            </div>
+            <div className={styles.statRow}>
+              <strong>Zamiany do zatwierdzenia:</strong> {swapQueue.length}
             </div>
             <div className={styles.statRow}>
               <strong>Godziny (zatwierdzone):</strong> {monthStats.totalHours.toFixed(2)}
@@ -445,6 +498,43 @@ const Manager = () => {
                           </button>
                         </>
                       )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className={styles.sectionCard}>
+            <div className={styles.sectionHeader}>
+              <h3>Zamiany do zatwierdzenia</h3>
+              <span className={styles.queueBadge}>{swapQueue.length}</span>
+            </div>
+            {swapQueue.length === 0 ? (
+              <p className={styles.emptyQueue}>Brak zamian oczekujących na zatwierdzenie.</p>
+            ) : (
+              <div className={styles.queueList}>
+                {swapQueue.map((swap) => (
+                  <div key={swap.id} className={styles.swapQueueItem}>
+                    <div className={styles.queueItemHeader}>
+                      <strong>{swap.work_day_details?.date}</strong>
+                      <span>{SWAP_STATUS_LABELS[swap.status]}</span>
+                    </div>
+                    <div className={styles.queueHours}>
+                      {swap.work_day_details?.start_time?.slice(0, 5)} - {swap.work_day_details?.end_time?.slice(0, 5)}
+                    </div>
+                    <div className={styles.swapTransfer}>
+                      <span>{swap.requested_by_name}</span>
+                      <span>→</span>
+                      <span>{swap.target_user_name}</span>
+                    </div>
+                    <div className={styles.queueActions}>
+                      <button className={styles.btnSuccess} onClick={() => approveSwap(swap)}>
+                        Zatwierdź zamianę
+                      </button>
+                      <button className={styles.btnDanger} onClick={() => rejectSwap(swap)}>
+                        Odrzuć
+                      </button>
                     </div>
                   </div>
                 ))}
