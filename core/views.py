@@ -36,9 +36,25 @@ def register_user(request):
 
 
 class UserViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = User.objects.all()
+    queryset = User.objects.select_related('profile').all()
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
+
+    @action(detail=True, methods=['patch'], permission_classes=[IsAuthenticated, IsManager])
+    def profile(self, request, pk=None):
+        user = self.get_object()
+        hourly_rate = request.data.get('hourly_rate')
+
+        if hourly_rate is None:
+            return Response(
+                {'error': 'Podaj stawkę godzinową (hourly_rate).'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.profile.hourly_rate = hourly_rate
+        user.profile.save()
+
+        return Response(UserSerializer(user, context={'request': request}).data)
 
 
 class TaskTypeViewSet(viewsets.ModelViewSet):

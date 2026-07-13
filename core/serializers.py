@@ -6,9 +6,26 @@ from datetime import datetime
 
 
 class UserSerializer(serializers.ModelSerializer):
+    hourly_rate = serializers.SerializerMethodField()
+    is_manager = serializers.SerializerMethodField()
+    email = serializers.EmailField(read_only=True)
+
     class Meta:
         model = User
-        fields = ['id', 'username', 'first_name', 'last_name']
+        fields = [
+            'id', 'username', 'first_name', 'last_name', 'email',
+            'hourly_rate', 'is_manager',
+        ]
+
+    def get_hourly_rate(self, obj):
+        if hasattr(obj, 'profile'):
+            return obj.profile.hourly_rate
+        return None
+
+    def get_is_manager(self, obj):
+        if hasattr(obj, 'profile'):
+            return obj.profile.is_manager
+        return False
 
 
 class TaskTypeSerializer(serializers.ModelSerializer):
