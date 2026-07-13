@@ -153,10 +153,118 @@
   box-shadow: 0 8px 18px rgba(59, 130, 246, 0.25);
 }
 
-.calendarContainer :global(.custom-saved-day) {
-  background: #0f172a !important;
+.calendarContainer :global(.custom-proposed-day) {
+  background: #f59e0b !important;
+  color: #1e293b !important;
+  box-shadow: 0 8px 18px rgba(245, 158, 11, 0.28);
+}
+
+.calendarContainer :global(.custom-approved-day) {
+  background: #059669 !important;
   color: white !important;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
+  box-shadow: 0 8px 18px rgba(5, 150, 105, 0.28);
+}
+
+.calendarContainer :global(.custom-rejected-day) {
+  background: #dc2626 !important;
+  color: white !important;
+  box-shadow: 0 8px 18px rgba(220, 38, 38, 0.28);
+}
+
+.statusLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.legendDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.legendProposed {
+  background: #f59e0b;
+}
+
+.legendApproved {
+  background: #059669;
+}
+
+.legendRejected {
+  background: #dc2626;
+}
+
+.legendSelected {
+  background: #3b82f6;
+}
+
+.tileContent {
+  margin-top: 4px;
+  font-size: 0.68rem;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.tileHours {
+  font-weight: 700;
+}
+
+.tileStatus {
+  margin-top: 2px;
+  font-size: 0.62rem;
+  opacity: 0.92;
+}
+
+.statusBadge {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.statusProposed {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.statusApproved {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.statusRejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.popupInfo {
+  margin: 8px 0 0;
+  color: #475569;
+  text-align: center;
+}
+
+.rejectionReason {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 0.9rem;
 }
 
 .calendarContainer :global(.react-calendar__tile--now) {
