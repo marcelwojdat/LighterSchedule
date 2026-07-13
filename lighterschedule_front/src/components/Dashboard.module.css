@@ -2,6 +2,22 @@
   padding: 24px;
   max-width: 1450px;
   margin: 0 auto;
+  position: relative;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.dashboardTitle {
+  text-align: left;
+  margin-top: 0;
+  margin-bottom: 0;
+  font-size: 2rem;
+  color: #333333;
 }
 
 .dashboardBody {
@@ -281,12 +297,6 @@
   width: 100%;            
 }
 
-.dashboardTitle {
-  text-align: center;
-  margin-top: 0;
-  font-size: 2rem;
-  color: #333333;
-}
 
 .statsWrapper {
   margin-bottom: 24px;

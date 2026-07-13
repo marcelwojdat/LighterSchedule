@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { User, Settings2, SunMoon, LogOut, ChevronDown } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { User, Settings2, SunMoon, LogOut, ChevronDown, LayoutDashboard, Shield } from 'lucide-react';
 import styles from './UserMenu.module.css';
 
-const UserMenu = ({ user, darkMode, onToggleTheme, onLogout }) => {
+const UserMenu = ({ user, isManager, darkMode, onToggleTheme, onLogout }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -17,12 +18,16 @@ const UserMenu = ({ user, darkMode, onToggleTheme, onLogout }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const initials = user.name
+  const displayName = user.name?.trim() || user.username || 'Użytkownik';
+  const initials = displayName
     .split(' ')
+    .filter(Boolean)
     .map((segment) => segment[0])
     .join('')
     .slice(0, 2)
     .toUpperCase();
+
+  const closeMenu = () => setIsOpen(false);
 
   return (
     <div className={styles.menuWrapper} ref={menuRef}>
@@ -42,15 +47,27 @@ const UserMenu = ({ user, darkMode, onToggleTheme, onLogout }) => {
             <User size={18} />
           </div>
           <div>
-            <p className={styles.userName}>{user.name}</p>
-            <p className={styles.userEmail}>{user.email}</p>
+            <p className={styles.userName}>{displayName}</p>
+            <p className={styles.userEmail}>{user.email || user.username}</p>
           </div>
         </div>
 
-        <a href="/profile" className={styles.menuLink}>
+        <Link to="/dashboard" className={styles.menuLink} onClick={closeMenu}>
+          <LayoutDashboard size={16} className={styles.linkIcon} />
+          Panel pracownika
+        </Link>
+
+        {isManager ? (
+          <Link to="/manager" className={styles.menuLink} onClick={closeMenu}>
+            <Shield size={16} className={styles.linkIcon} />
+            Panel kierownika
+          </Link>
+        ) : null}
+
+        <Link to="/profile" className={styles.menuLink} onClick={closeMenu}>
           <Settings2 size={16} className={styles.linkIcon} />
           Ustawienia profilu
-        </a>
+        </Link>
 
         <button type="button" className={styles.menuButton} onClick={onToggleTheme}>
           <SunMoon size={16} className={styles.linkIcon} />
@@ -62,7 +79,7 @@ const UserMenu = ({ user, darkMode, onToggleTheme, onLogout }) => {
           type="button"
           className={styles.logoutButton}
           onClick={() => {
-            setIsOpen(false);
+            closeMenu();
             onLogout();
           }}
         >

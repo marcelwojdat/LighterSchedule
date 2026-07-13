@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Calendar from 'react-calendar';
+import { useNavigate } from 'react-router-dom';
 import 'react-calendar/dist/Calendar.css';
 import Auth from './Auth';
+import UserMenu from './UserMenu';
 import styles from './Dashboard.module.css';
 
 const STATUS_LABELS = {
@@ -24,7 +25,8 @@ const Dashboard = () => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
-  const [userData, setUserData] = useState({ first_name: '', last_name: '' });
+  const [currentUser, setCurrentUser] = useState(null);
+  const [darkMode, setDarkMode] = useState(false);
   const navigate = useNavigate();
 
   const authFetch = async (url, options = {}) => {
@@ -274,9 +276,22 @@ const Dashboard = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('access');
-    navigate('/login');
+    Auth.logout();
   };
+
+  const fetchCurrentUser = async () => {
+    try {
+      const data = await Auth.fetchCurrentUser();
+      setCurrentUser(data);
+    } catch {
+      Auth.logout();
+    }
+  };
+
+  useEffect(() => {
+    fetchWorkdays();
+    fetchCurrentUser();
+  }, []);
 
   const getTileClassName = ({ date: tileDate, view }) => {
     if (view !== 'month') return null;
@@ -330,42 +345,6 @@ const Dashboard = () => {
 
     return null;
   };
-
-  const getUserIdFromToken = () => {
-    const token = localStorage.getItem('access');
-    if (!token) return null;
-    try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const payload = JSON.parse(window.atob(base64));
-      return payload.user_id;
-    } catch {
-      return null;
-    }
-  };
-
-  const fetchUserData = async () => {
-    const userId = getUserIdFromToken();
-    if (!userId) return;
-
-    try {
-      const response = await authFetch(`http://127.0.0.1:8000/api/users/${userId}/`);
-      if (response.ok) {
-        const data = await response.json();
-        setUserData({
-          first_name: data.first_name || '',
-          last_name: data.last_name || '',
-        });
-      }
-    } catch {
-      // dane użytkownika są opcjonalne dla widoku kalendarza
-    }
-  };
-
-  useEffect(() => {
-    fetchWorkdays();
-    fetchUserData();
-  }, []);
 
   const existingWorkday = selectedDate ? getWorkdayForDate(selectedDate) : null;
   const pendingSelection = selectedDate ? selectedDates[selectedDate] : null;
@@ -507,7 +486,22 @@ const Dashboard = () => {
 
   return (
     <div className={styles.dashboardPage}>
-      <h1 className={styles.dashboardTitle}>Twój Grafik Pracy</h1>
+      <div className={styles.pageHeader}>
+        <h1 className={styles.dashboardTitle}>Twój Grafik Pracy</h1>
+        {currentUser ? (
+          <UserMenu
+            user={{
+              name: `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim(),
+              email: currentUser.email,
+              username: currentUser.username,
+            }}
+            isManager={currentUser.is_manager}
+            darkMode={darkMode}
+            onToggleTheme={() => setDarkMode((prev) => !prev)}
+            onLogout={handleLogout}
+          />
+        ) : null}
+      </div>
       {error ? <div className={styles.rejectionReason}>{error}</div> : null}
       <div className={styles.dashboardBody}>
         <div className={styles.statsWrapper}>
@@ -556,11 +550,6 @@ const Dashboard = () => {
               <p className={styles.calendarLabel}>Kalendarz</p>
               <div className={styles.calendarHeaderTitle}>Deklaruj swoją dyspozycyjność</div>
             </div>
-            <div className={styles.calendarUserInfo}>
-              <p className={styles.userFullName}>
-                {userData.first_name} {userData.last_name}
-              </p>
-            </div>
           </div>
           <div className={styles.calendarWrapper}>
             <div className={styles.calendarContainer}>
@@ -606,13 +595,6 @@ const Dashboard = () => {
           </div>
         </div>
       ) : null}
-
-      <input
-        type="button"
-        onClick={handleLogout}
-        value="Wyloguj się"
-        className={`${styles.scheduleSetBtn} ${styles.logOutBtn}`}
-      />
     </div>
   );
 };

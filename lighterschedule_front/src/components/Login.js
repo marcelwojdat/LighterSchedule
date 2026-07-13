@@ -16,8 +16,8 @@ const Login = () => {
 
     try {
       await Auth.login(username, password);
-      
-      navigate('/dashboard');
+      const user = await Auth.fetchCurrentUser();
+      navigate(user.is_manager ? '/manager' : '/dashboard');
     } catch (err) {
       setError('Błędny login lub hasło!');
     }

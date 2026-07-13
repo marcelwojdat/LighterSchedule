@@ -21,10 +21,10 @@ function App() {
             </ProtectedRoute>
           } 
         />
-        <Route 
+        <Route
           path="/manager"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute requireManager>
               <Manager />
             </ProtectedRoute>
           }

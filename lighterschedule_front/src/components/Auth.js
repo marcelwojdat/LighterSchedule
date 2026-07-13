@@ -66,6 +66,36 @@ const Auth = {
   throw new Error("Sesja wygasła całkowicie");
   },
 
+  async fetchCurrentUser() {
+    let token = localStorage.getItem('access');
+    if (!token) {
+      throw new Error('Brak tokenu');
+    }
+
+    let response = await fetch(`${BASE_URL}/me/`, {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (response.status === 401) {
+      token = await this.refreshToken();
+      response = await fetch(`${BASE_URL}/me/`, {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+    }
+
+    if (!response.ok) {
+      throw new Error('Nie udało się pobrać profilu użytkownika');
+    }
+
+    return response.json();
+  },
+
   logout() {
     localStorage.removeItem('access');
     window.location.href = '/login'; 

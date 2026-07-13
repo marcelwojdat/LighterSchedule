@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import Auth from './Auth';
+import UserMenu from './UserMenu';
 import styles from './Manager.module.css';
 
 const STATUS_LABELS = {
@@ -30,7 +30,8 @@ const Manager = () => {
   const [rejectionReason, setRejectionReason] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const navigate = useNavigate();
+  const [currentUser, setCurrentUser] = useState(null);
+  const [darkMode, setDarkMode] = useState(false);
 
   const authFetch = async (url, options = {}) => {
     let token = localStorage.getItem('access');
@@ -102,6 +103,9 @@ const Manager = () => {
 
   useEffect(() => {
     refreshData();
+    Auth.fetchCurrentUser()
+      .then(setCurrentUser)
+      .catch(() => Auth.logout());
   }, []);
 
   const openManage = (employee) => {
@@ -304,8 +308,7 @@ const Manager = () => {
   const monthStats = totalForMonth();
 
   const handleLogout = () => {
-    localStorage.removeItem('access');
-    navigate('/login');
+    Auth.logout();
   };
 
   const getEmployeeName = (item) => {
@@ -316,7 +319,22 @@ const Manager = () => {
 
   return (
     <div className={styles.managerPage}>
-      <h1 className={styles.managerTitle}>Panel Kierownika</h1>
+      <div className={styles.pageHeader}>
+        <h1 className={styles.managerTitle}>Panel Kierownika</h1>
+        {currentUser ? (
+          <UserMenu
+            user={{
+              name: `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim(),
+              email: currentUser.email,
+              username: currentUser.username,
+            }}
+            isManager={currentUser.is_manager}
+            darkMode={darkMode}
+            onToggleTheme={() => setDarkMode((prev) => !prev)}
+            onLogout={handleLogout}
+          />
+        ) : null}
+      </div>
 
       {error ? <div className={styles.errorBox}>{error}</div> : null}
       {success ? <div className={styles.successBox}>{success}</div> : null}
@@ -538,12 +556,6 @@ const Manager = () => {
             )}
           </div>
         </div>
-      </div>
-
-      <div className={styles.footerActions}>
-        <button className={styles.scheduleSetBtn} onClick={handleLogout}>
-          Wyloguj się
-        </button>
       </div>
     </div>
   );
