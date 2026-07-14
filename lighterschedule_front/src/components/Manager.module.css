@@ -322,6 +322,90 @@
   border-radius: 8px;
 }
 
+.roleSelect {
+  min-width: 140px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+}
+
+.teamOverviewSection {
+  margin-top: 24px;
+  padding: 20px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+}
+
+.teamOverviewHeader {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.teamOverviewHeader h3 {
+  margin: 0 0 6px;
+}
+
+.teamOverviewHint {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.weekNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.teamTableWrap {
+  overflow-x: auto;
+}
+
+.teamTable {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+
+.teamTable th,
+.teamTable td {
+  border: 1px solid #e2e8f0;
+  padding: 8px;
+  text-align: center;
+  vertical-align: top;
+}
+
+.teamEmployeeCell {
+  text-align: left;
+  min-width: 120px;
+  background: #f8fafc;
+}
+
+.teamDayCell {
+  min-width: 92px;
+  background: #fff;
+}
+
+.teamEmptyCell {
+  color: #94a3b8;
+}
+
+.teamShift {
+  font-size: 0.82rem;
+  line-height: 1.3;
+  margin-bottom: 4px;
+}
+
+.teamShift:last-child {
+  margin-bottom: 0;
+}
+
 @media (max-width: 960px) {
   .managerBody {
     grid-template-columns: 1fr;

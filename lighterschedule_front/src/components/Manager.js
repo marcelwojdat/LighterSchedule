@@ -18,6 +18,33 @@ const SWAP_STATUS_LABELS = {
   rejected: 'Odrzucona',
 };
 
+const DAY_LABELS = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Ndz'];
+
+const formatDateStr = (dateObj) => {
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getMonday = (baseDate = new Date()) => {
+  const d = new Date(baseDate);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const getWeekDates = (weekStartStr) => {
+  const start = new Date(weekStartStr);
+  return Array.from({ length: 7 }, (_, index) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + index);
+    return formatDateStr(d);
+  });
+};
+
 const Manager = () => {
   const [employees, setEmployees] = useState([]);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
@@ -28,6 +55,12 @@ const Manager = () => {
   const [workdays, setWorkdays] = useState([]);
   const [pendingQueue, setPendingQueue] = useState([]);
   const [swapQueue, setSwapQueue] = useState([]);
+  const [teamStats, setTeamStats] = useState(null);
+  const [teamWorkdays, setTeamWorkdays] = useState([]);
+  const [taskTypes, setTaskTypes] = useState([]);
+  const [weekStart, setWeekStart] = useState(() => formatDateStr(getMonday()));
+  const [selectedRoleId, setSelectedRoleId] = useState('');
+  const [queueEditRole, setQueueEditRole] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
   const [timeFrom, setTimeFrom] = useState('12:00');
   const [timeTo, setTimeTo] = useState('20:00');
@@ -40,6 +73,8 @@ const Manager = () => {
   const [success, setSuccess] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
   const [darkMode, setDarkMode] = useState(false);
+
+  const weekDates = getWeekDates(weekStart);
 
   const authFetch = async (url, options = {}) => {
     let token = localStorage.getItem('access');
@@ -90,6 +125,42 @@ const Manager = () => {
     }
   };
 
+  const fetchTeamStats = async () => {
+    try {
+      const res = await authFetch(`http://127.0.0.1:8000/api/stats/?month=${statsMonth}`);
+      if (!res.ok) throw new Error('Nie udało się pobrać statystyk zespołu');
+      const data = await res.json();
+      setTeamStats(data);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const fetchTeamWorkdays = async () => {
+    try {
+      const weekEnd = weekDates[6];
+      const res = await authFetch(
+        `http://127.0.0.1:8000/api/workdays/?status=approved&date_from=${weekStart}&date_to=${weekEnd}`
+      );
+      if (!res.ok) throw new Error('Nie udało się pobrać grafiku zespołu');
+      const data = await res.json();
+      setTeamWorkdays(data);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const fetchTaskTypes = async () => {
+    try {
+      const res = await authFetch('http://127.0.0.1:8000/api/task-types/');
+      if (!res.ok) throw new Error('Nie udało się pobrać stanowisk');
+      const data = await res.json();
+      setTaskTypes(data);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
   const fetchSwapQueue = async () => {
     try {
       const res = await authFetch('http://127.0.0.1:8000/api/swaps/?pending_manager=true');
@@ -117,6 +188,9 @@ const Manager = () => {
       fetchEmployees(),
       fetchPendingQueue(),
       fetchSwapQueue(),
+      fetchTeamStats(),
+      fetchTeamWorkdays(),
+      fetchTaskTypes(),
       employeeId ? fetchWorkdaysForEmployee(employeeId) : Promise.resolve(),
     ]);
   };
@@ -127,6 +201,14 @@ const Manager = () => {
       .then(setCurrentUser)
       .catch(() => Auth.logout());
   }, []);
+
+  useEffect(() => {
+    fetchTeamStats();
+  }, [statsMonth]);
+
+  useEffect(() => {
+    fetchTeamWorkdays();
+  }, [weekStart]);
 
   const openManage = (employee) => {
     setSelectedEmployee(employee);
@@ -148,12 +230,15 @@ const Manager = () => {
     if (pending) {
       setTimeFrom(pending.start_time.slice(0, 5));
       setTimeTo(pending.end_time.slice(0, 5));
+      setSelectedRoleId(pending.role ? String(pending.role) : '');
     } else if (existing) {
       setTimeFrom(existing.start_time.slice(0, 5));
       setTimeTo(existing.end_time.slice(0, 5));
+      setSelectedRoleId(existing.role ? String(existing.role) : '');
     } else {
       setTimeFrom('12:00');
       setTimeTo('20:00');
+      setSelectedRoleId('');
     }
   };
 
@@ -164,6 +249,7 @@ const Manager = () => {
       [selectedDate]: {
         start_time: `${timeFrom}:00`,
         end_time: `${timeTo}:00`,
+        role: selectedRoleId ? Number(selectedRoleId) : null,
       },
     });
     setSuccess('Zmiana dodana do zapisu.');
@@ -186,6 +272,7 @@ const Manager = () => {
                 body: JSON.stringify({
                   start_time: times.start_time,
                   end_time: times.end_time,
+                  role: times.role,
                 }),
               }
             );
@@ -204,6 +291,7 @@ const Manager = () => {
               body: JSON.stringify({
                 start_time: times.start_time,
                 end_time: times.end_time,
+                role: times.role,
               }),
             });
             return res.ok;
@@ -216,6 +304,7 @@ const Manager = () => {
               start_time: times.start_time,
               end_time: times.end_time,
               employee: selectedEmployee.id,
+              role: times.role,
             }),
           });
           return res.ok || res.status === 201;
@@ -266,6 +355,7 @@ const Manager = () => {
       start: item.start_time.slice(0, 5),
       end: item.end_time.slice(0, 5),
     });
+    setQueueEditRole(item.role ? String(item.role) : '');
     setRejectingId(null);
     setError('');
   };
@@ -274,11 +364,15 @@ const Manager = () => {
     setEditingQueueId(null);
     setRejectingId(null);
     setRejectionReason('');
+    setQueueEditRole('');
   };
 
   const approveQueueItem = async (item, times = null) => {
     const startTime = times?.start_time || `${queueEditTimes.start}:00`;
     const endTime = times?.end_time || `${queueEditTimes.end}:00`;
+    const role = editingQueueId === item.id
+      ? (queueEditRole ? Number(queueEditRole) : null)
+      : (item.role || null);
 
     try {
       const res = await authFetch(`http://127.0.0.1:8000/api/workdays/${item.id}/approve/`, {
@@ -286,6 +380,7 @@ const Manager = () => {
         body: JSON.stringify({
           start_time: startTime,
           end_time: endTime,
+          role,
         }),
       });
       if (!res.ok) throw new Error('Nie udało się zatwierdzić deklaracji.');
@@ -346,17 +441,6 @@ const Manager = () => {
     }
   };
 
-  const totalForMonth = () => {
-    const [year, month] = statsMonth.split('-');
-    const prefix = `${year}-${month}-`;
-    const approved = workdays.filter((d) => d.date.startsWith(prefix) && d.status === 'approved');
-    const totalHours = approved.reduce((s, d) => s + Number(d.total_hours || 0), 0);
-    const totalEarnings = approved.reduce((s, d) => s + Number(d.earnings || 0), 0);
-    return { totalHours, totalEarnings };
-  };
-
-  const monthStats = totalForMonth();
-
   const handleLogout = () => {
     Auth.logout();
   };
@@ -366,6 +450,29 @@ const Manager = () => {
     if (emp) return `${emp.first_name} ${emp.last_name}`.trim() || emp.username;
     return item.employee_name;
   };
+
+  const getEmployeeDisplayName = (employee) =>
+    `${employee.first_name || ''} ${employee.last_name || ''}`.trim() || employee.username;
+
+  const getShiftsForCell = (employeeId, dateStr) =>
+    teamWorkdays.filter((day) => day.employee === employeeId && day.date === dateStr);
+
+  const changeWeek = (offset) => {
+    const current = new Date(weekStart);
+    current.setDate(current.getDate() + offset * 7);
+    setWeekStart(formatDateStr(getMonday(current)));
+  };
+
+  const renderRoleSelect = (value, onChange) => (
+    <select value={value} onChange={onChange} className={styles.roleSelect}>
+      <option value="">Stanowisko</option>
+      {taskTypes.map((type) => (
+        <option key={type.id} value={type.id}>
+          {type.name}
+        </option>
+      ))}
+    </select>
+  );
 
   return (
     <div className={styles.managerPage}>
@@ -392,9 +499,9 @@ const Manager = () => {
       <div className={styles.managerBody}>
         <div className={styles.leftCol}>
           <div className={styles.sectionCard}>
-            <h3>Statystyki pracownika</h3>
+            <h3>Statystyki zespołu</h3>
             <div className={styles.statRow}>
-              <strong>Pracownicy:</strong> {employees.length}
+              <strong>Pracownicy:</strong> {teamStats?.employee_count ?? employees.length}
             </div>
             <div className={styles.statRow}>
               <strong>Oczekujące deklaracje:</strong> {pendingQueue.length}
@@ -403,17 +510,20 @@ const Manager = () => {
               <strong>Zamiany do zatwierdzenia:</strong> {swapQueue.length}
             </div>
             <div className={styles.statRow}>
-              <strong>Godziny (zatwierdzone):</strong> {monthStats.totalHours.toFixed(2)}
+              <strong>Godziny (zatwierdzone):</strong> {(teamStats?.total_hours ?? 0).toFixed(2)}
             </div>
             <div className={styles.statRow}>
-              <strong>Wypłaty (zatwierdzone):</strong> {monthStats.totalEarnings.toFixed(2)} zł
+              <strong>Wypłaty (zatwierdzone):</strong> {(teamStats?.total_earnings ?? 0).toFixed(2)} zł
+            </div>
+            <div className={styles.statRow}>
+              <strong>Zatwierdzone dni:</strong> {teamStats?.approved_days ?? 0}
             </div>
             <div className={styles.sectionFooter}>
               <label>Wybierz miesiąc</label>
               <input type="month" value={statsMonth} onChange={(e) => setStatsMonth(e.target.value)} />
             </div>
             <small className={styles.statHint}>
-              Godziny i wypłaty dotyczą wybranego pracownika i tylko zatwierdzonych dni.
+              Statystyki obejmują cały zespół i tylko zatwierdzone wpisy w wybranym miesiącu.
             </small>
           </div>
 
@@ -444,10 +554,12 @@ const Manager = () => {
                           value={queueEditTimes.end}
                           onChange={(e) => setQueueEditTimes((prev) => ({ ...prev, end: e.target.value }))}
                         />
+                        {renderRoleSelect(queueEditRole, (e) => setQueueEditRole(e.target.value))}
                       </div>
                     ) : (
                       <div className={styles.queueHours}>
                         {item.start_time.slice(0, 5)} - {item.end_time.slice(0, 5)}
+                        {item.role_name ? ` (${item.role_name})` : ''}
                       </div>
                     )}
                     {rejectingId === item.id ? (
@@ -607,6 +719,7 @@ const Manager = () => {
                   <div>Wybrany dzień: {selectedDate || '—'}</div>
                   <input type="time" value={timeFrom} onChange={(e) => setTimeFrom(e.target.value)} />
                   <input type="time" value={timeTo} onChange={(e) => setTimeTo(e.target.value)} />
+                  {renderRoleSelect(selectedRoleId, (e) => setSelectedRoleId(e.target.value))}
                   <button className={styles.btnPrimary} onClick={addShift}>
                     Dodaj zmianę
                   </button>
@@ -625,6 +738,7 @@ const Manager = () => {
                         <li key={w.id} className={styles.scheduleItem}>
                           <span>
                             {w.date} — {w.start_time.slice(0, 5)} - {w.end_time.slice(0, 5)}
+                            {w.role_name ? ` (${w.role_name})` : ''}
                           </span>
                           <span
                             className={`${styles.statusBadge} ${
@@ -647,6 +761,65 @@ const Manager = () => {
           </div>
         </div>
       </div>
+
+      <section className={styles.teamOverviewSection}>
+        <div className={styles.teamOverviewHeader}>
+          <div>
+            <h3>Widok zbiorczy zespołu</h3>
+            <p className={styles.teamOverviewHint}>Zatwierdzone zmiany — tydzień od {weekDates[0]} do {weekDates[6]}</p>
+          </div>
+          <div className={styles.weekNav}>
+            <button type="button" className={styles.btnSecondary} onClick={() => changeWeek(-1)}>
+              Poprzedni tydzień
+            </button>
+            <button type="button" className={styles.btnSecondary} onClick={() => setWeekStart(formatDateStr(getMonday()))}>
+              Bieżący tydzień
+            </button>
+            <button type="button" className={styles.btnSecondary} onClick={() => changeWeek(1)}>
+              Następny tydzień
+            </button>
+          </div>
+        </div>
+        <div className={styles.teamTableWrap}>
+          <table className={styles.teamTable}>
+            <thead>
+              <tr>
+                <th>Pracownik</th>
+                {weekDates.map((dateStr, index) => (
+                  <th key={dateStr}>
+                    <div>{DAY_LABELS[index]}</div>
+                    <small>{dateStr.slice(5)}</small>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {employees.map((employee) => (
+                <tr key={employee.id}>
+                  <th className={styles.teamEmployeeCell}>{getEmployeeDisplayName(employee)}</th>
+                  {weekDates.map((dateStr) => {
+                    const shifts = getShiftsForCell(employee.id, dateStr);
+                    return (
+                      <td key={`${employee.id}-${dateStr}`} className={styles.teamDayCell}>
+                        {shifts.length === 0 ? (
+                          <span className={styles.teamEmptyCell}>—</span>
+                        ) : (
+                          shifts.map((shift) => (
+                            <div key={shift.id} className={styles.teamShift}>
+                              <div>{shift.start_time.slice(0, 5)}-{shift.end_time.slice(0, 5)}</div>
+                              {shift.role_name ? <small>{shift.role_name}</small> : null}
+                            </div>
+                          ))
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 };

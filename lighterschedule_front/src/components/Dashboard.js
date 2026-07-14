@@ -38,6 +38,8 @@ const Dashboard = () => {
   const [swapWorkDayId, setSwapWorkDayId] = useState('');
   const [swapTargetId, setSwapTargetId] = useState('');
   const [swapSuccess, setSwapSuccess] = useState('');
+  const [taskTypes, setTaskTypes] = useState([]);
+  const [selectedRoleId, setSelectedRoleId] = useState('');
 
   const authFetch = async (url, options = {}) => {
     let token = localStorage.getItem('access');
@@ -63,6 +65,17 @@ const Dashboard = () => {
     }
 
     return response;
+  };
+
+  const fetchTaskTypes = async () => {
+    try {
+      const response = await authFetch('http://127.0.0.1:8000/api/task-types/');
+      if (!response.ok) throw new Error('Nie udało się pobrać stanowisk.');
+      const data = await response.json();
+      setTaskTypes(data);
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   const fetchSwaps = async () => {
@@ -201,12 +214,15 @@ const Dashboard = () => {
     if (pending) {
       setTimeFrom(pending.start_time.slice(0, 5));
       setTimeTo(pending.end_time.slice(0, 5));
+      setSelectedRoleId(pending.role ? String(pending.role) : '');
     } else if (existing) {
       setTimeFrom(existing.start_time.slice(0, 5));
       setTimeTo(existing.end_time.slice(0, 5));
+      setSelectedRoleId(existing.role ? String(existing.role) : '');
     } else {
       setTimeFrom('12:00');
       setTimeTo('20:00');
+      setSelectedRoleId('');
     }
   };
 
@@ -232,6 +248,7 @@ const Dashboard = () => {
       [selectedDate]: {
         start_time: `${timeFrom}:00`,
         end_time: `${timeTo}:00`,
+        role: selectedRoleId ? Number(selectedRoleId) : null,
       },
     };
 
@@ -347,6 +364,7 @@ const Dashboard = () => {
                 body: JSON.stringify({
                   start_time: times.start_time,
                   end_time: times.end_time,
+                  role: times.role,
                 }),
               }
             );
@@ -359,6 +377,7 @@ const Dashboard = () => {
               date: oneDate,
               start_time: times.start_time,
               end_time: times.end_time,
+              role: times.role,
             }),
           });
           return { ok: response.ok || response.status === 201, date: oneDate };
@@ -398,6 +417,7 @@ const Dashboard = () => {
     fetchCurrentUser();
     fetchSwaps();
     fetchColleagues();
+    fetchTaskTypes();
   }, []);
 
   const getTileClassName = ({ date: tileDate, view }) => {
@@ -445,6 +465,7 @@ const Dashboard = () => {
           <div className={styles.tileHours}>
             {saved.start_time.slice(0, 5)} - {saved.end_time.slice(0, 5)}
           </div>
+          {saved.role_name ? <div className={styles.tileStatus}>{saved.role_name}</div> : null}
           <div className={styles.tileStatus}>{STATUS_LABELS[saved.status]}</div>
         </div>
       );
@@ -455,6 +476,21 @@ const Dashboard = () => {
 
   const existingWorkday = selectedDate ? getWorkdayForDate(selectedDate) : null;
   const pendingSelection = selectedDate ? selectedDates[selectedDate] : null;
+
+  const renderRoleSelect = () => (
+    <select
+      value={selectedRoleId}
+      onChange={(e) => setSelectedRoleId(e.target.value)}
+      className={styles.roleSelect}
+    >
+      <option value="">Stanowisko (opcjonalnie)</option>
+      {taskTypes.map((type) => (
+        <option key={type.id} value={type.id}>
+          {type.name}
+        </option>
+      ))}
+    </select>
+  );
 
   const renderStatusBadge = (status) => (
     <span
@@ -492,6 +528,7 @@ const Dashboard = () => {
           <p className={styles.popupInfo}>{selectedDate}</p>
           <p className={styles.popupInfo}>
             {existingWorkday.start_time.slice(0, 5)} - {existingWorkday.end_time.slice(0, 5)}
+            {existingWorkday.role_name ? ` (${existingWorkday.role_name})` : ''}
           </p>
           {renderStatusBadge('approved')}
           <p className={styles.popupInfo}>Ten dzień został zatwierdzony przez kierownika. Nie możesz go edytować.</p>
@@ -518,6 +555,7 @@ const Dashboard = () => {
             <input type="time" onChange={(e) => setTimeFrom(e.target.value)} value={timeFrom} />
             <input type="time" onChange={(e) => setTimeTo(e.target.value)} value={timeTo} />
           </div>
+          {renderRoleSelect()}
           <div className={styles.popupButtons}>
             <input type="button" className={`${styles.popupBtn} ${styles.popupBtnSecondary}`} onClick={cancelSelection} value="Wróć" />
             <input type="button" className={styles.popupBtn} onClick={setChoosedHours} value="Złóż ponownie" />
@@ -544,6 +582,7 @@ const Dashboard = () => {
                 <input type="time" onChange={(e) => setTimeFrom(e.target.value)} value={timeFrom} />
                 <input type="time" onChange={(e) => setTimeTo(e.target.value)} value={timeTo} />
               </div>
+              {renderRoleSelect()}
               <div className={styles.popupButtons}>
                 <input type="button" className={`${styles.popupBtn} ${styles.popupBtnSecondary}`} onClick={cancelSelection} value="Wróć" />
                 <input type="button" className={`${styles.popupBtn} ${styles.popupBtnDanger}`} onClick={() => removeDateFromSelection(selectedDate)} value="Usuń" />
@@ -583,6 +622,7 @@ const Dashboard = () => {
           <input type="time" onChange={(e) => setTimeFrom(e.target.value)} value={timeFrom} />
           <input type="time" onChange={(e) => setTimeTo(e.target.value)} value={timeTo} />
         </div>
+        {renderRoleSelect()}
         <div className={styles.popupButtons}>
           <input type="button" onClick={cancelSelection} value="Wróć" className={`${styles.popupBtn} ${styles.popupBtnSecondary}`} />
           <input type="button" onClick={setChoosedHours} value="Dodaj deklarację" className={styles.popupBtn} />

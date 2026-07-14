@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
 
 class EmployeeProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
@@ -58,9 +59,12 @@ class SwapRequest(models.Model):
     work_day = models.ForeignKey(WorkDay, on_delete=models.CASCADE)
     requested_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_swaps')
     target_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_swaps')
-    
+
     accepted_by_target = models.BooleanField(default=False)
     approved_by_manager = models.BooleanField(default=False)
+    is_rejected = models.BooleanField(default=False)
+    rejection_reason = models.CharField(max_length=255, blank=True, default='')
+    created_at = models.DateTimeField(default=timezone.now)
 
     def __str__(self):
         return f"Zamiana {self.work_day.date} od {self.requested_by}"

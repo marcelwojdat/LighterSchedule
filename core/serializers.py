@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
+from django.utils import timezone
 from .models import TaskType, WorkDay, SwapRequest
 from .permissions import is_manager
 from datetime import datetime
@@ -81,7 +82,67 @@ class SwapRequestSerializer(serializers.ModelSerializer):
     work_day_details = WorkDaySerializer(source='work_day', read_only=True)
     requested_by_name = serializers.ReadOnlyField(source='requested_by.username')
     target_user_name = serializers.ReadOnlyField(source='target_user.username')
+    status = serializers.SerializerMethodField()
 
     class Meta:
         model = SwapRequest
-        fields = '__all__'
+        fields = [
+            'id', 'work_day', 'work_day_details', 'requested_by', 'requested_by_name',
+            'target_user', 'target_user_name', 'accepted_by_target', 'approved_by_manager',
+            'is_rejected', 'rejection_reason', 'status', 'created_at',
+        ]
+        read_only_fields = [
+            'requested_by', 'accepted_by_target', 'approved_by_manager',
+            'is_rejected', 'rejection_reason', 'status', 'created_at',
+        ]
+
+    def get_status(self, obj):
+        if obj.is_rejected:
+            return 'rejected'
+        if obj.approved_by_manager:
+            return 'approved'
+        if obj.accepted_by_target:
+            return 'pending_manager'
+        return 'pending_target'
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return attrs
+
+        work_day = attrs.get('work_day')
+        target_user = attrs.get('target_user')
+        user = request.user
+
+        if is_manager(user):
+            raise serializers.ValidationError('Kierownik nie może tworzyć próśb o zamianę.')
+
+        if work_day.employee != user:
+            raise serializers.ValidationError({'work_day': 'Możesz oddać tylko własną zmianę.'})
+
+        if work_day.status != WorkDay.Status.APPROVED:
+            raise serializers.ValidationError({'work_day': 'Można zamieniać tylko zatwierdzone zmiany.'})
+
+        if work_day.date < timezone.now().date():
+            raise serializers.ValidationError({'work_day': 'Nie można zamieniać przeszłych zmian.'})
+
+        if target_user == user:
+            raise serializers.ValidationError({'target_user': 'Nie możesz wysłać prośby do siebie.'})
+
+        if hasattr(target_user, 'profile') and target_user.profile.is_manager:
+            raise serializers.ValidationError({'target_user': 'Nie można wysłać prośby do kierownika.'})
+
+        active_swap_exists = SwapRequest.objects.filter(
+            work_day=work_day,
+            is_rejected=False,
+            approved_by_manager=False,
+        ).exists()
+        if active_swap_exists:
+            raise serializers.ValidationError({'work_day': 'Dla tej zmiany istnieje już aktywna prośba.'})
+
+        if WorkDay.objects.filter(employee=target_user, date=work_day.date).exists():
+            raise serializers.ValidationError({
+                'target_user': 'Wybrany pracownik ma już wpis w grafiku na ten dzień.',
+            })
+
+        return attrs

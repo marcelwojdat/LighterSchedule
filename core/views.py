@@ -1,4 +1,7 @@
-from rest_framework import viewsets, status
+from datetime import datetime, date
+import calendar
+
+from rest_framework import viewsets, status, mixins
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -15,6 +18,69 @@ from .serializers import (
     SwapRequestSerializer,
     UserSerializer,
 )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsManager])
+def team_stats(request):
+    month_value = request.query_params.get('month')
+    if not month_value:
+        return Response(
+            {'error': 'Podaj parametr month w formacie YYYY-MM.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        year_str, month_str = month_value.split('-')
+        year = int(year_str)
+        month = int(month_str)
+        month_start = date(year, month, 1)
+        month_end = date(year, month, calendar.monthrange(year, month)[1])
+    except (ValueError, TypeError):
+        return Response(
+            {'error': 'Nieprawidłowy format miesiąca. Użyj YYYY-MM.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    approved_workdays = WorkDay.objects.filter(
+        status=WorkDay.Status.APPROVED,
+        date__gte=month_start,
+        date__lte=month_end,
+    ).select_related('employee', 'employee__profile')
+
+    total_hours = 0.0
+    total_earnings = 0.0
+    for workday in approved_workdays:
+        tdelta = datetime.combine(workday.date, workday.end_time) - datetime.combine(
+            workday.date, workday.start_time
+        )
+        hours = tdelta.total_seconds() / 3600
+        total_hours += hours
+        if workday.rate_at_time:
+            total_earnings += hours * float(workday.rate_at_time)
+
+    employee_count = User.objects.filter(profile__is_manager=False).count()
+    pending_proposals = WorkDay.objects.filter(
+        status=WorkDay.Status.PROPOSED,
+        date__gte=month_start,
+        date__lte=month_end,
+    ).count()
+
+    return Response({
+        'month': month_value,
+        'employee_count': employee_count,
+        'approved_days': approved_workdays.count(),
+        'total_hours': round(total_hours, 2),
+        'total_earnings': round(total_earnings, 2),
+        'pending_proposals': pending_proposals,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def current_user(request):
+    user = User.objects.select_related('profile').get(pk=request.user.pk)
+    return Response(UserSerializer(user, context={'request': request}).data)
 
 
 @api_view(['POST'])
@@ -62,6 +128,11 @@ class TaskTypeViewSet(viewsets.ModelViewSet):
     serializer_class = TaskTypeSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_permissions(self):
+        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+            return [IsAuthenticated(), IsManager()]
+        return super().get_permissions()
+
 
 class WorkDayViewSet(viewsets.ModelViewSet):
     queryset = WorkDay.objects.all()
@@ -89,6 +160,13 @@ class WorkDayViewSet(viewsets.ModelViewSet):
 
         if status_param:
             queryset = queryset.filter(status=status_param)
+
+        date_from = self.request.query_params.get('date_from')
+        date_to = self.request.query_params.get('date_to')
+        if date_from:
+            queryset = queryset.filter(date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(date__lte=date_to)
 
         return queryset
 
@@ -188,8 +266,15 @@ class WorkDayViewSet(viewsets.ModelViewSet):
         return Response(WorkDaySerializer(workday).data)
 
 
-class SwapRequestViewSet(viewsets.ModelViewSet):
-    queryset = SwapRequest.objects.all()
+class SwapRequestViewSet(
+    mixins.CreateModelMixin,
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    viewsets.GenericViewSet,
+):
+    queryset = SwapRequest.objects.select_related(
+        'work_day', 'work_day__employee', 'requested_by', 'target_user',
+    ).all()
     serializer_class = SwapRequestSerializer
     permission_classes = [IsAuthenticated]
 
@@ -198,7 +283,97 @@ class SwapRequestViewSet(viewsets.ModelViewSet):
         if not user.is_authenticated:
             return SwapRequest.objects.none()
 
-        if is_manager(user):
-            return SwapRequest.objects.all()
+        queryset = SwapRequest.objects.select_related(
+            'work_day', 'work_day__employee', 'requested_by', 'target_user',
+        ).all()
 
-        return SwapRequest.objects.filter(Q(requested_by=user) | Q(target_user=user))
+        if not is_manager(user):
+            queryset = queryset.filter(Q(requested_by=user) | Q(target_user=user))
+
+        pending_manager = self.request.query_params.get('pending_manager')
+        if pending_manager == 'true':
+            queryset = queryset.filter(
+                accepted_by_target=True,
+                approved_by_manager=False,
+                is_rejected=False,
+            )
+
+        return queryset.order_by('-created_at')
+
+    def perform_create(self, serializer):
+        if is_manager(self.request.user):
+            raise PermissionDenied('Kierownik nie może tworzyć próśb o zamianę.')
+        serializer.save(requested_by=self.request.user)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def accept(self, request, pk=None):
+        swap = self.get_object()
+
+        if swap.is_rejected or swap.approved_by_manager:
+            return Response({'error': 'Ta prośba nie jest już aktywna.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if swap.target_user != request.user:
+            raise PermissionDenied('Tylko wskazany pracownik może zaakceptować prośbę.')
+
+        if swap.accepted_by_target:
+            return Response({'error': 'Prośba została już zaakceptowana.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        swap.accepted_by_target = True
+        swap.save()
+
+        return Response(SwapRequestSerializer(swap).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def reject(self, request, pk=None):
+        swap = self.get_object()
+        user = request.user
+
+        if swap.is_rejected or swap.approved_by_manager:
+            return Response({'error': 'Ta prośba nie jest już aktywna.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if user == swap.target_user and not swap.accepted_by_target:
+            pass
+        elif user == swap.requested_by and not swap.accepted_by_target:
+            pass
+        elif is_manager(user) and swap.accepted_by_target:
+            pass
+        else:
+            raise PermissionDenied('Nie możesz odrzucić tej prośby.')
+
+        swap.is_rejected = True
+        swap.rejection_reason = request.data.get('rejection_reason', '')
+        swap.save()
+
+        return Response(SwapRequestSerializer(swap).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsManager])
+    def approve(self, request, pk=None):
+        swap = self.get_object()
+
+        if swap.is_rejected:
+            return Response({'error': 'Odrzuconej prośby nie można zatwierdzić.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not swap.accepted_by_target:
+            return Response(
+                {'error': 'Prośba musi zostać najpierw zaakceptowana przez pracownika.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if swap.approved_by_manager:
+            return Response({'error': 'Prośba została już zatwierdzona.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        work_day = swap.work_day
+        if WorkDay.objects.filter(employee=swap.target_user, date=work_day.date).exists():
+            return Response(
+                {'error': 'Docelowy pracownik ma już wpis w grafiku na ten dzień.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        work_day.employee = swap.target_user
+        work_day.rate_at_time = swap.target_user.profile.hourly_rate
+        work_day.save()
+
+        swap.approved_by_manager = True
+        swap.save()
+
+        return Response(SwapRequestSerializer(swap).data)
