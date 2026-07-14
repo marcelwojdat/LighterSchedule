@@ -244,6 +244,7 @@ class WorkDayViewSet(viewsets.ModelViewSet):
         workday.approved_at = timezone.now()
         workday.rejection_reason = ''
         workday.save()
+        workday.refresh_from_db()
 
         return Response(WorkDaySerializer(workday).data)
 

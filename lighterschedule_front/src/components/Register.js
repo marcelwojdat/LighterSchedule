@@ -17,7 +17,6 @@ const Register = () => {
       setTimeout(() => navigate('/login'), 2000);
     } catch (err) {
       setMessage('Błąd rejestracji. Może taki użytkownik już istnieje?');
-      console.log(err)
     }
   };
 

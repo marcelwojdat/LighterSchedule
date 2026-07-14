@@ -41,6 +41,11 @@ class WorkDaySerializer(serializers.ModelSerializer):
     approved_by_name = serializers.ReadOnlyField(source='approved_by.username')
     total_hours = serializers.SerializerMethodField()
     earnings = serializers.SerializerMethodField()
+    employee = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        required=False,
+        default=serializers.CurrentUserDefault(),
+    )
 
     class Meta:
         model = WorkDay
@@ -51,6 +56,9 @@ class WorkDaySerializer(serializers.ModelSerializer):
             'rejection_reason', 'rate_at_time', 'total_hours', 'earnings',
         ]
         read_only_fields = ['status', 'approved_by', 'approved_at', 'rejection_reason', 'rate_at_time']
+        extra_kwargs = {
+            'employee': {'required': False},
+        }
 
     def get_total_hours(self, obj):
         tdelta = datetime.combine(obj.date, obj.end_time) - datetime.combine(obj.date, obj.start_time)
@@ -73,7 +81,7 @@ class WorkDaySerializer(serializers.ModelSerializer):
         if not is_manager(user):
             if employee and employee != user:
                 raise serializers.ValidationError({'employee': 'Nie możesz zarządzać grafikiem innego pracownika.'})
-            attrs.pop('employee', None)
+            attrs['employee'] = user
 
         return attrs
 

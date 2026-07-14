@@ -4,6 +4,21 @@ import 'react-calendar/dist/Calendar.css';
 import Auth from './Auth';
 import UserMenu from './UserMenu';
 import styles from './Dashboard.module.css';
+import { getErrorMessage } from '../api/client';
+import {
+  getWorkdays,
+  createWorkday,
+  updateWorkday,
+  deleteWorkday,
+} from '../api/workdays';
+import {
+  getSwaps,
+  createSwap,
+  acceptSwap as acceptSwapRequest,
+  rejectSwap as rejectSwapRequest,
+} from '../api/swaps';
+import { getUsers } from '../api/users';
+import { getTaskTypes } from '../api/taskTypes';
 
 const STATUS_LABELS = {
   proposed: 'Oczekuje',
@@ -41,62 +56,30 @@ const Dashboard = () => {
   const [taskTypes, setTaskTypes] = useState([]);
   const [selectedRoleId, setSelectedRoleId] = useState('');
 
-  const authFetch = async (url, options = {}) => {
-    let token = localStorage.getItem('access');
-    const headers = {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...options.headers,
-    };
-
-    let response = await fetch(url, { ...options, headers });
-
-    if (response.status === 401) {
-      try {
-        token = await Auth.refreshToken();
-        response = await fetch(url, {
-          ...options,
-          headers: { ...headers, Authorization: `Bearer ${token}` },
-        });
-      } catch {
-        Auth.logout();
-        throw new Error('Sesja wygasła. Zaloguj się ponownie.');
-      }
-    }
-
-    return response;
-  };
-
   const fetchTaskTypes = async () => {
     try {
-      const response = await authFetch('http://127.0.0.1:8000/api/task-types/');
-      if (!response.ok) throw new Error('Nie udało się pobrać stanowisk.');
-      const data = await response.json();
+      const data = await getTaskTypes();
       setTaskTypes(data);
     } catch (err) {
-      setError(err.message);
+      setError(getErrorMessage(err, 'Nie udało się pobrać stanowisk.'));
     }
   };
 
   const fetchSwaps = async () => {
     try {
-      const response = await authFetch('http://127.0.0.1:8000/api/swaps/');
-      if (!response.ok) throw new Error('Nie udało się pobrać zamian.');
-      const data = await response.json();
+      const data = await getSwaps();
       setSwaps(data);
     } catch (err) {
-      setError(err.message);
+      setError(getErrorMessage(err, 'Nie udało się pobrać zamian.'));
     }
   };
 
   const fetchColleagues = async () => {
     try {
-      const response = await authFetch('http://127.0.0.1:8000/api/users/');
-      if (!response.ok) throw new Error('Nie udało się pobrać listy pracowników.');
-      const data = await response.json();
+      const data = await getUsers();
       setColleagues(data.filter((user) => !user.is_manager));
     } catch (err) {
-      setError(err.message);
+      setError(getErrorMessage(err, 'Nie udało się pobrać listy pracowników.'));
     }
   };
 
@@ -119,19 +102,10 @@ const Dashboard = () => {
     }
 
     try {
-      const response = await authFetch('http://127.0.0.1:8000/api/swaps/', {
-        method: 'POST',
-        body: JSON.stringify({
-          work_day: Number(swapWorkDayId),
-          target_user: Number(swapTargetId),
-        }),
+      await createSwap({
+        work_day: Number(swapWorkDayId),
+        target_user: Number(swapTargetId),
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        const message = data.work_day?.[0] || data.target_user?.[0] || data.non_field_errors?.[0] || data.error || 'Nie udało się wysłać prośby.';
-        throw new Error(message);
-      }
 
       setSwapWorkDayId('');
       setSwapTargetId('');
@@ -139,50 +113,38 @@ const Dashboard = () => {
       setError('');
       await fetchSwaps();
     } catch (err) {
-      setError(err.message);
+      setError(getErrorMessage(err, 'Nie udało się wysłać prośby.'));
     }
   };
 
   const acceptSwap = async (swapId) => {
     try {
-      const response = await authFetch(`http://127.0.0.1:8000/api/swaps/${swapId}/accept/`, { method: 'POST' });
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Nie udało się zaakceptować prośby.');
-      }
+      await acceptSwapRequest(swapId);
       setSwapSuccess('Zaakceptowano prośbę. Czeka na zatwierdzenie kierownika.');
       setError('');
       await fetchSwaps();
     } catch (err) {
-      setError(err.message);
+      setError(getErrorMessage(err, 'Nie udało się zaakceptować prośby.'));
     }
   };
 
   const rejectSwap = async (swapId) => {
     try {
-      const response = await authFetch(`http://127.0.0.1:8000/api/swaps/${swapId}/reject/`, { method: 'POST' });
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Nie udało się odrzucić prośby.');
-      }
+      await rejectSwapRequest(swapId);
       setSwapSuccess('Prośba została odrzucona.');
       setError('');
       await fetchSwaps();
     } catch (err) {
-      setError(err.message);
+      setError(getErrorMessage(err, 'Nie udało się odrzucić prośby.'));
     }
   };
 
   const fetchWorkdays = async () => {
     try {
-      const response = await authFetch('http://127.0.0.1:8000/api/workdays/');
-      if (!response.ok) {
-        throw new Error('Nie udało się pobrać grafika.');
-      }
-      const data = await response.json();
+      const data = await getWorkdays();
       setWorkdays(data);
     } catch (err) {
-      setError(err.message);
+      setError(getErrorMessage(err, 'Nie udało się pobrać grafika.'));
     }
   };
 
@@ -274,16 +236,10 @@ const Dashboard = () => {
 
     if (existing) {
       try {
-        const response = await authFetch(
-          `http://127.0.0.1:8000/api/workdays/${existing.id}/`,
-          { method: 'DELETE' }
-        );
-        if (!response.ok) {
-          throw new Error('Nie udało się usunąć deklaracji.');
-        }
+        await deleteWorkday(existing.id);
         setWorkdays((prev) => prev.filter((d) => d.date !== dateStr));
       } catch (err) {
-        setError(err.message || 'Błąd przy usuwaniu deklaracji.');
+        setError(getErrorMessage(err, 'Błąd przy usuwaniu deklaracji.'));
         return;
       }
     }
@@ -357,30 +313,21 @@ const Dashboard = () => {
           }
 
           if (existing) {
-            const response = await authFetch(
-              `http://127.0.0.1:8000/api/workdays/${existing.id}/`,
-              {
-                method: 'PATCH',
-                body: JSON.stringify({
-                  start_time: times.start_time,
-                  end_time: times.end_time,
-                  role: times.role,
-                }),
-              }
-            );
-            return { ok: response.ok, date: oneDate };
-          }
-
-          const response = await authFetch('http://127.0.0.1:8000/api/workdays/', {
-            method: 'POST',
-            body: JSON.stringify({
-              date: oneDate,
+            await updateWorkday(existing.id, {
               start_time: times.start_time,
               end_time: times.end_time,
               role: times.role,
-            }),
+            });
+            return { ok: true, date: oneDate };
+          }
+
+          const response = await createWorkday({
+            date: oneDate,
+            start_time: times.start_time,
+            end_time: times.end_time,
+            role: times.role,
           });
-          return { ok: response.ok || response.status === 201, date: oneDate };
+          return { ok: response.status === 201, date: oneDate };
         })
       );
 

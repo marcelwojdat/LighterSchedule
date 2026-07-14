@@ -4,6 +4,19 @@ import 'react-calendar/dist/Calendar.css';
 import Auth from './Auth';
 import UserMenu from './UserMenu';
 import styles from './Manager.module.css';
+import { getErrorMessage } from '../api/client';
+import { getUsers, updateUserProfile } from '../api/users';
+import {
+  getWorkdays,
+  createWorkday,
+  updateWorkday,
+  deleteWorkday,
+  approveWorkday,
+  rejectWorkday,
+} from '../api/workdays';
+import { getSwaps, approveSwap as approveSwapRequest, rejectSwap as rejectSwapRequest } from '../api/swaps';
+import { getTaskTypes } from '../api/taskTypes';
+import { getTeamStats } from '../api/stats';
 
 const STATUS_LABELS = {
   proposed: 'Oczekuje',
@@ -76,110 +89,72 @@ const Manager = () => {
 
   const weekDates = getWeekDates(weekStart);
 
-  const authFetch = async (url, options = {}) => {
-    let token = localStorage.getItem('access');
-    const headers = {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...options.headers,
-    };
-
-    let response = await fetch(url, { ...options, headers });
-
-    if (response.status === 401) {
-      try {
-        token = await Auth.refreshToken();
-        response = await fetch(url, {
-          ...options,
-          headers: { ...headers, Authorization: `Bearer ${token}` },
-        });
-      } catch {
-        Auth.logout();
-        throw new Error('Sesja wygasła. Zaloguj się ponownie.');
-      }
-    }
-
-    return response;
-  };
-
   const fetchEmployees = async () => {
     try {
-      const res = await authFetch('http://127.0.0.1:8000/api/users/');
-      if (!res.ok) throw new Error('Nie udało się pobrać listy pracowników');
-      const data = await res.json();
+      const data = await getUsers();
       setEmployees(data.filter((emp) => !emp.is_manager));
     } catch (e) {
-      setError(e.message);
+      setError(getErrorMessage(e, 'Nie udało się pobrać listy pracowników'));
     }
   };
 
   const fetchPendingQueue = async () => {
     try {
-      const res = await authFetch('http://127.0.0.1:8000/api/workdays/?status=proposed');
-      if (!res.ok) throw new Error('Nie udało się pobrać kolejki akceptacji');
-      const data = await res.json();
+      const data = await getWorkdays({ status: 'proposed' });
       const sorted = [...data].sort((a, b) => a.date.localeCompare(b.date));
       setPendingQueue(sorted);
     } catch (e) {
-      setError(e.message);
+      setError(getErrorMessage(e, 'Nie udało się pobrać kolejki akceptacji'));
     }
   };
 
   const fetchTeamStats = async () => {
     try {
-      const res = await authFetch(`http://127.0.0.1:8000/api/stats/?month=${statsMonth}`);
-      if (!res.ok) throw new Error('Nie udało się pobrać statystyk zespołu');
-      const data = await res.json();
+      const data = await getTeamStats(statsMonth);
       setTeamStats(data);
     } catch (e) {
-      setError(e.message);
+      setError(getErrorMessage(e, 'Nie udało się pobrać statystyk zespołu'));
     }
   };
 
   const fetchTeamWorkdays = async () => {
     try {
       const weekEnd = weekDates[6];
-      const res = await authFetch(
-        `http://127.0.0.1:8000/api/workdays/?status=approved&date_from=${weekStart}&date_to=${weekEnd}`
-      );
-      if (!res.ok) throw new Error('Nie udało się pobrać grafiku zespołu');
-      const data = await res.json();
+      const data = await getWorkdays({
+        status: 'approved',
+        date_from: weekStart,
+        date_to: weekEnd,
+      });
       setTeamWorkdays(data);
     } catch (e) {
-      setError(e.message);
+      setError(getErrorMessage(e, 'Nie udało się pobrać grafiku zespołu'));
     }
   };
 
   const fetchTaskTypes = async () => {
     try {
-      const res = await authFetch('http://127.0.0.1:8000/api/task-types/');
-      if (!res.ok) throw new Error('Nie udało się pobrać stanowisk');
-      const data = await res.json();
+      const data = await getTaskTypes();
       setTaskTypes(data);
     } catch (e) {
-      setError(e.message);
+      setError(getErrorMessage(e, 'Nie udało się pobrać stanowisk'));
     }
   };
 
   const fetchSwapQueue = async () => {
     try {
-      const res = await authFetch('http://127.0.0.1:8000/api/swaps/?pending_manager=true');
-      if (!res.ok) throw new Error('Nie udało się pobrać zamian do zatwierdzenia');
-      const data = await res.json();
+      const data = await getSwaps({ pending_manager: 'true' });
       setSwapQueue(data);
     } catch (e) {
-      setError(e.message);
+      setError(getErrorMessage(e, 'Nie udało się pobrać zamian do zatwierdzenia'));
     }
   };
 
   const fetchWorkdaysForEmployee = async (employeeId) => {
     try {
-      const res = await authFetch(`http://127.0.0.1:8000/api/workdays/?employee=${employeeId}`);
-      if (!res.ok) throw new Error('Nie udało się pobrać grafiku pracownika');
-      const data = await res.json();
+      const data = await getWorkdays({ employee: employeeId });
       setWorkdays(data);
     } catch (e) {
-      setError(e.message);
+      setError(getErrorMessage(e, 'Nie udało się pobrać grafiku pracownika'));
     }
   };
 
@@ -265,49 +240,35 @@ const Manager = () => {
           const existing = workdays.find((d) => d.date === date);
 
           if (existing?.status === 'proposed') {
-            const res = await authFetch(
-              `http://127.0.0.1:8000/api/workdays/${existing.id}/approve/`,
-              {
-                method: 'POST',
-                body: JSON.stringify({
-                  start_time: times.start_time,
-                  end_time: times.end_time,
-                  role: times.role,
-                }),
-              }
-            );
-            return res.ok;
+            await approveWorkday(existing.id, {
+              start_time: times.start_time,
+              end_time: times.end_time,
+              role: times.role,
+            });
+            return true;
           }
 
           if (existing?.status === 'rejected') {
-            await authFetch(`http://127.0.0.1:8000/api/workdays/${existing.id}/`, {
-              method: 'DELETE',
-            });
+            await deleteWorkday(existing.id);
           }
 
           if (existing?.status === 'approved') {
-            const res = await authFetch(`http://127.0.0.1:8000/api/workdays/${existing.id}/`, {
-              method: 'PATCH',
-              body: JSON.stringify({
-                start_time: times.start_time,
-                end_time: times.end_time,
-                role: times.role,
-              }),
-            });
-            return res.ok;
-          }
-
-          const res = await authFetch('http://127.0.0.1:8000/api/workdays/', {
-            method: 'POST',
-            body: JSON.stringify({
-              date,
+            await updateWorkday(existing.id, {
               start_time: times.start_time,
               end_time: times.end_time,
-              employee: selectedEmployee.id,
               role: times.role,
-            }),
+            });
+            return true;
+          }
+
+          const response = await createWorkday({
+            date,
+            start_time: times.start_time,
+            end_time: times.end_time,
+            employee: selectedEmployee.id,
+            role: times.role,
           });
-          return res.ok || res.status === 201;
+          return response.status === 201;
         })
       );
 
@@ -321,7 +282,7 @@ const Manager = () => {
         setError('Część zapisów nie powiodła się.');
       }
     } catch (e) {
-      setError(e.message);
+      setError(getErrorMessage(e, 'Błąd połączenia z serwerem.'));
     }
   };
 
@@ -329,13 +290,7 @@ const Manager = () => {
     if (value === '' || Number.isNaN(Number(value))) return;
 
     try {
-      const res = await authFetch(`http://127.0.0.1:8000/api/users/${employeeId}/profile/`, {
-        method: 'PATCH',
-        body: JSON.stringify({ hourly_rate: value }),
-      });
-      if (!res.ok) throw new Error('Nie udało się zaktualizować stawki');
-
-      const updated = await res.json();
+      const updated = await updateUserProfile(employeeId, { hourly_rate: value });
       setEmployees((prev) =>
         prev.map((emp) => (emp.id === employeeId ? { ...emp, hourly_rate: updated.hourly_rate } : emp))
       );
@@ -345,7 +300,7 @@ const Manager = () => {
       setSuccess('Stawka godzinowa zaktualizowana.');
       setError('');
     } catch (e) {
-      setError(e.message);
+      setError(getErrorMessage(e, 'Nie udało się zaktualizować stawki'));
     }
   };
 
@@ -375,69 +330,53 @@ const Manager = () => {
       : (item.role || null);
 
     try {
-      const res = await authFetch(`http://127.0.0.1:8000/api/workdays/${item.id}/approve/`, {
-        method: 'POST',
-        body: JSON.stringify({
-          start_time: startTime,
-          end_time: endTime,
-          role,
-        }),
+      await approveWorkday(item.id, {
+        start_time: startTime,
+        end_time: endTime,
+        role,
       });
-      if (!res.ok) throw new Error('Nie udało się zatwierdzić deklaracji.');
 
       setSuccess(`Zatwierdzono grafik ${item.employee_name} na ${item.date}.`);
       setError('');
       cancelQueueEdit();
       await refreshData(selectedEmployee?.id);
     } catch (e) {
-      setError(e.message);
+      setError(getErrorMessage(e, 'Nie udało się zatwierdzić deklaracji.'));
     }
   };
 
   const rejectQueueItem = async (item) => {
     try {
-      const res = await authFetch(`http://127.0.0.1:8000/api/workdays/${item.id}/reject/`, {
-        method: 'POST',
-        body: JSON.stringify({ rejection_reason: rejectionReason }),
-      });
-      if (!res.ok) throw new Error('Nie udało się odrzucić deklaracji.');
+      await rejectWorkday(item.id, { rejection_reason: rejectionReason });
 
       setSuccess(`Odrzucono deklarację ${item.employee_name} na ${item.date}.`);
       setError('');
       cancelQueueEdit();
       await refreshData(selectedEmployee?.id);
     } catch (e) {
-      setError(e.message);
+      setError(getErrorMessage(e, 'Nie udało się odrzucić deklaracji.'));
     }
   };
 
   const approveSwap = async (swap) => {
     try {
-      const res = await authFetch(`http://127.0.0.1:8000/api/swaps/${swap.id}/approve/`, { method: 'POST' });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Nie udało się zatwierdzić zamiany.');
-      }
+      await approveSwapRequest(swap.id);
       setSuccess(`Zatwierdzono zamianę zmiany z dnia ${swap.work_day_details?.date}.`);
       setError('');
       await refreshData(selectedEmployee?.id);
     } catch (e) {
-      setError(e.message);
+      setError(getErrorMessage(e, 'Nie udało się zatwierdzić zamiany.'));
     }
   };
 
   const rejectSwap = async (swap) => {
     try {
-      const res = await authFetch(`http://127.0.0.1:8000/api/swaps/${swap.id}/reject/`, { method: 'POST' });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Nie udało się odrzucić zamiany.');
-      }
+      await rejectSwapRequest(swap.id);
       setSuccess(`Odrzucono zamianę zmiany z dnia ${swap.work_day_details?.date}.`);
       setError('');
       await refreshData(selectedEmployee?.id);
     } catch (e) {
-      setError(e.message);
+      setError(getErrorMessage(e, 'Nie udało się odrzucić zamiany.'));
     }
   };
 
