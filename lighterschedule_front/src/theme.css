@@ -1,0 +1,41 @@
+[data-theme='dark'] body {
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+[data-theme='dark'] .react-calendar {
+  background: #1e293b;
+  color: #e2e8f0;
+  border-color: #334155;
+}
+
+[data-theme='dark'] .react-calendar__navigation button {
+  background: #1e293b;
+  color: #e2e8f0;
+}
+
+[data-theme='dark'] .react-calendar__navigation button:enabled:hover,
+[data-theme='dark'] .react-calendar__navigation button:enabled:focus {
+  background: #334155;
+}
+
+[data-theme='dark'] .react-calendar__month-view__weekdays {
+  color: #94a3b8;
+}
+
+[data-theme='dark'] .react-calendar__tile {
+  color: #e2e8f0;
+}
+
+[data-theme='dark'] .react-calendar__tile:enabled:hover,
+[data-theme='dark'] .react-calendar__tile:enabled:focus {
+  background: #334155;
+}
+
+[data-theme='dark'] .react-calendar__tile--now {
+  background: #1d4ed8;
+}
+
+[data-theme='dark'] .react-calendar__tile--active {
+  background: #2563eb;
+}

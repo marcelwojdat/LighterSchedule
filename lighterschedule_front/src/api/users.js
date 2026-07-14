@@ -8,3 +8,9 @@ export const updateUserProfile = (userId, data) =>
 
 export const getCurrentUser = () =>
   apiClient.get('/me/').then((response) => response.data);
+
+export const updateCurrentUser = (data) =>
+  apiClient.patch('/me/', data).then((response) => response.data);
+
+export const changePassword = (data) =>
+  apiClient.post('/me/change-password/', data).then((response) => response.data);

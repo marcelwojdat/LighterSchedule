@@ -17,6 +17,7 @@ import {
 import { getSwaps, approveSwap as approveSwapRequest, rejectSwap as rejectSwapRequest } from '../api/swaps';
 import { getTaskTypes } from '../api/taskTypes';
 import { getTeamStats } from '../api/stats';
+import { useTheme } from '../hooks/useTheme';
 
 const STATUS_LABELS = {
   proposed: 'Oczekuje',
@@ -85,7 +86,7 @@ const Manager = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
-  const [darkMode, setDarkMode] = useState(false);
+  const { darkMode, toggleTheme } = useTheme();
 
   const weekDates = getWeekDates(weekStart);
 
@@ -426,7 +427,7 @@ const Manager = () => {
             }}
             isManager={currentUser.is_manager}
             darkMode={darkMode}
-            onToggleTheme={() => setDarkMode((prev) => !prev)}
+            onToggleTheme={toggleTheme}
             onLogout={handleLogout}
           />
         ) : null}

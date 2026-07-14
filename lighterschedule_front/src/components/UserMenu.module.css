@@ -143,3 +143,32 @@
 .logoutButton:hover {
   background: #ffd6d6;
 }
+
+:global([data-theme='dark']) .dropdown {
+  background: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.35);
+}
+
+:global([data-theme='dark']) .menuHeader {
+  border-bottom-color: #334155;
+}
+
+:global([data-theme='dark']) .userName {
+  color: #f1f5f9;
+}
+
+:global([data-theme='dark']) .userEmail,
+:global([data-theme='dark']) .stateTag {
+  color: #94a3b8;
+}
+
+:global([data-theme='dark']) .menuLink,
+:global([data-theme='dark']) .menuButton {
+  color: #e2e8f0;
+}
+
+:global([data-theme='dark']) .menuLink:hover,
+:global([data-theme='dark']) .menuButton:hover {
+  background: rgba(148, 163, 184, 0.12);
+}

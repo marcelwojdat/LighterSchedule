@@ -29,6 +29,12 @@ class UserSerializer(serializers.ModelSerializer):
         return False
 
 
+class UserProfileUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['first_name', 'last_name', 'email']
+
+
 class TaskTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = TaskType

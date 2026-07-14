@@ -19,6 +19,7 @@ import {
 } from '../api/swaps';
 import { getUsers } from '../api/users';
 import { getTaskTypes } from '../api/taskTypes';
+import { useTheme } from '../hooks/useTheme';
 
 const STATUS_LABELS = {
   proposed: 'Oczekuje',
@@ -47,7 +48,7 @@ const Dashboard = () => {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
   const [currentUser, setCurrentUser] = useState(null);
-  const [darkMode, setDarkMode] = useState(false);
+  const { darkMode, toggleTheme } = useTheme();
   const [swaps, setSwaps] = useState([]);
   const [colleagues, setColleagues] = useState([]);
   const [swapWorkDayId, setSwapWorkDayId] = useState('');
@@ -594,7 +595,7 @@ const Dashboard = () => {
             }}
             isManager={currentUser.is_manager}
             darkMode={darkMode}
-            onToggleTheme={() => setDarkMode((prev) => !prev)}
+            onToggleTheme={toggleTheme}
             onLogout={handleLogout}
           />
         ) : null}

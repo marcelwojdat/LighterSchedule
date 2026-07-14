@@ -411,3 +411,56 @@
     grid-template-columns: 1fr;
   }
 }
+
+:global([data-theme='dark']) .managerTitle {
+  color: #f1f5f9;
+}
+
+:global([data-theme='dark']) .sectionCard,
+:global([data-theme='dark']) .teamOverviewSection {
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  border-color: #334155;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+  color: #e2e8f0;
+}
+
+:global([data-theme='dark']) .statHint,
+:global([data-theme='dark']) .emptyQueue,
+:global([data-theme='dark']) .teamOverviewHint,
+:global([data-theme='dark']) .teamEmptyCell {
+  color: #94a3b8;
+}
+
+:global([data-theme='dark']) .empTable th,
+:global([data-theme='dark']) .empTable td,
+:global([data-theme='dark']) .teamTable th,
+:global([data-theme='dark']) .teamTable td {
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+:global([data-theme='dark']) .teamEmployeeCell {
+  background: #1e293b;
+}
+
+:global([data-theme='dark']) .teamDayCell,
+:global([data-theme='dark']) .scheduleItem,
+:global([data-theme='dark']) .queueItem {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+:global([data-theme='dark']) .roleSelect,
+:global([data-theme='dark']) .empTable input,
+:global([data-theme='dark']) .queueEditRow input,
+:global([data-theme='dark']) .rejectionInput,
+:global([data-theme='dark']) .shiftControls input {
+  background: #0f172a;
+  border-color: #475569;
+  color: #f1f5f9;
+}
+
+:global([data-theme='dark']) .calendarContainer {
+  background: #1e293b;
+  border-color: #334155;
+}

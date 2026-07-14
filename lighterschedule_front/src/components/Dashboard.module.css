@@ -637,3 +637,48 @@
   color: white;
   border-color: #565e64;
 }
+
+:global([data-theme='dark']) .dashboardTitle,
+:global([data-theme='dark']) .statsTitle,
+:global([data-theme='dark']) .calendarHeaderTitle {
+  color: #f1f5f9;
+}
+
+:global([data-theme='dark']) .statsLabel,
+:global([data-theme='dark']) .calendarLabel,
+:global([data-theme='dark']) .legendItem,
+:global([data-theme='dark']) .popupInfo {
+  color: #94a3b8;
+}
+
+:global([data-theme='dark']) .calendarPanel,
+:global([data-theme='dark']) .statsWrapper,
+:global([data-theme='dark']) .swapSection,
+:global([data-theme='dark']) .popupBox {
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  border-color: #334155;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.25);
+}
+
+:global([data-theme='dark']) .statCard {
+  background: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+:global([data-theme='dark']) .statCard h3,
+:global([data-theme='dark']) .statCard small {
+  color: #94a3b8;
+}
+
+:global([data-theme='dark']) .popupBox {
+  color: #e2e8f0;
+}
+
+:global([data-theme='dark']) .popupField input,
+:global([data-theme='dark']) .roleSelect,
+:global([data-theme='dark']) .swapForm select {
+  background: #0f172a;
+  border-color: #475569;
+  color: #f1f5f9;
+}

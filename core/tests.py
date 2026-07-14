@@ -207,3 +207,54 @@ class TaskTypeSeedTests(APITestCase):
     def test_default_task_types_exist(self):
         names = set(TaskType.objects.values_list('name', flat=True))
         self.assertTrue({'Kasa', 'Magazyn', 'Obsługa'}.issubset(names))
+
+
+class ProfileTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            'employee1',
+            password='pass',
+            email='old@example.com',
+            first_name='Jan',
+            last_name='Kowalski',
+        )
+        EmployeeProfile.objects.create(user=self.user, hourly_rate=20)
+
+    def authenticate(self):
+        response = self.client.post('/api/token/', {
+            'username': self.user.username,
+            'password': 'pass',
+        })
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
+
+    def test_user_can_update_profile(self):
+        self.authenticate()
+        response = self.client.patch('/api/me/', {
+            'first_name': 'Adam',
+            'last_name': 'Nowak',
+            'email': 'adam@example.com',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['first_name'], 'Adam')
+        self.assertEqual(response.data['email'], 'adam@example.com')
+
+    def test_user_can_change_password(self):
+        self.authenticate()
+        response = self.client.post('/api/me/change-password/', {
+            'current_password': 'pass',
+            'new_password': 'newpassword123',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password('newpassword123'))
+
+    def test_change_password_rejects_wrong_current_password(self):
+        self.authenticate()
+        response = self.client.post('/api/me/change-password/', {
+            'current_password': 'wrong',
+            'new_password': 'newpassword123',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

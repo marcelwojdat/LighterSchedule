@@ -1,0 +1,170 @@
+.profilePage {
+  padding: 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 2rem;
+  color: #0f172a;
+}
+
+.pageSubtitle {
+  margin: 6px 0 0;
+  color: #64748b;
+}
+
+.backLinkWrap {
+  margin: 18px 0;
+}
+
+.backLink {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.backLink:hover {
+  text-decoration: underline;
+}
+
+.loading {
+  padding: 2rem;
+  text-align: center;
+  color: #64748b;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+
+@media (min-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.card {
+  background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 20px;
+  padding: 22px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+}
+
+.card h2 {
+  margin: 0 0 16px;
+  font-size: 1.15rem;
+  color: #0f172a;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: #334155;
+  font-weight: 600;
+}
+
+.form input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  font-size: 0.95rem;
+}
+
+.form input:disabled {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.fieldHint {
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.primaryBtn {
+  margin-top: 4px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primaryBtn:hover {
+  background: #1d4ed8;
+}
+
+.errorBox {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.successBox {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #d1fae5;
+  color: #065f46;
+}
+
+:global([data-theme='dark']) .pageTitle,
+:global([data-theme='dark']) .card h2 {
+  color: #f1f5f9;
+}
+
+:global([data-theme='dark']) .pageSubtitle,
+:global([data-theme='dark']) .loading,
+:global([data-theme='dark']) .fieldHint {
+  color: #94a3b8;
+}
+
+:global([data-theme='dark']) .card {
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  border-color: #334155;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+}
+
+:global([data-theme='dark']) .form label {
+  color: #cbd5e1;
+}
+
+:global([data-theme='dark']) .form input {
+  background: #0f172a;
+  border-color: #475569;
+  color: #f1f5f9;
+}
+
+:global([data-theme='dark']) .form input:disabled {
+  background: #1e293b;
+  color: #94a3b8;
+}
+
+:global([data-theme='dark']) .backLink {
+  color: #93c5fd;
+}

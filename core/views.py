@@ -17,6 +17,7 @@ from .serializers import (
     WorkDaySerializer,
     SwapRequestSerializer,
     UserSerializer,
+    UserProfileUpdateSerializer,
 )
 
 
@@ -76,11 +77,48 @@ def team_stats(request):
     })
 
 
-@api_view(['GET'])
+@api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def current_user(request):
     user = User.objects.select_related('profile').get(pk=request.user.pk)
+
+    if request.method == 'GET':
+        return Response(UserSerializer(user, context={'request': request}).data)
+
+    serializer = UserProfileUpdateSerializer(user, data=request.data, partial=True)
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+    user.refresh_from_db()
     return Response(UserSerializer(user, context={'request': request}).data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    current_password = request.data.get('current_password')
+    new_password = request.data.get('new_password')
+
+    if not current_password or not new_password:
+        return Response(
+            {'error': 'Podaj obecne i nowe hasło.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if not request.user.check_password(current_password):
+        return Response(
+            {'error': 'Obecne hasło jest nieprawidłowe.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if len(new_password) < 8:
+        return Response(
+            {'error': 'Nowe hasło musi mieć co najmniej 8 znaków.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    request.user.set_password(new_password)
+    request.user.save()
+    return Response({'message': 'Hasło zostało zmienione.'})
 
 
 @api_view(['POST'])
