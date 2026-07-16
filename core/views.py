@@ -6,7 +6,10 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from django.conf import settings
 from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Q
 from django.utils import timezone
 
@@ -121,14 +124,43 @@ def change_password(request):
     return Response({'message': 'Hasło zostało zmienione.'})
 
 
+def _registration_invite_required():
+    return (
+        not settings.ALLOW_PUBLIC_REGISTRATION
+        and bool(settings.REGISTRATION_INVITE_CODE)
+    )
+
+
+def _registration_is_open():
+    if settings.ALLOW_PUBLIC_REGISTRATION:
+        return True
+    return bool(settings.REGISTRATION_INVITE_CODE)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def registration_status(request):
+    return Response({
+        'open': _registration_is_open(),
+        'invite_required': _registration_invite_required(),
+    })
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_user(request):
+    if not _registration_is_open():
+        return Response(
+            {'error': 'Rejestracja jest wyłączona. Poproś kierownika o utworzenie konta.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
     username = (request.data.get('username') or '').strip()
     password = request.data.get('password')
     first_name = (request.data.get('first_name') or '').strip()
     last_name = (request.data.get('last_name') or '').strip()
     email = (request.data.get('email') or '').strip().lower()
+    invite_code = (request.data.get('invite_code') or '').strip()
 
     if not username or not password:
         return Response(
@@ -148,6 +180,12 @@ def register_user(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
+    if _registration_invite_required() and invite_code != settings.REGISTRATION_INVITE_CODE:
+        return Response(
+            {'error': 'Nieprawidłowy kod zaproszenia'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     if User.objects.filter(username=username).exists():
         return Response(
             {'error': 'Użytkownik już istnieje'},
@@ -157,6 +195,14 @@ def register_user(request):
     if User.objects.filter(email__iexact=email).exists():
         return Response(
             {'error': 'Konto z tym adresem e-mail już istnieje'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        validate_password(password)
+    except DjangoValidationError as exc:
+        return Response(
+            {'error': ' '.join(exc.messages)},
             status=status.HTTP_400_BAD_REQUEST,
         )
 

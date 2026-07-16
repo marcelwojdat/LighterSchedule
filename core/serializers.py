@@ -43,14 +43,19 @@ class TaskTypeSerializer(serializers.ModelSerializer):
 
 class WorkDaySerializer(serializers.ModelSerializer):
     employee_name = serializers.ReadOnlyField(source='employee.username')
-    role_name = serializers.ReadOnlyField(source='role.name')
-    approved_by_name = serializers.ReadOnlyField(source='approved_by.username')
+    role_name = serializers.SerializerMethodField()
+    approved_by_name = serializers.SerializerMethodField()
     total_hours = serializers.SerializerMethodField()
     earnings = serializers.SerializerMethodField()
     employee = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(),
         required=False,
         default=serializers.CurrentUserDefault(),
+    )
+    role = serializers.PrimaryKeyRelatedField(
+        queryset=TaskType.objects.all(),
+        required=False,
+        allow_null=True,
     )
 
     class Meta:
@@ -65,6 +70,12 @@ class WorkDaySerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'employee': {'required': False},
         }
+
+    def get_role_name(self, obj):
+        return obj.role.name if obj.role_id else None
+
+    def get_approved_by_name(self, obj):
+        return obj.approved_by.username if obj.approved_by_id else None
 
     def get_total_hours(self, obj):
         tdelta = datetime.combine(obj.date, obj.end_time) - datetime.combine(obj.date, obj.start_time)

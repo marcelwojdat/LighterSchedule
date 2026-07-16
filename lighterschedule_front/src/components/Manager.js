@@ -18,6 +18,7 @@ import { getSwaps, approveSwap as approveSwapRequest, rejectSwap as rejectSwapRe
 import { getTaskTypes } from '../api/taskTypes';
 import { getTeamStats } from '../api/stats';
 import { useTheme } from '../hooks/useTheme';
+import { buildWorkdayPayload, toApiTime } from '../utils/time';
 
 const STATUS_LABELS = {
   proposed: 'Oczekuje',
@@ -223,8 +224,8 @@ const Manager = () => {
     setSelectedDates({
       ...selectedDates,
       [selectedDate]: {
-        start_time: `${timeFrom}:00`,
-        end_time: `${timeTo}:00`,
+        start_time: toApiTime(timeFrom),
+        end_time: toApiTime(timeTo),
         role: selectedRoleId ? Number(selectedRoleId) : null,
       },
     });
@@ -239,13 +240,16 @@ const Manager = () => {
       const results = await Promise.all(
         Object.entries(selectedDates).map(async ([date, times]) => {
           const existing = workdays.find((d) => d.date === date);
+          const payload = buildWorkdayPayload({
+            date,
+            start_time: times.start_time,
+            end_time: times.end_time,
+            role: times.role,
+            employee: selectedEmployee.id,
+          });
 
           if (existing?.status === 'proposed') {
-            await approveWorkday(existing.id, {
-              start_time: times.start_time,
-              end_time: times.end_time,
-              role: times.role,
-            });
+            await approveWorkday(existing.id, payload);
             return true;
           }
 
@@ -254,21 +258,11 @@ const Manager = () => {
           }
 
           if (existing?.status === 'approved') {
-            await updateWorkday(existing.id, {
-              start_time: times.start_time,
-              end_time: times.end_time,
-              role: times.role,
-            });
+            await updateWorkday(existing.id, payload);
             return true;
           }
 
-          const response = await createWorkday({
-            date,
-            start_time: times.start_time,
-            end_time: times.end_time,
-            employee: selectedEmployee.id,
-            role: times.role,
-          });
+          const response = await createWorkday(payload);
           return response.status === 201;
         })
       );
@@ -324,8 +318,8 @@ const Manager = () => {
   };
 
   const approveQueueItem = async (item, times = null) => {
-    const startTime = times?.start_time || `${queueEditTimes.start}:00`;
-    const endTime = times?.end_time || `${queueEditTimes.end}:00`;
+    const startTime = toApiTime(times?.start_time || queueEditTimes.start);
+    const endTime = toApiTime(times?.end_time || queueEditTimes.end);
     const role = editingQueueId === item.id
       ? (queueEditRole ? Number(queueEditRole) : null)
       : (item.role || null);

@@ -264,7 +264,7 @@ class RegistrationTests(APITestCase):
     def test_register_creates_user_with_profile_fields(self):
         response = self.client.post('/api/register/', {
             'username': 'nowy_pracownik',
-            'password': 'haslo123',
+            'password': 'haslo12345',
             'first_name': 'Anna',
             'last_name': 'Kowalska',
             'email': 'anna@example.com',
@@ -281,8 +281,50 @@ class RegistrationTests(APITestCase):
     def test_register_requires_name_and_email(self):
         response = self.client.post('/api/register/', {
             'username': 'bez_danych',
-            'password': 'haslo123',
+            'password': 'haslo12345',
         }, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(User.objects.filter(username='bez_danych').exists())
+
+    def test_register_rejects_short_password(self):
+        response = self.client.post('/api/register/', {
+            'username': 'krotkie',
+            'password': 'short',
+            'first_name': 'Anna',
+            'last_name': 'Kowalska',
+            'email': 'krotkie@example.com',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(User.objects.filter(username='krotkie').exists())
+
+    def test_registration_status_endpoint(self):
+        response = self.client.get('/api/register/status/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('open', response.data)
+        self.assertIn('invite_required', response.data)
+
+    def test_register_requires_invite_code_when_configured(self):
+        from django.test import override_settings
+
+        with override_settings(ALLOW_PUBLIC_REGISTRATION=False, REGISTRATION_INVITE_CODE='firma-2026'):
+            denied = self.client.post('/api/register/', {
+                'username': 'zaproszony',
+                'password': 'haslo12345',
+                'first_name': 'Ewa',
+                'last_name': 'Nowak',
+                'email': 'ewa@example.com',
+                'invite_code': 'zly-kod',
+            }, format='json')
+            self.assertEqual(denied.status_code, status.HTTP_400_BAD_REQUEST)
+
+            ok = self.client.post('/api/register/', {
+                'username': 'zaproszony',
+                'password': 'haslo12345',
+                'first_name': 'Ewa',
+                'last_name': 'Nowak',
+                'email': 'ewa@example.com',
+                'invite_code': 'firma-2026',
+            }, format='json')
+            self.assertEqual(ok.status_code, status.HTTP_201_CREATED, ok.data)

@@ -86,7 +86,23 @@ Aplikacja: `http://localhost:3000`.
 
 ---
 
-## 4. Pierwszy kierownik
+## 4. Rejestracja i bezpieczeństwo kont
+
+Domyślnie rejestracja jest **otwarta** (`ALLOW_PUBLIC_REGISTRATION=True`).
+
+W małej firmie możesz ją ograniczyć w `.env`:
+
+| Konfiguracja | Efekt |
+|--------------|--------|
+| `ALLOW_PUBLIC_REGISTRATION=True` | Każdy może założyć konto |
+| `ALLOW_PUBLIC_REGISTRATION=False` + `REGISTRATION_INVITE_CODE=sekret` | Rejestracja tylko z kodem zaproszenia |
+| `ALLOW_PUBLIC_REGISTRATION=False` bez kodu | Rejestracja wyłączona — konta tylko przez Django admin |
+
+Hasło przy rejestracji: minimum **8 znaków** + potwierdzenie hasła w formularzu (backend używa walidatorów Django).
+
+---
+
+## 5. Pierwszy kierownik
 
 Rejestracja tworzy zwykłego pracownika (`is_manager=False`). Kierownika ustawiasz ręcznie.
 
@@ -114,7 +130,7 @@ Po zalogowaniu kierownik trafia na `/manager`, pracownik na `/dashboard`.
 
 ---
 
-## 5. Test pełnego flow
+## 6. Test pełnego flow
 
 1. **Zarejestruj pracownika** na `/register` (login, imię, nazwisko, email, hasło).
 2. **Ustaw kierownika** (krok 4 powyżej) — możesz użyć drugiego konta albo zmienić rolę istniejącego.
@@ -123,10 +139,15 @@ Po zalogowaniu kierownik trafia na `/manager`, pracownik na `/dashboard`.
 5. Pracownik odświeża kalendarz — dzień jest zielony (zatwierdzony) albo czerwony (odrzucony, z powodem).
 6. (Opcjonalnie) Pracownik wysyła **prośbę o zamianę** zatwierdzonej przyszłej zmiany; drugi pracownik akceptuje; kierownik zatwierdza w kolejce zamian.
 
-### Testy automatyczne backendu
+### Testy automatyczne
 
 ```powershell
+# backend
 python manage.py test core
+
+# frontend
+cd lighterschedule_front
+npm test -- --watchAll=false
 ```
 
 ---

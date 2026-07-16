@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Auth from './Auth';
 import { useNavigate, Link } from 'react-router-dom';
 import styles from './Login.module.css';
@@ -7,11 +7,18 @@ const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  
-  const navigate = useNavigate(); 
+  const [registrationOpen, setRegistrationOpen] = useState(true);
+
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    Auth.getRegistrationStatus()
+      .then((status) => setRegistrationOpen(status.open !== false))
+      .catch(() => setRegistrationOpen(true));
+  }, []);
 
   const handleSubmit = async (e) => {
-    e.preventDefault(); 
+    e.preventDefault();
     setError('');
 
     try {
@@ -42,6 +49,7 @@ const Login = () => {
               placeholder="Wpisz swoją nazwę użytkownika"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              autoComplete="username"
             />
           </div>
 
@@ -53,6 +61,7 @@ const Login = () => {
               placeholder="Wpisz swoje hasło"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
             />
           </div>
 
@@ -61,12 +70,14 @@ const Login = () => {
           </button>
         </form>
 
-        <div className={styles.loginFooter}>
-          <p>
-            Nie masz konta?{' '}
-            <Link to="/register">Zarejestruj się tutaj</Link>
-          </p>
-        </div>
+        {registrationOpen ? (
+          <div className={styles.loginFooter}>
+            <p>
+              Nie masz konta?{' '}
+              <Link to="/register">Zarejestruj się tutaj</Link>
+            </p>
+          </div>
+        ) : null}
       </div>
     </div>
   );

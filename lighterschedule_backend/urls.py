@@ -7,6 +7,7 @@ from core.views import (
     SwapRequestViewSet,
     UserViewSet,
     register_user,
+    registration_status,
     current_user,
     change_password,
     team_stats,
@@ -23,6 +24,7 @@ router.register(r'swaps', SwapRequestViewSet)
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/register/', register_user, name='register'),
+    path('api/register/status/', registration_status, name='registration_status'),
     path('api/me/', current_user, name='current_user'),
     path('api/me/change-password/', change_password, name='change_password'),
     path('api/stats/', team_stats, name='team_stats'),

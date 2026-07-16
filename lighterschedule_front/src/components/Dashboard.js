@@ -20,6 +20,7 @@ import {
 import { getUsers } from '../api/users';
 import { getTaskTypes } from '../api/taskTypes';
 import { useTheme } from '../hooks/useTheme';
+import { buildWorkdayPayload, toApiTime } from '../utils/time';
 
 const STATUS_LABELS = {
   proposed: 'Oczekuje',
@@ -209,8 +210,8 @@ const Dashboard = () => {
     const newSelectedDates = {
       ...selectedDates,
       [selectedDate]: {
-        start_time: `${timeFrom}:00`,
-        end_time: `${timeTo}:00`,
+        start_time: toApiTime(timeFrom),
+        end_time: toApiTime(timeTo),
         role: selectedRoleId ? Number(selectedRoleId) : null,
       },
     };
@@ -308,26 +309,23 @@ const Dashboard = () => {
       const responses = await Promise.all(
         entries.map(async ([oneDate, times]) => {
           const existing = getWorkdayForDate(oneDate);
+          const payload = buildWorkdayPayload({
+            date: oneDate,
+            start_time: times.start_time,
+            end_time: times.end_time,
+            role: times.role,
+          });
 
           if (existing?.status === 'approved') {
             return { ok: false, date: oneDate };
           }
 
           if (existing) {
-            await updateWorkday(existing.id, {
-              start_time: times.start_time,
-              end_time: times.end_time,
-              role: times.role,
-            });
+            await updateWorkday(existing.id, payload);
             return { ok: true, date: oneDate };
           }
 
-          const response = await createWorkday({
-            date: oneDate,
-            start_time: times.start_time,
-            end_time: times.end_time,
-            role: times.role,
-          });
+          const response = await createWorkday(payload);
           return { ok: response.status === 201, date: oneDate };
         })
       );
@@ -342,8 +340,8 @@ const Dashboard = () => {
         setError(`Nie udało się zapisać deklaracji dla: ${failed.join(', ')}`);
         await fetchWorkdays();
       }
-    } catch {
-      setError('Błąd połączenia z serwerem.');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Błąd połączenia z serwerem.'));
     }
   };
 
