@@ -2,21 +2,38 @@ import React, { useState } from 'react';
 import Auth from './Auth';
 import { useNavigate, Link } from 'react-router-dom';
 import styles from './Register.module.css';
+import { getErrorMessage } from '../api/client';
 
 const Register = () => {
   const [username, setUsername] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const navigate = useNavigate();
 
   const handleRegister = async (e) => {
     e.preventDefault();
+    setMessage('');
+
+    if (!username.trim() || !password || !firstName.trim() || !lastName.trim() || !email.trim()) {
+      setMessage('Uzupełnij wszystkie pola formularza.');
+      return;
+    }
+
     try {
-      await Auth.register(username, password);
+      await Auth.register({
+        username: username.trim(),
+        password,
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        email: email.trim(),
+      });
       setMessage('Rejestracja udana! Teraz możesz się zalogować.');
       setTimeout(() => navigate('/login'), 2000);
     } catch (err) {
-      setMessage('Błąd rejestracji. Może taki użytkownik już istnieje?');
+      setMessage(getErrorMessage(err, 'Błąd rejestracji. Może taki użytkownik już istnieje?'));
     }
   };
 
@@ -40,9 +57,51 @@ const Register = () => {
             <input
               id="username"
               type="text"
-              placeholder="Wpisz nową nazwę użytkownika"
+              placeholder="Wpisz nazwę użytkownika"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              autoComplete="username"
+              required
+            />
+          </div>
+
+          <div className={styles.nameRow}>
+            <div className={styles.formGroup}>
+              <label htmlFor="firstName">Imię</label>
+              <input
+                id="firstName"
+                type="text"
+                placeholder="Imię"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                autoComplete="given-name"
+                required
+              />
+            </div>
+            <div className={styles.formGroup}>
+              <label htmlFor="lastName">Nazwisko</label>
+              <input
+                id="lastName"
+                type="text"
+                placeholder="Nazwisko"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                autoComplete="family-name"
+                required
+              />
+            </div>
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="email">E-mail</label>
+            <input
+              id="email"
+              type="email"
+              placeholder="np. jan@firma.pl"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              required
             />
           </div>
 
@@ -51,9 +110,11 @@ const Register = () => {
             <input
               id="password"
               type="password"
-              placeholder="Wpisz nowe hasło"
+              placeholder="Wpisz hasło"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+              required
             />
           </div>
 

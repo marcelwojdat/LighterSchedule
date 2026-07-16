@@ -124,16 +124,49 @@ def change_password(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_user(request):
-    username = request.data.get('username')
+    username = (request.data.get('username') or '').strip()
     password = request.data.get('password')
+    first_name = (request.data.get('first_name') or '').strip()
+    last_name = (request.data.get('last_name') or '').strip()
+    email = (request.data.get('email') or '').strip().lower()
 
     if not username or not password:
-        return Response({'error': 'Podaj login i hasło'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {'error': 'Podaj login i hasło'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if not first_name or not last_name:
+        return Response(
+            {'error': 'Podaj imię i nazwisko'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if not email:
+        return Response(
+            {'error': 'Podaj adres e-mail'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     if User.objects.filter(username=username).exists():
-        return Response({'error': 'Użytkownik już istnieje'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {'error': 'Użytkownik już istnieje'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
-    user = User.objects.create_user(username=username, password=password)
+    if User.objects.filter(email__iexact=email).exists():
+        return Response(
+            {'error': 'Konto z tym adresem e-mail już istnieje'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    user = User.objects.create_user(
+        username=username,
+        password=password,
+        first_name=first_name,
+        last_name=last_name,
+        email=email,
+    )
     EmployeeProfile.objects.create(user=user)
 
     return Response({'message': 'Zarejestrowano pomyślnie'}, status=status.HTTP_201_CREATED)

@@ -258,3 +258,31 @@ class ProfileTests(APITestCase):
         }, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class RegistrationTests(APITestCase):
+    def test_register_creates_user_with_profile_fields(self):
+        response = self.client.post('/api/register/', {
+            'username': 'nowy_pracownik',
+            'password': 'haslo123',
+            'first_name': 'Anna',
+            'last_name': 'Kowalska',
+            'email': 'anna@example.com',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        user = User.objects.get(username='nowy_pracownik')
+        self.assertEqual(user.first_name, 'Anna')
+        self.assertEqual(user.last_name, 'Kowalska')
+        self.assertEqual(user.email, 'anna@example.com')
+        self.assertTrue(hasattr(user, 'profile'))
+        self.assertFalse(user.profile.is_manager)
+
+    def test_register_requires_name_and_email(self):
+        response = self.client.post('/api/register/', {
+            'username': 'bez_danych',
+            'password': 'haslo123',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(User.objects.filter(username='bez_danych').exists())
