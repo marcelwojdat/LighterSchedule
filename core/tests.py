@@ -349,13 +349,16 @@ class NotificationTests(APITestCase):
 
 class RegistrationTests(APITestCase):
     def test_register_creates_user_with_profile_fields(self):
-        response = self.client.post('/api/register/', {
-            'username': 'nowy_pracownik',
-            'password': 'haslo12345',
-            'first_name': 'Anna',
-            'last_name': 'Kowalska',
-            'email': 'anna@example.com',
-        }, format='json')
+        from django.test import override_settings
+
+        with override_settings(ALLOW_PUBLIC_REGISTRATION=True):
+            response = self.client.post('/api/register/', {
+                'username': 'nowy_pracownik',
+                'password': 'haslo12345',
+                'first_name': 'Anna',
+                'last_name': 'Kowalska',
+                'email': 'anna@example.com',
+            }, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         user = User.objects.get(username='nowy_pracownik')
@@ -366,22 +369,28 @@ class RegistrationTests(APITestCase):
         self.assertFalse(user.profile.is_manager)
 
     def test_register_requires_name_and_email(self):
-        response = self.client.post('/api/register/', {
-            'username': 'bez_danych',
-            'password': 'haslo12345',
-        }, format='json')
+        from django.test import override_settings
+
+        with override_settings(ALLOW_PUBLIC_REGISTRATION=True):
+            response = self.client.post('/api/register/', {
+                'username': 'bez_danych',
+                'password': 'haslo12345',
+            }, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(User.objects.filter(username='bez_danych').exists())
 
     def test_register_rejects_short_password(self):
-        response = self.client.post('/api/register/', {
-            'username': 'krotkie',
-            'password': 'short',
-            'first_name': 'Anna',
-            'last_name': 'Kowalska',
-            'email': 'krotkie@example.com',
-        }, format='json')
+        from django.test import override_settings
+
+        with override_settings(ALLOW_PUBLIC_REGISTRATION=True):
+            response = self.client.post('/api/register/', {
+                'username': 'krotkie',
+                'password': 'short',
+                'first_name': 'Anna',
+                'last_name': 'Kowalska',
+                'email': 'krotkie@example.com',
+            }, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(User.objects.filter(username='krotkie').exists())
@@ -391,6 +400,17 @@ class RegistrationTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('open', response.data)
         self.assertIn('invite_required', response.data)
+        self.assertFalse(response.data['open'])
+
+    def test_public_registration_closed_by_default(self):
+        response = self.client.post('/api/register/', {
+            'username': 'zamknieta',
+            'password': 'haslo12345',
+            'first_name': 'Ada',
+            'last_name': 'Nowak',
+            'email': 'ada@example.com',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_register_requires_invite_code_when_configured(self):
         from django.test import override_settings
@@ -415,3 +435,86 @@ class RegistrationTests(APITestCase):
                 'invite_code': 'firma-2026',
             }, format='json')
             self.assertEqual(ok.status_code, status.HTTP_201_CREATED, ok.data)
+
+
+class UserManagementTests(APITestCase):
+    def setUp(self):
+        self.manager = User.objects.create_user('mgr_admin', password='pass')
+        self.employee = User.objects.create_user('emp_admin', password='pass')
+        set_profile(self.manager, hourly_rate=30, is_manager=True)
+        set_profile(self.employee, hourly_rate=20)
+
+    def authenticate(self, user):
+        response = self.client.post('/api/token/', {
+            'username': user.username,
+            'password': 'pass',
+        })
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
+
+    def test_manager_can_create_employee(self):
+        self.authenticate(self.manager)
+        response = self.client.post('/api/users/', {
+            'username': 'nowy_z_panelu',
+            'password': 'haslo12345',
+            'first_name': 'Jan',
+            'last_name': 'Kowalski',
+            'email': 'jan.panel@example.com',
+            'is_manager': False,
+            'hourly_rate': '25.50',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        user = User.objects.get(username='nowy_z_panelu')
+        self.assertEqual(user.first_name, 'Jan')
+        self.assertFalse(user.profile.is_manager)
+        self.assertEqual(float(user.profile.hourly_rate), 25.5)
+
+    def test_manager_can_create_manager(self):
+        self.authenticate(self.manager)
+        response = self.client.post('/api/users/', {
+            'username': 'kierownik2',
+            'password': 'haslo12345',
+            'first_name': 'Ola',
+            'last_name': 'Nowak',
+            'email': 'ola@example.com',
+            'is_manager': True,
+            'hourly_rate': '40',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertTrue(User.objects.get(username='kierownik2').profile.is_manager)
+
+    def test_employee_cannot_create_users(self):
+        self.authenticate(self.employee)
+        response = self.client.post('/api/users/', {
+            'username': 'hacker',
+            'password': 'haslo12345',
+            'first_name': 'X',
+            'last_name': 'Y',
+            'email': 'x@example.com',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_manager_can_toggle_role_and_active(self):
+        self.authenticate(self.manager)
+        response = self.client.patch(f'/api/users/{self.employee.id}/profile/', {
+            'is_manager': True,
+            'hourly_rate': '33',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.employee.profile.refresh_from_db()
+        self.assertTrue(self.employee.profile.is_manager)
+
+        response = self.client.patch(f'/api/users/{self.employee.id}/profile/', {
+            'is_active': False,
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.employee.refresh_from_db()
+        self.assertFalse(self.employee.is_active)
+
+    def test_manager_cannot_demote_self(self):
+        self.authenticate(self.manager)
+        response = self.client.patch(f'/api/users/{self.manager.id}/profile/', {
+            'is_manager': False,
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

@@ -5,7 +5,7 @@ import Auth from './Auth';
 import UserMenu from './UserMenu';
 import styles from './Manager.module.css';
 import { getErrorMessage } from '../api/client';
-import { getUsers, updateUserProfile } from '../api/users';
+import { getUsers, createUser, updateUserProfile } from '../api/users';
 import {
   getWorkdays,
   createWorkday,
@@ -63,6 +63,7 @@ const getWeekDates = (weekStartStr) => {
 
 const Manager = () => {
   const [employees, setEmployees] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [statsMonth, setStatsMonth] = useState(() => {
     const now = new Date();
@@ -89,6 +90,15 @@ const Manager = () => {
   const [success, setSuccess] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
   const [notifications, setNotifications] = useState({ total: 0, items: [] });
+  const [newUserForm, setNewUserForm] = useState({
+    username: '',
+    first_name: '',
+    last_name: '',
+    email: '',
+    password: '',
+    is_manager: false,
+    hourly_rate: '20',
+  });
   const { darkMode, toggleTheme } = useTheme();
 
   const weekDates = getWeekDates(weekStart);
@@ -96,7 +106,8 @@ const Manager = () => {
   const fetchEmployees = async () => {
     try {
       const data = await getUsers();
-      setEmployees(data.filter((emp) => !emp.is_manager));
+      setAllUsers(data);
+      setEmployees(data.filter((emp) => !emp.is_manager && emp.is_active !== false));
     } catch (e) {
       setError(getErrorMessage(e, 'Nie udało się pobrać listy pracowników'));
     }
@@ -308,6 +319,9 @@ const Manager = () => {
 
     try {
       const updated = await updateUserProfile(employeeId, { hourly_rate: value });
+      setAllUsers((prev) =>
+        prev.map((emp) => (emp.id === employeeId ? { ...emp, hourly_rate: updated.hourly_rate } : emp))
+      );
       setEmployees((prev) =>
         prev.map((emp) => (emp.id === employeeId ? { ...emp, hourly_rate: updated.hourly_rate } : emp))
       );
@@ -318,6 +332,71 @@ const Manager = () => {
       setError('');
     } catch (e) {
       setError(getErrorMessage(e, 'Nie udało się zaktualizować stawki'));
+    }
+  };
+
+  const updateUserFlags = async (userId, patch) => {
+    try {
+      const updated = await updateUserProfile(userId, patch);
+      setAllUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...updated } : u)));
+      setEmployees((prev) => {
+        const next = prev.filter((u) => u.id !== userId || (!updated.is_manager && updated.is_active !== false));
+        if (!updated.is_manager && updated.is_active !== false && !next.some((u) => u.id === userId)) {
+          return [...next, updated];
+        }
+        return next.map((u) => (u.id === userId ? { ...u, ...updated } : u)).filter((u) => !u.is_manager);
+      });
+      if (selectedEmployee?.id === userId) {
+        if (updated.is_manager || updated.is_active === false) {
+          setSelectedEmployee(null);
+        } else {
+          setSelectedEmployee((prev) => ({ ...prev, ...updated }));
+        }
+      }
+      setSuccess('Konto zaktualizowane.');
+      setError('');
+      await fetchEmployees();
+    } catch (e) {
+      setError(getErrorMessage(e, 'Nie udało się zaktualizować konta.'));
+    }
+  };
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    const { username, first_name, last_name, email, password, is_manager, hourly_rate } = newUserForm;
+    if (!username.trim() || !first_name.trim() || !last_name.trim() || !email.trim() || !password) {
+      setError('Uzupełnij wszystkie pola formularza nowej osoby.');
+      return;
+    }
+    if (password.length < 8) {
+      setError('Hasło musi mieć co najmniej 8 znaków.');
+      return;
+    }
+
+    try {
+      await createUser({
+        username: username.trim(),
+        first_name: first_name.trim(),
+        last_name: last_name.trim(),
+        email: email.trim(),
+        password,
+        is_manager,
+        hourly_rate: hourly_rate === '' ? 0 : Number(hourly_rate),
+      });
+      setNewUserForm({
+        username: '',
+        first_name: '',
+        last_name: '',
+        email: '',
+        password: '',
+        is_manager: false,
+        hourly_rate: '20',
+      });
+      setSuccess(is_manager ? 'Dodano kierownika.' : 'Dodano pracownika.');
+      setError('');
+      await fetchEmployees();
+    } catch (err) {
+      setError(getErrorMessage(err, 'Nie udało się dodać użytkownika.'));
     }
   };
 
@@ -632,36 +711,124 @@ const Manager = () => {
           </div>
 
           <div className={styles.sectionCard}>
-            <h3>Lista pracowników</h3>
+            <h3>Zarządzanie kontami</h3>
+            <p className={styles.statHint}>
+              Dodawaj pracowników i kierowników z panelu — bez konsoli i Django admina na co dzień.
+            </p>
+            <form className={styles.userCreateForm} onSubmit={handleCreateUser}>
+              <div className={styles.userCreateGrid}>
+                <input
+                  type="text"
+                  placeholder="Login"
+                  value={newUserForm.username}
+                  onChange={(e) => setNewUserForm((prev) => ({ ...prev, username: e.target.value }))}
+                  required
+                />
+                <input
+                  type="text"
+                  placeholder="Imię"
+                  value={newUserForm.first_name}
+                  onChange={(e) => setNewUserForm((prev) => ({ ...prev, first_name: e.target.value }))}
+                  required
+                />
+                <input
+                  type="text"
+                  placeholder="Nazwisko"
+                  value={newUserForm.last_name}
+                  onChange={(e) => setNewUserForm((prev) => ({ ...prev, last_name: e.target.value }))}
+                  required
+                />
+                <input
+                  type="email"
+                  placeholder="E-mail"
+                  value={newUserForm.email}
+                  onChange={(e) => setNewUserForm((prev) => ({ ...prev, email: e.target.value }))}
+                  required
+                />
+                <input
+                  type="password"
+                  placeholder="Hasło (min. 8 znaków)"
+                  value={newUserForm.password}
+                  onChange={(e) => setNewUserForm((prev) => ({ ...prev, password: e.target.value }))}
+                  minLength={8}
+                  required
+                />
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="Stawka zł/h"
+                  value={newUserForm.hourly_rate}
+                  onChange={(e) => setNewUserForm((prev) => ({ ...prev, hourly_rate: e.target.value }))}
+                />
+              </div>
+              <label className={styles.checkboxRow}>
+                <input
+                  type="checkbox"
+                  checked={newUserForm.is_manager}
+                  onChange={(e) => setNewUserForm((prev) => ({ ...prev, is_manager: e.target.checked }))}
+                />
+                Konto kierownika
+              </label>
+              <button type="submit" className={styles.btnPrimary}>
+                Dodaj osobę
+              </button>
+            </form>
+
             <div className={styles.tableWrap}>
               <table className={styles.empTable}>
                 <thead>
                   <tr>
-                    <th>Imię</th>
-                    <th>Email</th>
-                    <th>Stawka (zł/h)</th>
-                    <th>Akcje</th>
+                    <th>Osoba</th>
+                    <th>Rola</th>
+                    <th>Stawka</th>
+                    <th>Aktywne</th>
+                    <th>Grafik</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {employees.map((emp) => (
-                    <tr key={emp.id}>
+                  {allUsers.map((user) => (
+                    <tr key={user.id} className={user.is_active === false ? styles.inactiveRow : undefined}>
                       <td>
-                        {emp.first_name} {emp.last_name}
+                        <div>{user.first_name} {user.last_name}</div>
+                        <small>{user.username} · {user.email || 'brak e-mail'}</small>
                       </td>
-                      <td>{emp.email || '—'}</td>
+                      <td>
+                        <select
+                          value={user.is_manager ? 'manager' : 'employee'}
+                          onChange={(e) =>
+                            updateUserFlags(user.id, { is_manager: e.target.value === 'manager' })
+                          }
+                          disabled={user.id === currentUser?.id}
+                        >
+                          <option value="employee">Pracownik</option>
+                          <option value="manager">Kierownik</option>
+                        </select>
+                      </td>
                       <td>
                         <input
                           type="number"
                           step="0.01"
-                          defaultValue={emp.hourly_rate ?? ''}
-                          onBlur={(e) => updateRate(emp.id, e.target.value)}
+                          defaultValue={user.hourly_rate ?? ''}
+                          key={`rate-${user.id}-${user.hourly_rate}`}
+                          onBlur={(e) => updateRate(user.id, e.target.value)}
                         />
                       </td>
                       <td>
-                        <button className={styles.btnPrimary} onClick={() => openManage(emp)}>
-                          Zarządzaj grafikiem
-                        </button>
+                        <input
+                          type="checkbox"
+                          checked={user.is_active !== false}
+                          disabled={user.id === currentUser?.id}
+                          onChange={(e) => updateUserFlags(user.id, { is_active: e.target.checked })}
+                        />
+                      </td>
+                      <td>
+                        {!user.is_manager && user.is_active !== false ? (
+                          <button type="button" className={styles.btnPrimary} onClick={() => openManage(user)}>
+                            Grafik
+                          </button>
+                        ) : (
+                          <span>—</span>
+                        )}
                       </td>
                     </tr>
                   ))}

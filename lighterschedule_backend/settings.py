@@ -67,7 +67,7 @@ CORS_ALLOWED_ORIGINS = os.environ.get(
 ).split(',')
 
 # Public registration: when False, require REGISTRATION_INVITE_CODE (or block entirely if empty).
-ALLOW_PUBLIC_REGISTRATION = os.environ.get('ALLOW_PUBLIC_REGISTRATION', 'True') == 'True'
+ALLOW_PUBLIC_REGISTRATION = os.environ.get('ALLOW_PUBLIC_REGISTRATION', 'False') == 'True'
 REGISTRATION_INVITE_CODE = os.environ.get('REGISTRATION_INVITE_CODE', '').strip()
 
 ROOT_URLCONF = 'lighterschedule_backend.urls'

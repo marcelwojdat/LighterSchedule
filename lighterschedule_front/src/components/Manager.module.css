@@ -125,6 +125,51 @@
   border: 1px solid #e2e8f0;
 }
 
+.empTable select {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.empTable small {
+  display: block;
+  color: #64748b;
+  font-size: 0.78rem;
+  margin-top: 2px;
+}
+
+.userCreateForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 12px 0 18px;
+}
+
+.userCreateGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.userCreateGrid input {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+}
+
+.checkboxRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+.inactiveRow {
+  opacity: 0.55;
+}
+
 .btnPrimary,
 .btnSecondary,
 .btnSuccess,

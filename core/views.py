@@ -28,6 +28,7 @@ from .serializers import (
     SwapRequestSerializer,
     UserSerializer,
     UserProfileUpdateSerializer,
+    ManagerUserCreateSerializer,
 )
 from .utils import ensure_user_profile
 
@@ -376,25 +377,61 @@ def register_user(request):
     return Response({'message': 'Zarejestrowano pomyślnie'}, status=status.HTTP_201_CREATED)
 
 
-class UserViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = User.objects.select_related('profile').all()
+class UserViewSet(
+    mixins.CreateModelMixin,
+    viewsets.ReadOnlyModelViewSet,
+):
+    queryset = User.objects.select_related('profile').all().order_by('username')
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action == 'create':
+            return [IsAuthenticated(), IsManager()]
+        return super().get_permissions()
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return ManagerUserCreateSerializer
+        return UserSerializer
 
     @action(detail=True, methods=['patch'], permission_classes=[IsAuthenticated, IsManager])
     def profile(self, request, pk=None):
         user = self.get_object()
-        hourly_rate = request.data.get('hourly_rate')
+        data = request.data
+        has_rate = 'hourly_rate' in data
+        has_manager = 'is_manager' in data
+        has_active = 'is_active' in data
 
-        if hourly_rate is None:
+        if not has_rate and not has_manager and not has_active:
             return Response(
-                {'error': 'Podaj stawkę godzinową (hourly_rate).'},
+                {'error': 'Podaj hourly_rate, is_manager lub is_active.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if user.id == request.user.id and has_manager and not data.get('is_manager'):
+            return Response(
+                {'error': 'Nie możesz odebrać sobie uprawnień kierownika.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if user.id == request.user.id and has_active and data.get('is_active') is False:
+            return Response(
+                {'error': 'Nie możesz dezaktywować własnego konta.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         profile = ensure_user_profile(user)
-        profile.hourly_rate = hourly_rate
+
+        if has_rate:
+            profile.hourly_rate = data.get('hourly_rate')
+        if has_manager:
+            profile.is_manager = bool(data.get('is_manager'))
         profile.save()
+
+        if has_active:
+            user.is_active = bool(data.get('is_active'))
+            user.save(update_fields=['is_active'])
 
         return Response(UserSerializer(user, context={'request': request}).data)
 

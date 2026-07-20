@@ -88,17 +88,10 @@ Aplikacja: `http://localhost:3000`.
 
 ## 4. Rejestracja i bezpieczeństwo kont
 
-Domyślnie rejestracja jest **otwarta** (`ALLOW_PUBLIC_REGISTRATION=True`).
+Domyślnie rejestracja publiczna jest **wyłączona** (`ALLOW_PUBLIC_REGISTRATION=False`).
+Konta dodaje kierownik w panelu **Zarządzanie kontami** (`/manager`).
 
-W małej firmie możesz ją ograniczyć w `.env`:
-
-| Konfiguracja | Efekt |
-|--------------|--------|
-| `ALLOW_PUBLIC_REGISTRATION=True` | Każdy może założyć konto |
-| `ALLOW_PUBLIC_REGISTRATION=False` + `REGISTRATION_INVITE_CODE=sekret` | Rejestracja tylko z kodem zaproszenia |
-| `ALLOW_PUBLIC_REGISTRATION=False` bez kodu | Rejestracja wyłączona — konta tylko przez Django admin |
-
-Hasło przy rejestracji: minimum **8 znaków** + potwierdzenie hasła w formularzu (backend używa walidatorów Django).
+Pierwszego kierownika ustawiasz jednorazowo (admin / shell), potem wszystko z UI.
 
 ---
 
@@ -126,7 +119,7 @@ user.profile.is_manager = True
 user.profile.save()
 ```
 
-Po zalogowaniu kierownik trafia na `/manager`, pracownik na `/dashboard`.
+Po zalogowaniu kierownik trafia na `/manager` (sekcja **Zarządzanie kontami**), pracownik na `/dashboard`.
 
 ---
 

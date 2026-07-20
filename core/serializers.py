@@ -16,7 +16,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'username', 'first_name', 'last_name', 'email',
-            'hourly_rate', 'is_manager',
+            'hourly_rate', 'is_manager', 'is_active',
         ]
 
     def get_hourly_rate(self, obj):
@@ -26,6 +26,53 @@ class UserSerializer(serializers.ModelSerializer):
     def get_is_manager(self, obj):
         profile = ensure_user_profile(obj)
         return bool(profile and profile.is_manager)
+
+
+class ManagerUserCreateSerializer(serializers.Serializer):
+    username = serializers.CharField(max_length=150)
+    password = serializers.CharField(write_only=True, min_length=8)
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150)
+    email = serializers.EmailField()
+    is_manager = serializers.BooleanField(default=False)
+    hourly_rate = serializers.DecimalField(
+        max_digits=10, decimal_places=2, required=False, default=0,
+    )
+
+    def validate_username(self, value):
+        username = value.strip()
+        if User.objects.filter(username=username).exists():
+            raise serializers.ValidationError('Użytkownik o tym loginie już istnieje.')
+        return username
+
+    def validate_email(self, value):
+        email = value.strip().lower()
+        if User.objects.filter(email__iexact=email).exists():
+            raise serializers.ValidationError('Konto z tym adresem e-mail już istnieje.')
+        return email
+
+    def validate_password(self, value):
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        try:
+            validate_password(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(list(exc.messages))
+        return value
+
+    def create(self, validated_data):
+        is_manager_flag = validated_data.pop('is_manager', False)
+        hourly_rate = validated_data.pop('hourly_rate', 0)
+        user = User.objects.create_user(**validated_data)
+        profile = ensure_user_profile(user)
+        profile.is_manager = is_manager_flag
+        profile.hourly_rate = hourly_rate
+        profile.save()
+        return user
+
+    def to_representation(self, instance):
+        return UserSerializer(instance, context=self.context).data
 
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
