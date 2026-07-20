@@ -15,10 +15,6 @@ from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse
 from django.utils import timezone
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 
 from .models import TaskType, WorkDay, SwapRequest, EmployeeProfile, ShiftTemplate
 from .permissions import is_manager, IsManager
@@ -191,6 +187,11 @@ def payroll_report(request):
         entry['hours'] += hours
         if workday.rate_at_time:
             entry['earnings'] += hours * float(workday.rate_at_time)
+
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)

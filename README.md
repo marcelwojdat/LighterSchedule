@@ -128,11 +128,12 @@ Po zalogowaniu kierownik trafia na `/manager` (sekcja **Zarządzanie kontami**),
 Publiczna rejestracja jest **wyłączona** — konta tworzy kierownik w `/manager` → **Zarządzanie kontami**.
 
 1. **Pierwszy kierownik** (jednorazowo): admin Django / shell (`is_manager=True`) — zobacz krok 5.
-2. Kierownik loguje się → dodaje **pracownika** w panelu kont.
-3. Pracownik loguje się → `/dashboard` → deklaruje dni (opcjonalnie z notatką) → **Wyślij deklaracje**.
-4. Kierownik → **Do akceptacji** → Zatwierdź / Edytuj / Odrzuć.
-5. Pracownik odświeża kalendarz — zielony (zatwierdzony), teal (zatwierdzony z notatką), czerwony (odrzucony).
-6. (Opcjonalnie) zamiana zmiany + akceptacja kierownika; raport PDF w panelu kierownika.
+2. Kierownik loguje się → w **Szablony zmian** definiuje np. Poranną / Późniejszą (godziny per dzień tygodnia).
+3. Kierownik dodaje **pracownika** w panelu kont.
+4. Pracownik loguje się → `/dashboard` → wybiera **szablon zmiany** (+ opcjonalna notatka) → **Wyślij deklaracje**.
+5. Kierownik → **Do akceptacji** → Zatwierdź / Edytuj / Odrzuć.
+6. Pracownik odświeża kalendarz — zielony (zatwierdzony), teal (zatwierdzony z notatką), czerwony (odrzucony).
+7. (Opcjonalnie) zamiana zmiany + akceptacja kierownika; raport PDF w panelu kierownika.
 
 ### Testy automatyczne
 
