@@ -9,15 +9,16 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  min-width: 46px;
-  padding: 10px 12px;
+  gap: 6px;
+  min-width: 42px;
+  min-height: 42px;
+  padding: 8px 10px;
   border-radius: 999px;
   border: none;
   background: linear-gradient(135deg, #1e293b, #334155);
   color: #fff;
   cursor: pointer;
-  box-shadow: 0 18px 35px rgba(15, 23, 42, 0.16);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.14);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -44,15 +45,15 @@
 }
 
 .avatarInitials {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.18);
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
 }
 
 .chevron {
@@ -62,17 +63,19 @@
 .dropdown {
   position: absolute;
   right: 0;
-  top: calc(100% + 14px);
-  width: 280px;
+  top: calc(100% + 10px);
+  width: 260px;
+  max-width: calc(100vw - 24px);
   background: #ffffff;
-  border-radius: 22px;
+  border-radius: 18px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow: 0 30px 60px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.12);
   opacity: 0;
   visibility: hidden;
-  transform: translateY(-14px);
-  transition: opacity 0.22s ease, transform 0.22s ease, visibility 0.22s ease;
+  transform: translateY(-10px);
+  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
   z-index: 20;
+  overflow: hidden;
 }
 
 .open {
@@ -84,16 +87,16 @@
 .menuHeader {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
-  padding: 18px 18px 14px;
+  padding: 14px 14px 12px;
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 }
 
 .iconCircle {
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
   background: #eef2ff;
@@ -103,20 +106,20 @@
 .userName {
   margin: 0;
   font-weight: 700;
-  font-size: 0.98rem;
+  font-size: 0.92rem;
   color: #111827;
 }
 
 .userEmail {
-  margin: 4px 0 0;
-  font-size: 0.86rem;
+  margin: 3px 0 0;
+  font-size: 0.8rem;
   color: #6b7280;
-  line-height: 1.4;
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .menuLink,
-.menuButton,
-.logoutButton {
+.menuButton {
   width: 100%;
   display: flex;
   align-items: center;
@@ -125,10 +128,11 @@
   border: none;
   background: transparent;
   color: #0f172a;
-  font-size: 0.9rem;
-  padding: 10px 16px;
+  font-size: 0.88rem;
+  padding: 10px 14px;
   cursor: pointer;
   transition: background 0.2s ease;
+  text-align: left;
 }
 
 .menuLink:hover,
@@ -143,40 +147,74 @@
 .linkIcon {
   color: #334155;
   min-width: 16px;
+  flex-shrink: 0;
 }
 
 .stateTag {
   margin-left: auto;
-  min-width: 65px;
-  font-size: 0.78rem;
+  min-width: 58px;
+  font-size: 0.74rem;
   color: #475569;
   text-align: right;
 }
 
 .logoutButton {
-  width: calc(100% - 20px);
-  margin: 6px 10px 10px;
-  padding: 9px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  width: calc(100% - 16px);
+  margin: 6px 8px 8px;
+  padding: 8px 12px;
+  min-height: 36px;
+  border: none;
   border-radius: 10px;
   background: #fee2e2;
   color: #991b1b;
-  font-size: 0.88rem;
+  font-size: 0.85rem;
   font-weight: 600;
-  justify-content: flex-start;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.logoutButton .linkIcon {
+  color: inherit;
 }
 
 .logoutButton:hover {
   background: #fecaca;
 }
 
+@media (max-width: 480px) {
+  .dropdown {
+    width: min(280px, calc(100vw - 20px));
+  }
+
+  .menuLink,
+  .menuButton {
+    padding: 11px 14px;
+    font-size: 0.9rem;
+  }
+
+  .logoutButton {
+    padding: 9px 12px;
+    font-size: 0.86rem;
+  }
+}
+
 :global([data-theme='dark']) .dropdown {
   background: #1e293b;
   border-color: #334155;
-  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
 }
 
 :global([data-theme='dark']) .menuHeader {
   border-bottom-color: #334155;
+}
+
+:global([data-theme='dark']) .iconCircle {
+  background: #312e81;
+  color: #c7d2fe;
 }
 
 :global([data-theme='dark']) .userName {
@@ -205,6 +243,10 @@
 :global([data-theme='dark']) .logoutButton {
   background: rgba(248, 113, 113, 0.18);
   color: #fecaca;
+}
+
+:global([data-theme='dark']) .logoutButton .linkIcon {
+  color: inherit;
 }
 
 :global([data-theme='dark']) .logoutButton:hover {

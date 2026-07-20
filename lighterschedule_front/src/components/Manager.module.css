@@ -1,5 +1,5 @@
 .managerPage {
-  padding: 20px 28px 36px;
+  padding: 18px 24px 32px;
   max-width: 1450px;
   margin: 0 auto;
   width: 100%;
@@ -10,13 +10,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   margin-bottom: 4px;
 }
 
 .managerTitle {
   text-align: left;
-  font-size: 1.9rem;
+  font-size: 1.85rem;
   margin: 0;
   color: #0f172a;
 }
@@ -40,12 +40,12 @@
 
 /* —— Stats strip —— */
 .statsBar {
-  margin-top: 16px;
-  padding: 16px 18px;
+  margin-top: 14px;
+  padding: 14px 16px;
   background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
-  border-radius: 20px;
+  border-radius: 18px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
 }
 
 .statsBarHeader {
@@ -129,8 +129,8 @@
 .queuesRow {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 14px;
-  margin-top: 14px;
+  gap: 12px;
+  margin-top: 12px;
   align-items: stretch;
 }
 
@@ -145,8 +145,8 @@
 .managerBody {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr);
-  gap: 14px;
-  margin-top: 14px;
+  gap: 12px;
+  margin-top: 12px;
   align-items: stretch;
 }
 
@@ -164,12 +164,12 @@
 }
 
 .sectionCard {
-  padding: 16px 18px;
+  padding: 14px 16px;
   background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
-  border-radius: 20px;
+  border-radius: 18px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
-  margin-bottom: 14px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+  margin-bottom: 12px;
 }
 
 .sectionCard h3 {
@@ -786,16 +786,16 @@
 }
 
 .teamOverviewSection {
-  margin-top: 14px;
-  padding: 16px 18px;
+  margin-top: 12px;
+  padding: 14px 16px;
   background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
-  border-radius: 20px;
+  border-radius: 18px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
 }
 
 .settingsSection {
-  margin-top: 14px;
+  margin-top: 12px;
 }
 
 .settingsSection > .sectionCard {
@@ -807,16 +807,17 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
 }
 
 .settingsToggleRow h3 {
   margin: 0;
+  font-size: 1.05rem;
 }
 
 .shiftTemplatesPanel {
-  margin-top: 14px;
-  padding-top: 14px;
+  margin-top: 12px;
+  padding-top: 12px;
   border-top: 1px solid #e2e8f0;
 }
 
@@ -929,13 +930,27 @@
   }
 
   .managerTitle {
-    font-size: 1.55rem;
+    font-size: 1.5rem;
+  }
+
+  .managerPage {
+    padding: 14px 14px 24px;
+  }
+
+  .settingsToggleRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .settingsToggleRow button {
+    width: 100%;
   }
 }
 
 :global([data-theme='dark']) .managerTitle,
 :global([data-theme='dark']) .statsBarHeader h3,
 :global([data-theme='dark']) .sectionCard h3,
+:global([data-theme='dark']) .settingsToggleRow h3,
 :global([data-theme='dark']) .empHeader,
 :global([data-theme='dark']) .teamOverviewHeader h3 {
   color: #f1f5f9;
@@ -1087,5 +1102,25 @@
 
 :global([data-theme='dark']) .btnSecondary {
   background: #334155;
+  color: #f1f5f9;
+}
+
+:global([data-theme='dark']) .successBox {
+  background: #064e3b;
+  color: #a7f3d0;
+}
+
+:global([data-theme='dark']) .errorBox {
+  background: #7f1d1d;
+  color: #fecaca;
+}
+
+:global([data-theme='dark']) .scheduleNote {
+  color: #5eead4;
+}
+
+:global([data-theme='dark']) .templateHourRow input[type='time'] {
+  background: #0f172a;
+  border-color: #475569;
   color: #f1f5f9;
 }
