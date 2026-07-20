@@ -41,6 +41,12 @@ class WorkDay(models.Model):
     )
     approved_at = models.DateTimeField(null=True, blank=True)
     rejection_reason = models.CharField(max_length=255, blank=True, default='')
+    note = models.CharField(
+        max_length=500,
+        blank=True,
+        default='',
+        help_text='Opcjonalna notatka pracownika (np. wcześniejsze wyjście).',
+    )
 
     rate_at_time = models.DecimalField(max_digits=10, decimal_places=2, editable=False, null=True)
 

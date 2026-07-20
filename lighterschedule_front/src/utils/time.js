@@ -5,7 +5,7 @@ export const toApiTime = (value) => {
   return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}:${String(seconds).padStart(2, '0').slice(0, 2)}`;
 };
 
-export const buildWorkdayPayload = ({ date, start_time, end_time, role, employee }) => {
+export const buildWorkdayPayload = ({ date, start_time, end_time, role, employee, note }) => {
   const payload = {
     date,
     start_time: toApiTime(start_time),
@@ -18,6 +18,10 @@ export const buildWorkdayPayload = ({ date, start_time, end_time, role, employee
 
   if (employee != null) {
     payload.employee = employee;
+  }
+
+  if (note != null) {
+    payload.note = String(note).trim().slice(0, 500);
   }
 
   return payload;

@@ -563,6 +563,7 @@ class WorkDayViewSet(viewsets.ModelViewSet):
         start_time = request.data.get('start_time')
         end_time = request.data.get('end_time')
         role = request.data.get('role')
+        note = request.data.get('note')
 
         if start_time:
             workday.start_time = start_time
@@ -570,6 +571,8 @@ class WorkDayViewSet(viewsets.ModelViewSet):
             workday.end_time = end_time
         if role is not None:
             workday.role_id = role if role else None
+        if note is not None:
+            workday.note = str(note).strip()[:500]
 
         workday.status = WorkDay.Status.APPROVED
         workday.approved_by = request.user

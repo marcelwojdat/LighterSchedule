@@ -69,8 +69,10 @@ Ustaw nagłówki bezpieczeństwa (HSTS, X-Frame-Options) po włączeniu HTTPS.
 
 ## 6. Smoke test po deployu
 
-1. Logowanie pracownika i kierownika
-2. Deklaracja → akceptacja
-3. Zamiana (przekazanie / dwustronna)
-4. Pobranie raportu PDF wypłat
-5. Sprawdzenie powiadomień w panelu
+1. `/register` pokazuje „Rejestracja niedostępna” (bez `ALLOW_PUBLIC_REGISTRATION=True`)
+2. Kierownik dodaje pracownika w `/manager` → Zarządzanie kontami
+3. Logowanie pracownika i kierownika
+4. Deklaracja (z opcjonalną notatką) → akceptacja
+5. Zamiana (przekazanie / dwustronna)
+6. Pobranie raportu PDF wypłat
+7. Sprawdzenie powiadomień w panelu

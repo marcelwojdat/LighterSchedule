@@ -110,11 +110,12 @@ class WorkDaySerializer(serializers.ModelSerializer):
             'id', 'employee', 'employee_name', 'date',
             'start_time', 'end_time', 'role', 'role_name',
             'status', 'approved_by', 'approved_by_name', 'approved_at',
-            'rejection_reason', 'rate_at_time', 'total_hours', 'earnings',
+            'rejection_reason', 'note', 'rate_at_time', 'total_hours', 'earnings',
         ]
         read_only_fields = ['status', 'approved_by', 'approved_at', 'rejection_reason', 'rate_at_time']
         extra_kwargs = {
             'employee': {'required': False},
+            'note': {'required': False, 'allow_blank': True},
         }
 
     def get_role_name(self, obj):

@@ -19,6 +19,7 @@ import { getTaskTypes } from '../api/taskTypes';
 import { downloadPayrollPdf, getTeamStats } from '../api/stats';
 import { getNotifications } from '../api/notifications';
 import { useTheme } from '../hooks/useTheme';
+import { useAutoDismiss } from '../hooks/useAutoDismiss';
 import { buildWorkdayPayload, toApiTime } from '../utils/time';
 
 const STATUS_LABELS = {
@@ -90,6 +91,7 @@ const Manager = () => {
   const [success, setSuccess] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
   const [notifications, setNotifications] = useState({ total: 0, items: [] });
+  const [dayNote, setDayNote] = useState('');
   const [newUserForm, setNewUserForm] = useState({
     username: '',
     first_name: '',
@@ -100,6 +102,7 @@ const Manager = () => {
     hourly_rate: '20',
   });
   const { darkMode, toggleTheme } = useTheme();
+  useAutoDismiss(success, setSuccess);
 
   const weekDates = getWeekDates(weekStart);
 
@@ -241,15 +244,76 @@ const Manager = () => {
       setTimeFrom(pending.start_time.slice(0, 5));
       setTimeTo(pending.end_time.slice(0, 5));
       setSelectedRoleId(pending.role ? String(pending.role) : '');
+      setDayNote(pending.note || '');
     } else if (existing) {
       setTimeFrom(existing.start_time.slice(0, 5));
       setTimeTo(existing.end_time.slice(0, 5));
       setSelectedRoleId(existing.role ? String(existing.role) : '');
+      setDayNote(existing.note || '');
     } else {
       setTimeFrom('12:00');
       setTimeTo('20:00');
       setSelectedRoleId('');
+      setDayNote('');
     }
+  };
+
+  const getTileClassName = ({ date: tileDate, view }) => {
+    if (view !== 'month') return null;
+
+    const year = tileDate.getFullYear();
+    const month = String(tileDate.getMonth() + 1).padStart(2, '0');
+    const day = String(tileDate.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+
+    if (selectedDates[dateStr]) return 'custom-selected-day';
+
+    const saved = workdays.find((d) => d.date === dateStr);
+    if (!saved) return null;
+
+    if (saved.status === 'approved') {
+      return saved.note?.trim() ? 'custom-approved-note-day' : 'custom-approved-day';
+    }
+    if (saved.status === 'rejected') return 'custom-rejected-day';
+    return 'custom-proposed-day';
+  };
+
+  const getTileContent = ({ date: tileDate, view }) => {
+    if (view !== 'month') return null;
+
+    const year = tileDate.getFullYear();
+    const month = String(tileDate.getMonth() + 1).padStart(2, '0');
+    const day = String(tileDate.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+
+    const pending = selectedDates[dateStr];
+    if (pending) {
+      return (
+        <div className={styles.tileContent}>
+          <div className={styles.tileHours}>
+            {pending.start_time.slice(0, 5)} - {pending.end_time.slice(0, 5)}
+          </div>
+          <div className={styles.tileStatus}>Do zapisu</div>
+          {pending.note?.trim() ? <div className={styles.tileStatus}>nota</div> : null}
+        </div>
+      );
+    }
+
+    const saved = workdays.find((d) => d.date === dateStr);
+    if (saved) {
+      return (
+        <div className={styles.tileContent}>
+          <div className={styles.tileHours}>
+            {saved.start_time.slice(0, 5)} - {saved.end_time.slice(0, 5)}
+          </div>
+          {saved.role_name ? <div className={styles.tileStatus}>{saved.role_name}</div> : null}
+          <div className={styles.tileStatus}>{STATUS_LABELS[saved.status]}</div>
+          {saved.note?.trim() ? <div className={styles.tileStatus}>nota</div> : null}
+        </div>
+      );
+    }
+
+    return null;
   };
 
   const addShift = () => {
@@ -260,6 +324,7 @@ const Manager = () => {
         start_time: toApiTime(timeFrom),
         end_time: toApiTime(timeTo),
         role: selectedRoleId ? Number(selectedRoleId) : null,
+        note: dayNote.trim(),
       },
     });
     setSuccess('Zmiana dodana do zapisu.');
@@ -279,6 +344,7 @@ const Manager = () => {
             end_time: times.end_time,
             role: times.role,
             employee: selectedEmployee.id,
+            note: times.note || '',
           });
 
           if (existing?.status === 'proposed') {
@@ -626,6 +692,9 @@ const Manager = () => {
                       {item.role_name ? ` (${item.role_name})` : ''}
                     </div>
                   )}
+                  {item.note?.trim() ? (
+                    <div className={styles.dayNoteBox}>Notatka: {item.note}</div>
+                  ) : null}
                   {rejectingId === item.id ? (
                     <input
                       className={styles.rejectionInput}
@@ -877,7 +946,34 @@ const Manager = () => {
                 </div>
 
                 <div className={styles.calendarContainer}>
-                  <Calendar onChange={setChosenDate} value={null} />
+                  <Calendar
+                    onChange={setChosenDate}
+                    value={null}
+                    tileClassName={getTileClassName}
+                    tileContent={getTileContent}
+                  />
+                </div>
+                <div className={styles.statusLegend}>
+                  <div className={styles.legendItem}>
+                    <span className={`${styles.legendDot} ${styles.legendProposed}`} />
+                    Oczekuje
+                  </div>
+                  <div className={styles.legendItem}>
+                    <span className={`${styles.legendDot} ${styles.legendApproved}`} />
+                    Zatwierdzony
+                  </div>
+                  <div className={styles.legendItem}>
+                    <span className={`${styles.legendDot} ${styles.legendApprovedNote}`} />
+                    Z notatką
+                  </div>
+                  <div className={styles.legendItem}>
+                    <span className={`${styles.legendDot} ${styles.legendRejected}`} />
+                    Odrzucony
+                  </div>
+                  <div className={styles.legendItem}>
+                    <span className={`${styles.legendDot} ${styles.legendSelected}`} />
+                    Do zapisu
+                  </div>
                 </div>
 
                 <div className={styles.shiftControls}>
@@ -885,6 +981,14 @@ const Manager = () => {
                   <input type="time" value={timeFrom} onChange={(e) => setTimeFrom(e.target.value)} />
                   <input type="time" value={timeTo} onChange={(e) => setTimeTo(e.target.value)} />
                   {renderRoleSelect(selectedRoleId, (e) => setSelectedRoleId(e.target.value))}
+                  <textarea
+                    className={styles.noteInput}
+                    rows={2}
+                    maxLength={500}
+                    placeholder="Notatka (opcjonalnie)"
+                    value={dayNote}
+                    onChange={(e) => setDayNote(e.target.value)}
+                  />
                   <button className={styles.btnPrimary} onClick={addShift}>
                     Dodaj zmianę
                   </button>
@@ -900,15 +1004,25 @@ const Manager = () => {
                   ) : (
                     <ul className={styles.scheduleList}>
                       {workdays.map((w) => (
-                        <li key={w.id} className={styles.scheduleItem}>
+                        <li
+                          key={w.id}
+                          className={`${styles.scheduleItem} ${
+                            w.status === 'approved' && w.note?.trim() ? styles.scheduleItemWithNote : ''
+                          }`}
+                        >
                           <span>
                             {w.date} — {w.start_time.slice(0, 5)} - {w.end_time.slice(0, 5)}
                             {w.role_name ? ` (${w.role_name})` : ''}
+                            {w.note?.trim() ? (
+                              <small className={styles.scheduleNote}> — {w.note}</small>
+                            ) : null}
                           </span>
                           <span
                             className={`${styles.statusBadge} ${
                               w.status === 'approved'
-                                ? styles.statusApproved
+                                ? w.note?.trim()
+                                  ? styles.statusApprovedNote
+                                  : styles.statusApproved
                                 : w.status === 'rejected'
                                   ? styles.statusRejected
                                   : styles.statusProposed

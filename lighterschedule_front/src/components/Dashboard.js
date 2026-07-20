@@ -21,6 +21,7 @@ import { getUsers, getSwappableWorkdays } from '../api/users';
 import { getTaskTypes } from '../api/taskTypes';
 import { getNotifications } from '../api/notifications';
 import { useTheme } from '../hooks/useTheme';
+import { useAutoDismiss } from '../hooks/useAutoDismiss';
 import { buildWorkdayPayload, toApiTime } from '../utils/time';
 
 const STATUS_LABELS = {
@@ -61,6 +62,9 @@ const Dashboard = () => {
   const [notifications, setNotifications] = useState({ total: 0, items: [] });
   const [taskTypes, setTaskTypes] = useState([]);
   const [selectedRoleId, setSelectedRoleId] = useState('');
+  const [dayNote, setDayNote] = useState('');
+
+  useAutoDismiss(swapSuccess, setSwapSuccess);
 
   const fetchTaskTypes = async () => {
     try {
@@ -219,14 +223,17 @@ const Dashboard = () => {
       setTimeFrom(pending.start_time.slice(0, 5));
       setTimeTo(pending.end_time.slice(0, 5));
       setSelectedRoleId(pending.role ? String(pending.role) : '');
+      setDayNote(pending.note || '');
     } else if (existing) {
       setTimeFrom(existing.start_time.slice(0, 5));
       setTimeTo(existing.end_time.slice(0, 5));
       setSelectedRoleId(existing.role ? String(existing.role) : '');
+      setDayNote(existing.note || '');
     } else {
       setTimeFrom('12:00');
       setTimeTo('20:00');
       setSelectedRoleId('');
+      setDayNote('');
     }
   };
 
@@ -253,6 +260,7 @@ const Dashboard = () => {
         start_time: toApiTime(timeFrom),
         end_time: toApiTime(timeTo),
         role: selectedRoleId ? Number(selectedRoleId) : null,
+        note: dayNote.trim(),
       },
     };
 
@@ -354,6 +362,7 @@ const Dashboard = () => {
             start_time: times.start_time,
             end_time: times.end_time,
             role: times.role,
+            note: times.note || '',
           });
 
           if (existing?.status === 'approved') {
@@ -420,7 +429,9 @@ const Dashboard = () => {
     const saved = getWorkdayForDate(dateStr);
     if (!saved) return null;
 
-    if (saved.status === 'approved') return 'custom-approved-day';
+    if (saved.status === 'approved') {
+      return saved.note?.trim() ? 'custom-approved-note-day' : 'custom-approved-day';
+    }
     if (saved.status === 'rejected') return 'custom-rejected-day';
     return 'custom-proposed-day';
   };
@@ -441,6 +452,7 @@ const Dashboard = () => {
             {pending.start_time.slice(0, 5)} - {pending.end_time.slice(0, 5)}
           </div>
           <div className={styles.tileStatus}>Do wysłania</div>
+          {pending.note?.trim() ? <div className={styles.tileStatus}>nota</div> : null}
         </div>
       );
     }
@@ -454,6 +466,7 @@ const Dashboard = () => {
           </div>
           {saved.role_name ? <div className={styles.tileStatus}>{saved.role_name}</div> : null}
           <div className={styles.tileStatus}>{STATUS_LABELS[saved.status]}</div>
+          {saved.note?.trim() ? <div className={styles.tileStatus}>nota</div> : null}
         </div>
       );
     }
@@ -518,6 +531,9 @@ const Dashboard = () => {
             {existingWorkday.role_name ? ` (${existingWorkday.role_name})` : ''}
           </p>
           {renderStatusBadge('approved')}
+          {existingWorkday.note?.trim() ? (
+            <div className={styles.dayNoteBox}>Notatka: {existingWorkday.note}</div>
+          ) : null}
           <p className={styles.popupInfo}>Ten dzień został zatwierdzony przez kierownika. Nie możesz go edytować.</p>
           <div className={styles.popupButtons}>
             <input type="button" className={`${styles.popupBtn} ${styles.popupBtnSecondary}`} onClick={cancelSelection} value="Wróć" />
@@ -543,6 +559,18 @@ const Dashboard = () => {
             <input type="time" onChange={(e) => setTimeTo(e.target.value)} value={timeTo} />
           </div>
           {renderRoleSelect()}
+          <label className={styles.noteLabel} htmlFor="day-note-rejected">
+            Notatka (opcjonalnie)
+          </label>
+          <textarea
+            id="day-note-rejected"
+            className={styles.noteInput}
+            rows={2}
+            maxLength={500}
+            placeholder="Np. muszę wyjść wcześniej"
+            value={dayNote}
+            onChange={(e) => setDayNote(e.target.value)}
+          />
           <div className={styles.popupButtons}>
             <input type="button" className={`${styles.popupBtn} ${styles.popupBtnSecondary}`} onClick={cancelSelection} value="Wróć" />
             <input type="button" className={styles.popupBtn} onClick={setChoosedHours} value="Złóż ponownie" />
@@ -570,6 +598,18 @@ const Dashboard = () => {
                 <input type="time" onChange={(e) => setTimeTo(e.target.value)} value={timeTo} />
               </div>
               {renderRoleSelect()}
+              <label className={styles.noteLabel} htmlFor="day-note-proposed">
+                Notatka (opcjonalnie)
+              </label>
+              <textarea
+                id="day-note-proposed"
+                className={styles.noteInput}
+                rows={2}
+                maxLength={500}
+                placeholder="Np. muszę wyjść wcześniej"
+                value={dayNote}
+                onChange={(e) => setDayNote(e.target.value)}
+              />
               <div className={styles.popupButtons}>
                 <input type="button" className={`${styles.popupBtn} ${styles.popupBtnSecondary}`} onClick={cancelSelection} value="Wróć" />
                 <input type="button" className={`${styles.popupBtn} ${styles.popupBtnDanger}`} onClick={() => removeDateFromSelection(selectedDate)} value="Usuń" />
@@ -610,6 +650,18 @@ const Dashboard = () => {
           <input type="time" onChange={(e) => setTimeTo(e.target.value)} value={timeTo} />
         </div>
         {renderRoleSelect()}
+        <label className={styles.noteLabel} htmlFor="day-note-new">
+          Notatka (opcjonalnie)
+        </label>
+        <textarea
+          id="day-note-new"
+          className={styles.noteInput}
+          rows={2}
+          maxLength={500}
+          placeholder="Np. muszę wyjść wcześniej"
+          value={dayNote}
+          onChange={(e) => setDayNote(e.target.value)}
+        />
         <div className={styles.popupButtons}>
           <input type="button" onClick={cancelSelection} value="Wróć" className={`${styles.popupBtn} ${styles.popupBtnSecondary}`} />
           <input type="button" onClick={setChoosedHours} value="Dodaj deklarację" className={styles.popupBtn} />
@@ -717,6 +769,10 @@ const Dashboard = () => {
             <div className={styles.legendItem}>
               <span className={`${styles.legendDot} ${styles.legendApproved}`} />
               Zatwierdzony przez kierownika
+            </div>
+            <div className={styles.legendItem}>
+              <span className={`${styles.legendDot} ${styles.legendApprovedNote}`} />
+              Zatwierdzony z notatką
             </div>
             <div className={styles.legendItem}>
               <span className={`${styles.legendDot} ${styles.legendRejected}`} />

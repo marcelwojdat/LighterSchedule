@@ -46,6 +46,30 @@ class WorkDayWorkflowTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(response.data['status'], 'proposed')
 
+    def test_workday_note_is_saved_and_returned(self):
+        self.authenticate(self.employee)
+        response = self.client.post('/api/workdays/', {
+            'date': self.future_date_str,
+            'start_time': '09:00:00',
+            'end_time': '17:00:00',
+            'note': 'Muszę wyjść wcześniej',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data['note'], 'Muszę wyjść wcześniej')
+
+        workday = WorkDay.objects.get(id=response.data['id'])
+        self.assertEqual(workday.note, 'Muszę wyjść wcześniej')
+
+        self.authenticate(self.manager)
+        approve = self.client.post(f'/api/workdays/{workday.id}/approve/', {
+            'note': 'OK, wyjście o 15:00',
+        }, format='json')
+        self.assertEqual(approve.status_code, status.HTTP_200_OK)
+        workday.refresh_from_db()
+        self.assertEqual(workday.note, 'OK, wyjście o 15:00')
+        self.assertEqual(workday.status, WorkDay.Status.APPROVED)
+
     def test_manager_approves_workday(self):
         workday = WorkDay.objects.create(
             employee=self.employee,

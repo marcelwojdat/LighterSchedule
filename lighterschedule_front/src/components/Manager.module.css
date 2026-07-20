@@ -425,16 +425,190 @@
 
 .calendarContainer {
   margin-top: 12px;
-  padding: 12px;
-  background: #fff;
-  border-radius: 14px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  padding: 14px;
+  background: #f8fafc;
+  border-radius: 20px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  overflow: hidden;
 }
 
 .calendarContainer :global(.react-calendar) {
-  width: 100%;
+  width: 100% !important;
+  margin: 0 auto;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 18px !important;
+}
+
+.calendarContainer :global(.react-calendar__navigation) {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  padding-bottom: 0 !important;
+  height: 30px;
+}
+
+.calendarContainer :global(.react-calendar__navigation__label) {
+  text-transform: uppercase !important;
+}
+
+.calendarContainer :global(.react-calendar__navigation button) {
+  flex-grow: 0 !important;
+  min-width: 44px;
+  background: none;
   border: none;
-  background: transparent;
+  font-size: 1.2rem;
+  color: hsl(217, 33%, 17%);
+}
+
+.calendarContainer :global(.react-calendar__navigation button:enabled:hover),
+.calendarContainer :global(.react-calendar__navigation button:enabled:focus) {
+  background: rgba(59, 130, 246, 0.08) !important;
+  border-radius: 10px;
+}
+
+.calendarContainer :global(.react-calendar__tile) {
+  flex-basis: calc(100% / 7 - 4px) !important;
+  max-width: calc(100% / 7 - 4px) !important;
+  margin: 2px !important;
+  min-height: 72px;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  border-radius: 14px !important;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.calendarContainer :global(.react-calendar__tile:focus) {
+  outline: none !important;
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18) !important;
+}
+
+.calendarContainer :global(.react-calendar__tile:hover) {
+  transform: translateY(-2px);
+  background: #eff6ff !important;
+}
+
+.calendarContainer :global(.custom-selected-day) {
+  background: #3b82f6 !important;
+  color: white !important;
+  box-shadow: 0 8px 18px rgba(59, 130, 246, 0.25);
+}
+
+.calendarContainer :global(.custom-proposed-day) {
+  background: #f59e0b !important;
+  color: #1e293b !important;
+  box-shadow: 0 8px 18px rgba(245, 158, 11, 0.28);
+}
+
+.calendarContainer :global(.custom-approved-day) {
+  background: #059669 !important;
+  color: white !important;
+  box-shadow: 0 8px 18px rgba(5, 150, 105, 0.28);
+}
+
+.calendarContainer :global(.custom-approved-note-day) {
+  background: #0d9488 !important;
+  color: white !important;
+  box-shadow: 0 8px 18px rgba(13, 148, 136, 0.32);
+  outline: 2px solid #fbbf24;
+  outline-offset: -3px;
+}
+
+.calendarContainer :global(.custom-rejected-day) {
+  background: #dc2626 !important;
+  color: white !important;
+  box-shadow: 0 8px 18px rgba(220, 38, 38, 0.28);
+}
+
+.statusLegend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 14px;
+  padding-top: 12px;
+  margin: 10px 0 4px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: #475569;
+}
+
+.legendDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.legendProposed {
+  background: #f59e0b;
+}
+
+.legendApproved {
+  background: #059669;
+}
+
+.legendApprovedNote {
+  background: #0d9488;
+  box-shadow: inset 0 0 0 2px #fbbf24;
+}
+
+.legendRejected {
+  background: #dc2626;
+}
+
+.legendSelected {
+  background: #3b82f6;
+}
+
+.tileContent {
+  margin-top: 4px;
+  font-size: 0.68rem;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.tileHours {
+  font-weight: 700;
+}
+
+.tileStatus {
+  margin-top: 2px;
+  font-size: 0.62rem;
+  opacity: 0.92;
+}
+
+.dayNoteBox {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #ecfdf5;
+  border: 1px solid #99f6e4;
+  color: #115e59;
+  font-size: 0.88rem;
+}
+
+.noteInput {
+  width: 100%;
+  min-width: 180px;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
 }
 
 .shiftControls {
@@ -496,6 +670,18 @@
   font-size: 0.9rem;
 }
 
+.scheduleItemWithNote {
+  background: #f0fdfa;
+  border-color: #5eead4;
+}
+
+.scheduleNote {
+  display: block;
+  margin-top: 4px;
+  color: #0f766e;
+  font-size: 0.82rem;
+}
+
 .statusBadge {
   padding: 4px 10px;
   border-radius: 999px;
@@ -512,6 +698,12 @@
 .statusApproved {
   background: #d1fae5;
   color: #065f46;
+}
+
+.statusApprovedNote {
+  background: #ccfbf1;
+  color: #115e59;
+  box-shadow: inset 0 0 0 1px #fbbf24;
 }
 
 .statusRejected {
@@ -747,6 +939,42 @@
   border-color: #334155;
 }
 
+:global([data-theme='dark']) .scheduleItemWithNote {
+  background: #042f2e;
+  border-color: #0f766e;
+}
+
+:global([data-theme='dark']) .dayNoteBox {
+  background: #042f2e;
+  border-color: #0f766e;
+  color: #99f6e4;
+}
+
+:global([data-theme='dark']) .noteInput {
+  background: #0f172a;
+  border-color: #475569;
+  color: #f1f5f9;
+}
+
+:global([data-theme='dark']) .legendItem {
+  color: #94a3b8;
+}
+
+:global([data-theme='dark']) .calendarContainer {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+:global([data-theme='dark']) .calendarContainer :global(.react-calendar__navigation button) {
+  color: #e2e8f0;
+}
+
+:global([data-theme='dark']) .calendarContainer :global(.react-calendar__tile) {
+  background: #0f172a;
+  border-color: #334155 !important;
+  color: #e2e8f0;
+}
+
 :global([data-theme='dark']) .queueItem {
   background: #1c1917;
   border-color: #78350f;
@@ -760,11 +988,6 @@
 :global([data-theme='dark']) .swapTransfer,
 :global([data-theme='dark']) .checkboxRow {
   color: #cbd5e1;
-}
-
-:global([data-theme='dark']) .calendarContainer {
-  background: #1e293b;
-  border-color: #334155;
 }
 
 :global([data-theme='dark']) .notificationItem {

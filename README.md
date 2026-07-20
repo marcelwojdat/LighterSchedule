@@ -123,14 +123,16 @@ Po zalogowaniu kierownik trafia na `/manager` (sekcja **Zarządzanie kontami**),
 
 ---
 
-## 6. Test pełnego flow
+## 6. Smoke test (produkcja / lokalnie)
 
-1. **Zarejestruj pracownika** na `/register` (login, imię, nazwisko, email, hasło).
-2. **Ustaw kierownika** (krok 4 powyżej) — możesz użyć drugiego konta albo zmienić rolę istniejącego.
-3. **Pracownik** loguje się → `/dashboard` → wybiera dni i godziny → **Wyślij deklaracje** (status: oczekuje).
-4. **Kierownik** loguje się → `/manager` → sekcja **Do akceptacji** → Zatwierdź / Edytuj godziny / Odrzuć.
-5. Pracownik odświeża kalendarz — dzień jest zielony (zatwierdzony) albo czerwony (odrzucony, z powodem).
-6. (Opcjonalnie) Pracownik wysyła **prośbę o zamianę** zatwierdzonej przyszłej zmiany; drugi pracownik akceptuje; kierownik zatwierdza w kolejce zamian.
+Publiczna rejestracja jest **wyłączona** — konta tworzy kierownik w `/manager` → **Zarządzanie kontami**.
+
+1. **Pierwszy kierownik** (jednorazowo): admin Django / shell (`is_manager=True`) — zobacz krok 5.
+2. Kierownik loguje się → dodaje **pracownika** w panelu kont.
+3. Pracownik loguje się → `/dashboard` → deklaruje dni (opcjonalnie z notatką) → **Wyślij deklaracje**.
+4. Kierownik → **Do akceptacji** → Zatwierdź / Edytuj / Odrzuć.
+5. Pracownik odświeża kalendarz — zielony (zatwierdzony), teal (zatwierdzony z notatką), czerwony (odrzucony).
+6. (Opcjonalnie) zamiana zmiany + akceptacja kierownika; raport PDF w panelu kierownika.
 
 ### Testy automatyczne
 

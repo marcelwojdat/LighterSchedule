@@ -6,6 +6,7 @@ import styles from './Profile.module.css';
 import { getErrorMessage } from '../api/client';
 import { getCurrentUser, updateCurrentUser, changePassword } from '../api/users';
 import { useTheme } from '../hooks/useTheme';
+import { useAutoDismiss } from '../hooks/useAutoDismiss';
 
 const Profile = () => {
   const { darkMode, toggleTheme } = useTheme();
@@ -23,6 +24,8 @@ const Profile = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
+
+  useAutoDismiss(success, setSuccess);
 
   const loadUser = async () => {
     try {
