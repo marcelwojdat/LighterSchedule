@@ -794,6 +794,32 @@
   box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
 }
 
+.settingsSection {
+  margin-top: 14px;
+}
+
+.settingsSection > .sectionCard {
+  margin-bottom: 0;
+}
+
+.settingsToggleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settingsToggleRow h3 {
+  margin: 0;
+}
+
+.shiftTemplatesPanel {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #e2e8f0;
+}
+
 .teamOverviewHeader {
   display: flex;
   flex-wrap: wrap;
@@ -922,6 +948,10 @@
   border-color: #334155;
   box-shadow: 0 14px 32px rgba(0, 0, 0, 0.25);
   color: #e2e8f0;
+}
+
+:global([data-theme='dark']) .shiftTemplatesPanel {
+  border-top-color: #334155;
 }
 
 :global([data-theme='dark']) .statCard {

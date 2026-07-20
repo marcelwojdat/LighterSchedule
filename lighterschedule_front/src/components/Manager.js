@@ -113,6 +113,7 @@ const Manager = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [notifications, setNotifications] = useState({ total: 0, items: [] });
   const [dayNote, setDayNote] = useState('');
+  const [showShiftTemplates, setShowShiftTemplates] = useState(false);
   const [newUserForm, setNewUserForm] = useState({
     username: '',
     first_name: '',
@@ -945,119 +946,6 @@ const Manager = () => {
       <div className={styles.managerBody}>
         <div className={styles.leftCol}>
           <div className={styles.sectionCard}>
-            <h3>Szablony zmian</h3>
-            <p className={styles.statHint}>
-              Zdefiniuj zmiany (np. Poranna, Późniejsza) z godzinami na wybrane dni tygodnia.
-              Pracownicy wybierają tylko nazwę zmiany — bez wpisywania godzin.
-            </p>
-            <form className={styles.userCreateForm} onSubmit={handleSaveTemplate}>
-              <input
-                type="text"
-                placeholder="Nazwa zmiany (np. Poranna)"
-                value={templateForm.name}
-                onChange={(e) => setTemplateForm((prev) => ({ ...prev, name: e.target.value }))}
-                required
-              />
-              <label className={styles.checkboxRow}>
-                <input
-                  type="checkbox"
-                  checked={templateForm.is_active}
-                  onChange={(e) => setTemplateForm((prev) => ({ ...prev, is_active: e.target.checked }))}
-                />
-                Aktywna (widoczna dla pracowników)
-              </label>
-              <div className={styles.templateHoursGrid}>
-                {templateForm.hours.map((row) => (
-                  <div key={row.weekday} className={styles.templateHourRow}>
-                    <label className={styles.checkboxRow}>
-                      <input
-                        type="checkbox"
-                        checked={row.enabled}
-                        onChange={(e) => {
-                          const enabled = e.target.checked;
-                          setTemplateForm((prev) => ({
-                            ...prev,
-                            hours: prev.hours.map((h) =>
-                              h.weekday === row.weekday ? { ...h, enabled } : h
-                            ),
-                          }));
-                        }}
-                      />
-                      {WEEKDAY_SHORT[row.weekday]}
-                    </label>
-                    <input
-                      type="time"
-                      disabled={!row.enabled}
-                      value={row.start}
-                      onChange={(e) => {
-                        const start = e.target.value;
-                        setTemplateForm((prev) => ({
-                          ...prev,
-                          hours: prev.hours.map((h) =>
-                            h.weekday === row.weekday ? { ...h, start } : h
-                          ),
-                        }));
-                      }}
-                    />
-                    <input
-                      type="time"
-                      disabled={!row.enabled}
-                      value={row.end}
-                      onChange={(e) => {
-                        const end = e.target.value;
-                        setTemplateForm((prev) => ({
-                          ...prev,
-                          hours: prev.hours.map((h) =>
-                            h.weekday === row.weekday ? { ...h, end } : h
-                          ),
-                        }));
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-              <div className={styles.queueActions}>
-                <button type="submit" className={styles.btnPrimary}>
-                  {templateForm.id ? 'Zapisz zmiany szablonu' : 'Dodaj szablon'}
-                </button>
-                {templateForm.id ? (
-                  <button type="button" className={styles.btnSecondary} onClick={resetTemplateForm}>
-                    Anuluj edycję
-                  </button>
-                ) : null}
-              </div>
-            </form>
-
-            {shiftTemplates.length === 0 ? (
-              <p className={styles.emptyQueue}>Brak szablonów — dodaj pierwszą zmianę powyżej.</p>
-            ) : (
-              <ul className={styles.templateList}>
-                {shiftTemplates.map((template) => (
-                  <li key={template.id} className={styles.templateListItem}>
-                    <div>
-                      <strong>{template.name}</strong>
-                      {!template.is_active ? <span className={styles.inactiveTag}> nieaktywna</span> : null}
-                      <div className={styles.templateHoursSummary}>
-                        {template.hours
-                          .map((h) => `${WEEKDAY_SHORT[h.weekday]} ${toDisplayTime(h.start_time)}-${toDisplayTime(h.end_time)}`)
-                          .join(' · ')}
-                      </div>
-                    </div>
-                    <div className={styles.queueActions}>
-                      <button type="button" className={styles.btnSecondary} onClick={() => startEditTemplate(template)}>
-                        Edytuj
-                      </button>
-                      <button type="button" className={styles.btnDanger} onClick={() => handleDeleteTemplate(template)}>
-                        Usuń
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <div className={styles.sectionCard}>
             <h3>Zarządzanie kontami</h3>
             <p className={styles.statHint}>
               Dodawaj pracowników i kierowników z panelu — bez konsoli i Django admina na co dzień.
@@ -1318,6 +1206,136 @@ const Manager = () => {
           </div>
         </div>
       </div>
+
+      <section className={styles.settingsSection}>
+        <div className={styles.sectionCard}>
+          <div className={styles.settingsToggleRow}>
+            <h3>Ustawienia</h3>
+            <button
+              type="button"
+              className={styles.btnSecondary}
+              onClick={() => setShowShiftTemplates((prev) => !prev)}
+              aria-expanded={showShiftTemplates}
+            >
+              {showShiftTemplates ? 'Ukryj szablony zmian' : 'Szablony zmian'}
+            </button>
+          </div>
+
+          {showShiftTemplates ? (
+            <div className={styles.shiftTemplatesPanel}>
+              <p className={styles.statHint}>
+                Zdefiniuj zmiany (np. Poranna, Późniejsza) z godzinami na wybrane dni tygodnia.
+                Pracownicy wybierają tylko nazwę zmiany — bez wpisywania godzin.
+              </p>
+              <form className={styles.userCreateForm} onSubmit={handleSaveTemplate}>
+                <input
+                  type="text"
+                  placeholder="Nazwa zmiany (np. Poranna)"
+                  value={templateForm.name}
+                  onChange={(e) => setTemplateForm((prev) => ({ ...prev, name: e.target.value }))}
+                  required
+                />
+                <label className={styles.checkboxRow}>
+                  <input
+                    type="checkbox"
+                    checked={templateForm.is_active}
+                    onChange={(e) => setTemplateForm((prev) => ({ ...prev, is_active: e.target.checked }))}
+                  />
+                  Aktywna (widoczna dla pracowników)
+                </label>
+                <div className={styles.templateHoursGrid}>
+                  {templateForm.hours.map((row) => (
+                    <div key={row.weekday} className={styles.templateHourRow}>
+                      <label className={styles.checkboxRow}>
+                        <input
+                          type="checkbox"
+                          checked={row.enabled}
+                          onChange={(e) => {
+                            const enabled = e.target.checked;
+                            setTemplateForm((prev) => ({
+                              ...prev,
+                              hours: prev.hours.map((h) =>
+                                h.weekday === row.weekday ? { ...h, enabled } : h
+                              ),
+                            }));
+                          }}
+                        />
+                        {WEEKDAY_SHORT[row.weekday]}
+                      </label>
+                      <input
+                        type="time"
+                        disabled={!row.enabled}
+                        value={row.start}
+                        onChange={(e) => {
+                          const start = e.target.value;
+                          setTemplateForm((prev) => ({
+                            ...prev,
+                            hours: prev.hours.map((h) =>
+                              h.weekday === row.weekday ? { ...h, start } : h
+                            ),
+                          }));
+                        }}
+                      />
+                      <input
+                        type="time"
+                        disabled={!row.enabled}
+                        value={row.end}
+                        onChange={(e) => {
+                          const end = e.target.value;
+                          setTemplateForm((prev) => ({
+                            ...prev,
+                            hours: prev.hours.map((h) =>
+                              h.weekday === row.weekday ? { ...h, end } : h
+                            ),
+                          }));
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className={styles.queueActions}>
+                  <button type="submit" className={styles.btnPrimary}>
+                    {templateForm.id ? 'Zapisz zmiany szablonu' : 'Dodaj szablon'}
+                  </button>
+                  {templateForm.id ? (
+                    <button type="button" className={styles.btnSecondary} onClick={resetTemplateForm}>
+                      Anuluj edycję
+                    </button>
+                  ) : null}
+                </div>
+              </form>
+
+              {shiftTemplates.length === 0 ? (
+                <p className={styles.emptyQueue}>Brak szablonów — dodaj pierwszą zmianę powyżej.</p>
+              ) : (
+                <ul className={styles.templateList}>
+                  {shiftTemplates.map((template) => (
+                    <li key={template.id} className={styles.templateListItem}>
+                      <div>
+                        <strong>{template.name}</strong>
+                        {!template.is_active ? <span className={styles.inactiveTag}> nieaktywna</span> : null}
+                        <div className={styles.templateHoursSummary}>
+                          {template.hours
+                            .map((h) => `${WEEKDAY_SHORT[h.weekday]} ${toDisplayTime(h.start_time)}-${toDisplayTime(h.end_time)}`)
+                            .join(' · ')}
+                        </div>
+                      </div>
+                      <div className={styles.queueActions}>
+                        <button type="button" className={styles.btnSecondary} onClick={() => startEditTemplate(template)}>
+                          Edytuj
+                        </button>
+                        <button type="button" className={styles.btnDanger} onClick={() => handleDeleteTemplate(template)}>
+                          Usuń
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : null}
+        </div>
+      </section>
 
       <section className={styles.teamOverviewSection}>
         <div className={styles.teamOverviewHeader}>
