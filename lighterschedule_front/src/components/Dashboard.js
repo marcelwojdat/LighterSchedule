@@ -30,7 +30,7 @@ const STATUS_LABELS = {
 };
 
 const SWAP_STATUS_LABELS = {
-  pending_target: 'Oczekuje na kolegę',
+  pending_target: 'Oczekuje na współpracownika',
   pending_manager: 'Oczekuje na kierownika',
   approved: 'Zatwierdzona',
   rejected: 'Odrzucona',
@@ -109,7 +109,7 @@ const Dashboard = () => {
       setTargetSwappableDays(data);
     } catch (err) {
       setTargetSwappableDays([]);
-      setError(getErrorMessage(err, 'Nie udało się pobrać zmian kolegi.'));
+      setError(getErrorMessage(err, 'Nie udało się pobrać zmian współpracownika.'));
     }
   };
 
@@ -127,7 +127,7 @@ const Dashboard = () => {
 
   const createSwapRequest = async () => {
     if (!swapWorkDayId || !swapTargetId) {
-      setError('Wybierz zmianę i pracownika, do którego wysyłasz prośbę.');
+      setError('Wybierz zmianę i współpracownika, do którego wysyłasz prośbę.');
       return;
     }
 
@@ -739,8 +739,8 @@ const Dashboard = () => {
       <section className={styles.swapsSection}>
         <h3 className={styles.swapsTitle}>Zamiany zmian</h3>
         <p className={styles.swapsHint}>
-          Przekazanie: kolega przejmuje Twoją zmianę. Dwustronna zamiana: wybierz też zmianę kolegi — wtedy
-          wymienicie się. Obie opcje wymagają akceptacji kolegi i zatwierdzenia kierownika.
+          Przekazanie: współpracownik przejmuje Twoją zmianę. Dwustronna zamiana: wybierz też zmianę współpracownika — wtedy
+          wymienicie się. Obie opcje wymagają akceptacji współpracownika i zatwierdzenia kierownika.
         </p>
 
         <div className={styles.swapForm}>
@@ -759,7 +759,7 @@ const Dashboard = () => {
               loadTargetSwappableDays(e.target.value);
             }}
           >
-            <option value="">Wybierz kolegę</option>
+            <option value="">Wybierz współpracownika</option>
             {colleagues
               .filter((colleague) => colleague.id !== currentUser?.id)
               .map((colleague) => (
