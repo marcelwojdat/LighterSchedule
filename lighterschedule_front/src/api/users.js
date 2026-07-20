@@ -9,6 +9,9 @@ export const updateUserProfile = (userId, data) =>
 export const getCurrentUser = () =>
   apiClient.get('/me/').then((response) => response.data);
 
+export const getSwappableWorkdays = (userId) =>
+  apiClient.get(`/users/${userId}/swappable-workdays/`).then((response) => response.data);
+
 export const updateCurrentUser = (data) =>
   apiClient.patch('/me/', data).then((response) => response.data);
 

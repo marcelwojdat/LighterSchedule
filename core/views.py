@@ -1,4 +1,5 @@
 from datetime import datetime, date
+from io import BytesIO
 import calendar
 
 from rest_framework import viewsets, status, mixins
@@ -10,8 +11,14 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from django.db.models import Q
+from django.http import HttpResponse
 from django.utils import timezone
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 
 from .models import TaskType, WorkDay, SwapRequest, EmployeeProfile
 from .permissions import is_manager, IsManager
@@ -22,6 +29,7 @@ from .serializers import (
     UserSerializer,
     UserProfileUpdateSerializer,
 )
+from .utils import ensure_user_profile
 
 
 @api_view(['GET'])
@@ -80,9 +88,159 @@ def team_stats(request):
     })
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def notifications(request):
+    user = request.user
+    ensure_user_profile(user)
+    items = []
+
+    if is_manager(user):
+        pending_proposals = WorkDay.objects.filter(status=WorkDay.Status.PROPOSED).count()
+        pending_swaps = SwapRequest.objects.filter(
+            accepted_by_target=True,
+            approved_by_manager=False,
+            is_rejected=False,
+        ).count()
+        if pending_proposals:
+            items.append({
+                'type': 'proposals',
+                'count': pending_proposals,
+                'message': f'Masz {pending_proposals} deklaracji do akceptacji.',
+            })
+        if pending_swaps:
+            items.append({
+                'type': 'swaps_manager',
+                'count': pending_swaps,
+                'message': f'Masz {pending_swaps} zamian do zatwierdzenia.',
+            })
+        total = pending_proposals + pending_swaps
+    else:
+        pending_received = SwapRequest.objects.filter(
+            target_user=user,
+            accepted_by_target=False,
+            approved_by_manager=False,
+            is_rejected=False,
+        ).count()
+        rejected_days = WorkDay.objects.filter(
+            employee=user,
+            status=WorkDay.Status.REJECTED,
+            date__gte=timezone.now().date(),
+        ).count()
+        if pending_received:
+            items.append({
+                'type': 'swaps_received',
+                'count': pending_received,
+                'message': f'Masz {pending_received} próśb o zamianę do rozpatrzenia.',
+            })
+        if rejected_days:
+            items.append({
+                'type': 'rejected_workdays',
+                'count': rejected_days,
+                'message': f'Masz {rejected_days} odrzuconych deklaracji — możesz złożyć je ponownie.',
+            })
+        total = pending_received + rejected_days
+
+    return Response({'total': total, 'items': items})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsManager])
+def payroll_report(request):
+    month_value = request.query_params.get('month')
+    if not month_value:
+        return Response(
+            {'error': 'Podaj parametr month w formacie YYYY-MM.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        year_str, month_str = month_value.split('-')
+        year = int(year_str)
+        month = int(month_str)
+        month_start = date(year, month, 1)
+        month_end = date(year, month, calendar.monthrange(year, month)[1])
+    except (ValueError, TypeError):
+        return Response(
+            {'error': 'Nieprawidłowy format miesiąca. Użyj YYYY-MM.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    workdays = WorkDay.objects.filter(
+        status=WorkDay.Status.APPROVED,
+        date__gte=month_start,
+        date__lte=month_end,
+    ).select_related('employee', 'employee__profile')
+
+    per_employee = {}
+    for workday in workdays:
+        emp = workday.employee
+        entry = per_employee.setdefault(emp.id, {
+            'name': f'{emp.first_name} {emp.last_name}'.strip() or emp.username,
+            'days': 0,
+            'hours': 0.0,
+            'earnings': 0.0,
+        })
+        hours = (
+            datetime.combine(workday.date, workday.end_time)
+            - datetime.combine(workday.date, workday.start_time)
+        ).total_seconds() / 3600
+        entry['days'] += 1
+        entry['hours'] += hours
+        if workday.rate_at_time:
+            entry['earnings'] += hours * float(workday.rate_at_time)
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    styles = getSampleStyleSheet()
+    story = [
+        Paragraph(f'Raport wypłat — {month_value}', styles['Title']),
+        Spacer(1, 12),
+        Paragraph('Zatwierdzone dni pracy w wybranym miesiącu.', styles['Normal']),
+        Spacer(1, 16),
+    ]
+
+    table_data = [['Pracownik', 'Dni', 'Godziny', 'Wypłata (zł)']]
+    total_hours = 0.0
+    total_earnings = 0.0
+    for entry in sorted(per_employee.values(), key=lambda item: item['name'].lower()):
+        table_data.append([
+            entry['name'],
+            str(entry['days']),
+            f"{entry['hours']:.2f}",
+            f"{entry['earnings']:.2f}",
+        ])
+        total_hours += entry['hours']
+        total_earnings += entry['earnings']
+
+    table_data.append(['RAZEM', '', f'{total_hours:.2f}', f'{total_earnings:.2f}'])
+    table = Table(table_data, colWidths=[220, 60, 80, 100])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e293b')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.whitesmoke, colors.Color(0.95, 0.96, 0.98)]),
+        ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    story.append(table)
+    doc.build(story)
+
+    filename = f'wypłaty-{month_value}.pdf'
+    response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
 @api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def current_user(request):
+    ensure_user_profile(request.user)
     user = User.objects.select_related('profile').get(pk=request.user.pk)
 
     if request.method == 'GET':
@@ -213,7 +371,7 @@ def register_user(request):
         last_name=last_name,
         email=email,
     )
-    EmployeeProfile.objects.create(user=user)
+    EmployeeProfile.objects.get_or_create(user=user)
 
     return Response({'message': 'Zarejestrowano pomyślnie'}, status=status.HTTP_201_CREATED)
 
@@ -234,10 +392,28 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        user.profile.hourly_rate = hourly_rate
-        user.profile.save()
+        profile = ensure_user_profile(user)
+        profile.hourly_rate = hourly_rate
+        profile.save()
 
         return Response(UserSerializer(user, context={'request': request}).data)
+
+    @action(detail=True, methods=['get'], url_path='swappable-workdays')
+    def swappable_workdays(self, request, pk=None):
+        """Approved future workdays of a colleague — for two-way swap selection."""
+        colleague = self.get_object()
+        if colleague.id == request.user.id:
+            return Response(
+                {'error': 'Wybierz innego pracownika.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        workdays = WorkDay.objects.filter(
+            employee=colleague,
+            status=WorkDay.Status.APPROVED,
+            date__gte=timezone.now().date(),
+        ).order_by('date')
+        return Response(WorkDaySerializer(workdays, many=True).data)
 
 
 class TaskTypeViewSet(viewsets.ModelViewSet):
@@ -289,9 +465,11 @@ class WorkDayViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user = self.request.user
+        ensure_user_profile(user)
 
         if is_manager(user):
             employee = serializer.validated_data.get('employee', user)
+            ensure_user_profile(employee)
             serializer.save(
                 employee=employee,
                 status=WorkDay.Status.APPROVED,
@@ -391,7 +569,8 @@ class SwapRequestViewSet(
     viewsets.GenericViewSet,
 ):
     queryset = SwapRequest.objects.select_related(
-        'work_day', 'work_day__employee', 'requested_by', 'target_user',
+        'work_day', 'work_day__employee', 'target_work_day', 'target_work_day__employee',
+        'requested_by', 'target_user',
     ).all()
     serializer_class = SwapRequestSerializer
     permission_classes = [IsAuthenticated]
@@ -402,7 +581,8 @@ class SwapRequestViewSet(
             return SwapRequest.objects.none()
 
         queryset = SwapRequest.objects.select_related(
-            'work_day', 'work_day__employee', 'requested_by', 'target_user',
+            'work_day', 'work_day__employee', 'target_work_day', 'target_work_day__employee',
+            'requested_by', 'target_user',
         ).all()
 
         if not is_manager(user):
@@ -481,17 +661,62 @@ class SwapRequestViewSet(
             return Response({'error': 'Prośba została już zatwierdzona.'}, status=status.HTTP_400_BAD_REQUEST)
 
         work_day = swap.work_day
-        if WorkDay.objects.filter(employee=swap.target_user, date=work_day.date).exists():
+        target_profile = ensure_user_profile(swap.target_user)
+        requester_profile = ensure_user_profile(swap.requested_by)
+
+        if swap.target_work_day_id:
+            target_day = swap.target_work_day
+            requester = swap.requested_by
+            target = swap.target_user
+
+            if work_day.date != target_day.date:
+                conflict_a = WorkDay.objects.filter(
+                    employee=target, date=work_day.date,
+                ).exclude(pk=target_day.pk).exists()
+                conflict_b = WorkDay.objects.filter(
+                    employee=requester, date=target_day.date,
+                ).exclude(pk=work_day.pk).exists()
+                if conflict_a or conflict_b:
+                    return Response(
+                        {'error': 'Konflikt grafiku — nie można zatwierdzić zamiany.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+        elif WorkDay.objects.filter(employee=swap.target_user, date=work_day.date).exists():
             return Response(
                 {'error': 'Docelowy pracownik ma już wpis w grafiku na ten dzień.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        work_day.employee = swap.target_user
-        work_day.rate_at_time = swap.target_user.profile.hourly_rate
-        work_day.save()
+        with transaction.atomic():
+            if swap.target_work_day_id:
+                target_day = swap.target_work_day
+                if work_day.date == target_day.date:
+                    # Same day: exchange shift details, keep employees (unique_together).
+                    work_day.start_time, target_day.start_time = target_day.start_time, work_day.start_time
+                    work_day.end_time, target_day.end_time = target_day.end_time, work_day.end_time
+                    work_day.role_id, target_day.role_id = target_day.role_id, work_day.role_id
+                    work_day.rate_at_time, target_day.rate_at_time = (
+                        target_day.rate_at_time, work_day.rate_at_time
+                    )
+                else:
+                    work_day.employee = swap.target_user
+                    work_day.rate_at_time = (
+                        target_profile.hourly_rate if target_profile else work_day.rate_at_time
+                    )
+                    target_day.employee = swap.requested_by
+                    target_day.rate_at_time = (
+                        requester_profile.hourly_rate if requester_profile else target_day.rate_at_time
+                    )
+                work_day.save()
+                target_day.save()
+            else:
+                work_day.employee = swap.target_user
+                work_day.rate_at_time = (
+                    target_profile.hourly_rate if target_profile else work_day.rate_at_time
+                )
+                work_day.save()
 
-        swap.approved_by_manager = True
-        swap.save()
+            swap.approved_by_manager = True
+            swap.save()
 
         return Response(SwapRequestSerializer(swap).data)

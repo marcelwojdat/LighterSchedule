@@ -16,7 +16,8 @@ import {
 } from '../api/workdays';
 import { getSwaps, approveSwap as approveSwapRequest, rejectSwap as rejectSwapRequest } from '../api/swaps';
 import { getTaskTypes } from '../api/taskTypes';
-import { getTeamStats } from '../api/stats';
+import { downloadPayrollPdf, getTeamStats } from '../api/stats';
+import { getNotifications } from '../api/notifications';
 import { useTheme } from '../hooks/useTheme';
 import { buildWorkdayPayload, toApiTime } from '../utils/time';
 
@@ -87,6 +88,7 @@ const Manager = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
+  const [notifications, setNotifications] = useState({ total: 0, items: [] });
   const { darkMode, toggleTheme } = useTheme();
 
   const weekDates = getWeekDates(weekStart);
@@ -160,6 +162,15 @@ const Manager = () => {
     }
   };
 
+  const fetchNotifications = async () => {
+    try {
+      const data = await getNotifications();
+      setNotifications(data);
+    } catch {
+      setNotifications({ total: 0, items: [] });
+    }
+  };
+
   const refreshData = async (employeeId = selectedEmployee?.id) => {
     await Promise.all([
       fetchEmployees(),
@@ -168,6 +179,7 @@ const Manager = () => {
       fetchTeamStats(),
       fetchTeamWorkdays(),
       fetchTaskTypes(),
+      fetchNotifications(),
       employeeId ? fetchWorkdaysForEmployee(employeeId) : Promise.resolve(),
     ]);
   };
@@ -178,6 +190,16 @@ const Manager = () => {
       .then(setCurrentUser)
       .catch(() => Auth.logout());
   }, []);
+
+  const handlePayrollDownload = async () => {
+    try {
+      await downloadPayrollPdf(statsMonth);
+      setSuccess(`Pobrano raport PDF za ${statsMonth}.`);
+      setError('');
+    } catch (e) {
+      setError(getErrorMessage(e, 'Nie udało się pobrać raportu PDF.'));
+    }
+  };
 
   useEffect(() => {
     fetchTeamStats();
@@ -423,12 +445,22 @@ const Manager = () => {
             darkMode={darkMode}
             onToggleTheme={toggleTheme}
             onLogout={handleLogout}
+            notificationCount={notifications.total || 0}
           />
         ) : null}
       </div>
 
       {error ? <div className={styles.errorBox}>{error}</div> : null}
       {success ? <div className={styles.successBox}>{success}</div> : null}
+      {notifications.items?.length ? (
+        <div className={styles.notificationsBanner}>
+          {notifications.items.map((item) => (
+            <div key={item.type} className={styles.notificationItem}>
+              {item.message}
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <div className={styles.managerBody}>
         <div className={styles.leftCol}>
@@ -456,6 +488,9 @@ const Manager = () => {
               <label>Wybierz miesiąc</label>
               <input type="month" value={statsMonth} onChange={(e) => setStatsMonth(e.target.value)} />
             </div>
+            <button type="button" className={styles.btnPrimary} onClick={handlePayrollDownload}>
+              Pobierz raport PDF
+            </button>
             <small className={styles.statHint}>
               Statystyki obejmują cały zespół i tylko zatwierdzone wpisy w wybranym miesiącu.
             </small>
@@ -568,12 +603,20 @@ const Manager = () => {
                     </div>
                     <div className={styles.queueHours}>
                       {swap.work_day_details?.start_time?.slice(0, 5)} - {swap.work_day_details?.end_time?.slice(0, 5)}
+                      {swap.is_two_way ? ' · dwustronna' : ' · przekazanie'}
                     </div>
                     <div className={styles.swapTransfer}>
                       <span>{swap.requested_by_name}</span>
-                      <span>→</span>
+                      <span>{swap.is_two_way ? '⇄' : '→'}</span>
                       <span>{swap.target_user_name}</span>
                     </div>
+                    {swap.target_work_day_details ? (
+                      <div className={styles.queueHours}>
+                        Za: {swap.target_work_day_details.date}{' '}
+                        ({swap.target_work_day_details.start_time?.slice(0, 5)} -{' '}
+                        {swap.target_work_day_details.end_time?.slice(0, 5)})
+                      </div>
+                    ) : null}
                     <div className={styles.queueActions}>
                       <button className={styles.btnSuccess} onClick={() => approveSwap(swap)}>
                         Zatwierdź zamianę

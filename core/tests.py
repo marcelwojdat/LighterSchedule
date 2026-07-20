@@ -7,15 +7,23 @@ from rest_framework.test import APITestCase
 from core.models import EmployeeProfile, TaskType, WorkDay, SwapRequest
 
 
+def set_profile(user, hourly_rate=0, is_manager=False):
+    profile, _ = EmployeeProfile.objects.get_or_create(user=user)
+    profile.hourly_rate = hourly_rate
+    profile.is_manager = is_manager
+    profile.save()
+    return profile
+
+
 class WorkDayWorkflowTests(APITestCase):
     def setUp(self):
         self.employee = User.objects.create_user('employee1', password='pass')
         self.manager = User.objects.create_user('manager1', password='pass')
         self.other = User.objects.create_user('employee2', password='pass')
 
-        EmployeeProfile.objects.create(user=self.employee, hourly_rate=20)
-        EmployeeProfile.objects.create(user=self.manager, hourly_rate=30, is_manager=True)
-        EmployeeProfile.objects.create(user=self.other, hourly_rate=22)
+        set_profile(self.employee, hourly_rate=20)
+        set_profile(self.manager, hourly_rate=30, is_manager=True)
+        set_profile(self.other, hourly_rate=22)
 
         self.future_date = date.today() + timedelta(days=5)
         self.future_date_str = self.future_date.isoformat()
@@ -122,9 +130,9 @@ class SwapWorkflowTests(APITestCase):
         self.other = User.objects.create_user('employee2', password='pass')
         self.manager = User.objects.create_user('manager1', password='pass')
 
-        EmployeeProfile.objects.create(user=self.employee, hourly_rate=20)
-        EmployeeProfile.objects.create(user=self.other, hourly_rate=22)
-        EmployeeProfile.objects.create(user=self.manager, hourly_rate=30, is_manager=True)
+        set_profile(self.employee, hourly_rate=20)
+        set_profile(self.other, hourly_rate=22)
+        set_profile(self.manager, hourly_rate=30, is_manager=True)
 
         self.future_date = date.today() + timedelta(days=7)
         self.workday = WorkDay.objects.create(
@@ -162,13 +170,44 @@ class SwapWorkflowTests(APITestCase):
         self.workday.refresh_from_db()
         self.assertEqual(self.workday.employee_id, self.other.id)
 
+    def test_two_way_swap_exchanges_employees(self):
+        other_day = WorkDay.objects.create(
+            employee=self.other,
+            date=date.today() + timedelta(days=9),
+            start_time='10:00:00',
+            end_time='18:00:00',
+            status=WorkDay.Status.APPROVED,
+        )
+
+        self.authenticate(self.employee)
+        create_response = self.client.post('/api/swaps/', {
+            'work_day': self.workday.id,
+            'target_user': self.other.id,
+            'target_work_day': other_day.id,
+        }, format='json')
+        self.assertEqual(create_response.status_code, status.HTTP_201_CREATED, create_response.data)
+        self.assertTrue(create_response.data['is_two_way'])
+        swap_id = create_response.data['id']
+
+        self.authenticate(self.other)
+        self.assertEqual(self.client.post(f'/api/swaps/{swap_id}/accept/').status_code, status.HTTP_200_OK)
+
+        self.authenticate(self.manager)
+        approve_response = self.client.post(f'/api/swaps/{swap_id}/approve/')
+        self.assertEqual(approve_response.status_code, status.HTTP_200_OK, approve_response.data)
+
+        self.workday.refresh_from_db()
+        other_day.refresh_from_db()
+        self.assertEqual(self.workday.employee_id, self.other.id)
+        self.assertEqual(other_day.employee_id, self.employee.id)
+
 
 class TeamStatsTests(APITestCase):
     def setUp(self):
         self.employee = User.objects.create_user('employee1', password='pass')
         self.manager = User.objects.create_user('manager1', password='pass')
-        EmployeeProfile.objects.create(user=self.employee, hourly_rate=20)
-        EmployeeProfile.objects.create(user=self.manager, hourly_rate=30, is_manager=True)
+        set_profile(self.employee, hourly_rate=20)
+        set_profile(self.manager, hourly_rate=30, is_manager=True)
 
         WorkDay.objects.create(
             employee=self.employee,
@@ -218,7 +257,7 @@ class ProfileTests(APITestCase):
             first_name='Jan',
             last_name='Kowalski',
         )
-        EmployeeProfile.objects.create(user=self.user, hourly_rate=20)
+        set_profile(self.user, hourly_rate=20)
 
     def authenticate(self):
         response = self.client.post('/api/token/', {
@@ -258,6 +297,54 @@ class ProfileTests(APITestCase):
         }, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class MissingProfileTests(APITestCase):
+    def test_workday_create_recovers_deleted_profile(self):
+        user = User.objects.create_user('bez_profilu', password='haslo12345')
+        EmployeeProfile.objects.filter(user=user).delete()
+        self.assertFalse(EmployeeProfile.objects.filter(user=user).exists())
+
+        token = self.client.post('/api/token/', {
+            'username': 'bez_profilu',
+            'password': 'haslo12345',
+        }).data['access']
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+
+        future = (date.today() + timedelta(days=4)).isoformat()
+        response = self.client.post('/api/workdays/', {
+            'date': future,
+            'start_time': '09:00:00',
+            'end_time': '17:00:00',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertTrue(EmployeeProfile.objects.filter(user=user).exists())
+
+
+class NotificationTests(APITestCase):
+    def setUp(self):
+        self.employee = User.objects.create_user('emp_n', password='pass')
+        self.manager = User.objects.create_user('mgr_n', password='pass')
+        set_profile(self.employee, hourly_rate=20)
+        set_profile(self.manager, hourly_rate=30, is_manager=True)
+        WorkDay.objects.create(
+            employee=self.employee,
+            date=date.today() + timedelta(days=2),
+            start_time='09:00:00',
+            end_time='17:00:00',
+            status=WorkDay.Status.PROPOSED,
+        )
+
+    def test_manager_sees_pending_proposal_notification(self):
+        token = self.client.post('/api/token/', {
+            'username': 'mgr_n',
+            'password': 'pass',
+        }).data['access']
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+        response = self.client.get('/api/notifications/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertGreaterEqual(response.data['total'], 1)
 
 
 class RegistrationTests(APITestCase):

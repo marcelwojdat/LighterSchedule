@@ -17,6 +17,23 @@
   margin: 0;
 }
 
+.notificationsBanner {
+  margin: 12px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.notificationItem {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
 .managerBody {
   display: grid;
   grid-template-columns: 360px 1fr;

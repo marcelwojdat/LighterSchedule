@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { User, Settings2, SunMoon, LogOut, ChevronDown, LayoutDashboard, Shield } from 'lucide-react';
 import styles from './UserMenu.module.css';
 
-const UserMenu = ({ user, isManager, darkMode, onToggleTheme, onLogout }) => {
+const UserMenu = ({ user, isManager, darkMode, onToggleTheme, onLogout, notificationCount = 0 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -38,6 +38,11 @@ const UserMenu = ({ user, isManager, darkMode, onToggleTheme, onLogout }) => {
         aria-expanded={isOpen}
       >
         <span className={styles.avatarInitials}>{initials}</span>
+        {notificationCount > 0 ? (
+          <span className={styles.notificationBadge} aria-label={`${notificationCount} powiadomień`}>
+            {notificationCount > 9 ? '9+' : notificationCount}
+          </span>
+        ) : null}
         <ChevronDown size={16} className={styles.chevron} />
       </button>
 

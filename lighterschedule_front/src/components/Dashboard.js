@@ -17,8 +17,9 @@ import {
   acceptSwap as acceptSwapRequest,
   rejectSwap as rejectSwapRequest,
 } from '../api/swaps';
-import { getUsers } from '../api/users';
+import { getUsers, getSwappableWorkdays } from '../api/users';
 import { getTaskTypes } from '../api/taskTypes';
+import { getNotifications } from '../api/notifications';
 import { useTheme } from '../hooks/useTheme';
 import { buildWorkdayPayload, toApiTime } from '../utils/time';
 
@@ -54,7 +55,10 @@ const Dashboard = () => {
   const [colleagues, setColleagues] = useState([]);
   const [swapWorkDayId, setSwapWorkDayId] = useState('');
   const [swapTargetId, setSwapTargetId] = useState('');
+  const [swapTargetWorkDayId, setSwapTargetWorkDayId] = useState('');
+  const [targetSwappableDays, setTargetSwappableDays] = useState([]);
   const [swapSuccess, setSwapSuccess] = useState('');
+  const [notifications, setNotifications] = useState({ total: 0, items: [] });
   const [taskTypes, setTaskTypes] = useState([]);
   const [selectedRoleId, setSelectedRoleId] = useState('');
 
@@ -85,6 +89,30 @@ const Dashboard = () => {
     }
   };
 
+  const fetchNotifications = async () => {
+    try {
+      const data = await getNotifications();
+      setNotifications(data);
+    } catch {
+      setNotifications({ total: 0, items: [] });
+    }
+  };
+
+  const loadTargetSwappableDays = async (colleagueId) => {
+    setSwapTargetWorkDayId('');
+    if (!colleagueId) {
+      setTargetSwappableDays([]);
+      return;
+    }
+    try {
+      const data = await getSwappableWorkdays(colleagueId);
+      setTargetSwappableDays(data);
+    } catch (err) {
+      setTargetSwappableDays([]);
+      setError(getErrorMessage(err, 'Nie udało się pobrać zmian kolegi.'));
+    }
+  };
+
   const isActiveSwap = (swap) => !swap.is_rejected && !swap.approved_by_manager;
 
   const hasActiveSwapForWorkday = (workdayId) =>
@@ -104,16 +132,28 @@ const Dashboard = () => {
     }
 
     try {
-      await createSwap({
+      const payload = {
         work_day: Number(swapWorkDayId),
         target_user: Number(swapTargetId),
-      });
+      };
+      if (swapTargetWorkDayId) {
+        payload.target_work_day = Number(swapTargetWorkDayId);
+      }
+
+      await createSwap(payload);
 
       setSwapWorkDayId('');
       setSwapTargetId('');
-      setSwapSuccess('Prośba o zamianę została wysłana.');
+      setSwapTargetWorkDayId('');
+      setTargetSwappableDays([]);
+      setSwapSuccess(
+        swapTargetWorkDayId
+          ? 'Prośba o dwustronną zamianę została wysłana.'
+          : 'Prośba o przejęcie zmiany została wysłana.'
+      );
       setError('');
       await fetchSwaps();
+      await fetchNotifications();
     } catch (err) {
       setError(getErrorMessage(err, 'Nie udało się wysłać prośby.'));
     }
@@ -364,6 +404,7 @@ const Dashboard = () => {
     fetchSwaps();
     fetchColleagues();
     fetchTaskTypes();
+    fetchNotifications();
   }, []);
 
   const getTileClassName = ({ date: tileDate, view }) => {
@@ -595,11 +636,21 @@ const Dashboard = () => {
             darkMode={darkMode}
             onToggleTheme={toggleTheme}
             onLogout={handleLogout}
+            notificationCount={notifications.total || 0}
           />
         ) : null}
       </div>
       {error ? <div className={styles.rejectionReason}>{error}</div> : null}
       {swapSuccess ? <div className={styles.swapSuccess}>{swapSuccess}</div> : null}
+      {notifications.items?.length ? (
+        <div className={styles.notificationsBanner}>
+          {notifications.items.map((item) => (
+            <div key={item.type} className={styles.notificationItem}>
+              {item.message}
+            </div>
+          ))}
+        </div>
+      ) : null}
       <div className={styles.dashboardBody}>
         <div className={styles.statsWrapper}>
           <div className={styles.statsHeader}>
@@ -688,7 +739,8 @@ const Dashboard = () => {
       <section className={styles.swapsSection}>
         <h3 className={styles.swapsTitle}>Zamiany zmian</h3>
         <p className={styles.swapsHint}>
-          Możesz poprosić kolegę o przejęcie swojej zatwierdzonej zmiany. Wymaga to akceptacji kolegi i zatwierdzenia kierownika.
+          Przekazanie: kolega przejmuje Twoją zmianę. Dwustronna zamiana: wybierz też zmianę kolegi — wtedy
+          wymienicie się. Obie opcje wymagają akceptacji kolegi i zatwierdzenia kierownika.
         </p>
 
         <div className={styles.swapForm}>
@@ -700,7 +752,13 @@ const Dashboard = () => {
               </option>
             ))}
           </select>
-          <select value={swapTargetId} onChange={(e) => setSwapTargetId(e.target.value)}>
+          <select
+            value={swapTargetId}
+            onChange={(e) => {
+              setSwapTargetId(e.target.value);
+              loadTargetSwappableDays(e.target.value);
+            }}
+          >
             <option value="">Wybierz kolegę</option>
             {colleagues
               .filter((colleague) => colleague.id !== currentUser?.id)
@@ -709,6 +767,18 @@ const Dashboard = () => {
                   {`${colleague.first_name || ''} ${colleague.last_name || ''}`.trim() || colleague.username}
                 </option>
               ))}
+          </select>
+          <select
+            value={swapTargetWorkDayId}
+            onChange={(e) => setSwapTargetWorkDayId(e.target.value)}
+            disabled={!swapTargetId}
+          >
+            <option value="">Bez zamiany zwrotnej (tylko przekazanie)</option>
+            {targetSwappableDays.map((day) => (
+              <option key={day.id} value={day.id}>
+                Zamiana za: {day.date} ({day.start_time.slice(0, 5)} - {day.end_time.slice(0, 5)})
+              </option>
+            ))}
           </select>
           <button type="button" className={styles.swapSubmitBtn} onClick={createSwapRequest}>
             Wyślij prośbę
@@ -729,7 +799,17 @@ const Dashboard = () => {
                       <div>
                         {swap.work_day_details?.start_time?.slice(0, 5)} - {swap.work_day_details?.end_time?.slice(0, 5)}
                       </div>
-                      <small>Do: {swap.target_user_name}</small>
+                      <small>
+                        Do: {swap.target_user_name}
+                        {swap.is_two_way ? ' · dwustronna' : ' · przekazanie'}
+                      </small>
+                      {swap.target_work_day_details ? (
+                        <small>
+                          Za: {swap.target_work_day_details.date} (
+                          {swap.target_work_day_details.start_time?.slice(0, 5)} -{' '}
+                          {swap.target_work_day_details.end_time?.slice(0, 5)})
+                        </small>
+                      ) : null}
                     </div>
                     <div className={styles.swapListActions}>
                       <span className={styles.swapStatusTag}>{SWAP_STATUS_LABELS[swap.status]}</span>
@@ -758,7 +838,17 @@ const Dashboard = () => {
                       <div>
                         {swap.work_day_details?.start_time?.slice(0, 5)} - {swap.work_day_details?.end_time?.slice(0, 5)}
                       </div>
-                      <small>Od: {swap.requested_by_name}</small>
+                      <small>
+                        Od: {swap.requested_by_name}
+                        {swap.is_two_way ? ' · dwustronna' : ' · przekazanie'}
+                      </small>
+                      {swap.target_work_day_details ? (
+                        <small>
+                          Oddajesz: {swap.target_work_day_details.date} (
+                          {swap.target_work_day_details.start_time?.slice(0, 5)} -{' '}
+                          {swap.target_work_day_details.end_time?.slice(0, 5)})
+                        </small>
+                      ) : null}
                     </div>
                     <div className={styles.swapListActions}>
                       <span className={styles.swapStatusTag}>{SWAP_STATUS_LABELS[swap.status]}</span>

@@ -292,6 +292,23 @@
   font-size: 0.9rem;
 }
 
+.notificationsBanner {
+  margin: 12px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.notificationItem {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
 .swapsSection {
   margin-top: 24px;
   padding: 22px;

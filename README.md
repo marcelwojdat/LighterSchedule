@@ -161,8 +161,11 @@ LighterSchedule/
 ├── lighterschedule_front/     # React
 ├── requirements.txt
 ├── manage.py
+├── DEPLOY.md                  # checklista deployu produkcyjnego
 └── .env.example
 ```
+
+Deploy produkcyjny (Nginx, HTTPS, Gunicorn): zobacz [DEPLOY.md](DEPLOY.md).
 
 ---
 

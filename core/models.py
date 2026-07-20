@@ -48,15 +48,26 @@ class WorkDay(models.Model):
         unique_together = ('employee', 'date')
 
     def save(self, *args, **kwargs):
-        if not self.rate_at_time:
-            self.rate_at_time = self.employee.profile.hourly_rate
+        if not self.rate_at_time and self.employee_id:
+            from .utils import ensure_user_profile
+
+            profile = ensure_user_profile(self.employee)
+            self.rate_at_time = profile.hourly_rate if profile else 0
         super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.date} - {self.employee.username} ({self.role}) [{self.status}]"
 
 class SwapRequest(models.Model):
-    work_day = models.ForeignKey(WorkDay, on_delete=models.CASCADE)
+    work_day = models.ForeignKey(WorkDay, on_delete=models.CASCADE, related_name='outgoing_swaps')
+    target_work_day = models.ForeignKey(
+        WorkDay,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='incoming_swaps',
+        help_text='Jeśli ustawione — dwustronna zamiana dwóch zmian; w przeciwnym razie przekazanie jednej zmiany.',
+    )
     requested_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_swaps')
     target_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_swaps')
 
@@ -67,4 +78,6 @@ class SwapRequest(models.Model):
     created_at = models.DateTimeField(default=timezone.now)
 
     def __str__(self):
+        if self.target_work_day_id:
+            return f"Zamiana {self.work_day.date} <-> {self.target_work_day.date}"
         return f"Zamiana {self.work_day.date} od {self.requested_by}"
