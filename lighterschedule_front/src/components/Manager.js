@@ -16,11 +16,24 @@ import {
 } from '../api/workdays';
 import { getSwaps, approveSwap as approveSwapRequest, rejectSwap as rejectSwapRequest } from '../api/swaps';
 import { getTaskTypes } from '../api/taskTypes';
+import {
+  getShiftTemplates,
+  createShiftTemplate,
+  updateShiftTemplate,
+  deleteShiftTemplate,
+} from '../api/shiftTemplates';
 import { downloadPayrollPdf, getTeamStats } from '../api/stats';
 import { getNotifications } from '../api/notifications';
 import { useTheme } from '../hooks/useTheme';
 import { useAutoDismiss } from '../hooks/useAutoDismiss';
-import { buildWorkdayPayload, toApiTime } from '../utils/time';
+import {
+  buildWorkdayPayload,
+  toApiTime,
+  toDisplayTime,
+  resolveTemplateHours,
+  WEEKDAY_SHORT,
+  buildEmptyTemplateHours,
+} from '../utils/time';
 
 const STATUS_LABELS = {
   proposed: 'Oczekuje',
@@ -76,6 +89,14 @@ const Manager = () => {
   const [teamStats, setTeamStats] = useState(null);
   const [teamWorkdays, setTeamWorkdays] = useState([]);
   const [taskTypes, setTaskTypes] = useState([]);
+  const [shiftTemplates, setShiftTemplates] = useState([]);
+  const [selectedShiftId, setSelectedShiftId] = useState('');
+  const [templateForm, setTemplateForm] = useState({
+    id: null,
+    name: '',
+    is_active: true,
+    hours: buildEmptyTemplateHours(),
+  });
   const [weekStart, setWeekStart] = useState(() => formatDateStr(getMonday()));
   const [selectedRoleId, setSelectedRoleId] = useState('');
   const [queueEditRole, setQueueEditRole] = useState('');
@@ -105,6 +126,24 @@ const Manager = () => {
   useAutoDismiss(success, setSuccess);
 
   const weekDates = getWeekDates(weekStart);
+
+  const resetTemplateForm = () => {
+    setTemplateForm({
+      id: null,
+      name: '',
+      is_active: true,
+      hours: buildEmptyTemplateHours(),
+    });
+  };
+
+  const fetchShiftTemplates = async () => {
+    try {
+      const data = await getShiftTemplates();
+      setShiftTemplates(data);
+    } catch (e) {
+      setError(getErrorMessage(e, 'Nie udało się pobrać szablonów zmian'));
+    }
+  };
 
   const fetchEmployees = async () => {
     try {
@@ -193,6 +232,7 @@ const Manager = () => {
       fetchTeamStats(),
       fetchTeamWorkdays(),
       fetchTaskTypes(),
+      fetchShiftTemplates(),
       fetchNotifications(),
       employeeId ? fetchWorkdaysForEmployee(employeeId) : Promise.resolve(),
     ]);
@@ -245,16 +285,19 @@ const Manager = () => {
       setTimeTo(pending.end_time.slice(0, 5));
       setSelectedRoleId(pending.role ? String(pending.role) : '');
       setDayNote(pending.note || '');
+      setSelectedShiftId(pending.shift_template ? String(pending.shift_template) : '');
     } else if (existing) {
       setTimeFrom(existing.start_time.slice(0, 5));
       setTimeTo(existing.end_time.slice(0, 5));
       setSelectedRoleId(existing.role ? String(existing.role) : '');
       setDayNote(existing.note || '');
+      setSelectedShiftId(existing.shift_template ? String(existing.shift_template) : '');
     } else {
       setTimeFrom('12:00');
       setTimeTo('20:00');
       setSelectedRoleId('');
       setDayNote('');
+      setSelectedShiftId('');
     }
   };
 
@@ -318,13 +361,28 @@ const Manager = () => {
 
   const addShift = () => {
     if (!selectedEmployee || !selectedDate) return;
+
+    let start = toApiTime(timeFrom);
+    let end = toApiTime(timeTo);
+    if (selectedShiftId) {
+      const template = shiftTemplates.find((t) => String(t.id) === String(selectedShiftId));
+      const hours = resolveTemplateHours(template, selectedDate);
+      if (!hours) {
+        setError('Wybrana zmiana nie ma godzin na ten dzień tygodnia.');
+        return;
+      }
+      start = toApiTime(hours.start_time);
+      end = toApiTime(hours.end_time);
+    }
+
     setSelectedDates({
       ...selectedDates,
       [selectedDate]: {
-        start_time: toApiTime(timeFrom),
-        end_time: toApiTime(timeTo),
+        start_time: start,
+        end_time: end,
         role: selectedRoleId ? Number(selectedRoleId) : null,
         note: dayNote.trim(),
+        shift_template: selectedShiftId ? Number(selectedShiftId) : null,
       },
     });
     setSuccess('Zmiana dodana do zapisu.');
@@ -345,6 +403,7 @@ const Manager = () => {
             role: times.role,
             employee: selectedEmployee.id,
             note: times.note || '',
+            shift_template: times.shift_template,
           });
 
           if (existing?.status === 'proposed') {
@@ -465,6 +524,93 @@ const Manager = () => {
       setError(getErrorMessage(err, 'Nie udało się dodać użytkownika.'));
     }
   };
+
+  const startEditTemplate = (template) => {
+    const hours = buildEmptyTemplateHours().map((row) => {
+      const match = template.hours.find((h) => Number(h.weekday) === row.weekday);
+      if (!match) return row;
+      return {
+        weekday: row.weekday,
+        enabled: true,
+        start: toDisplayTime(match.start_time),
+        end: toDisplayTime(match.end_time),
+      };
+    });
+    setTemplateForm({
+      id: template.id,
+      name: template.name,
+      is_active: template.is_active !== false,
+      hours,
+    });
+  };
+
+  const handleSaveTemplate = async (e) => {
+    e.preventDefault();
+    if (!templateForm.name.trim()) {
+      setError('Podaj nazwę zmiany (np. Poranna).');
+      return;
+    }
+    const hours = templateForm.hours
+      .filter((row) => row.enabled)
+      .map((row) => ({
+        weekday: row.weekday,
+        start_time: toApiTime(row.start),
+        end_time: toApiTime(row.end),
+      }));
+    if (hours.length === 0) {
+      setError('Włącz godziny przynajmniej dla jednego dnia tygodnia.');
+      return;
+    }
+
+    const payload = {
+      name: templateForm.name.trim(),
+      is_active: templateForm.is_active,
+      hours,
+    };
+
+    try {
+      if (templateForm.id) {
+        await updateShiftTemplate(templateForm.id, payload);
+        setSuccess(`Zaktualizowano zmianę „${payload.name}".`);
+      } else {
+        await createShiftTemplate(payload);
+        setSuccess(`Dodano zmianę „${payload.name}".`);
+      }
+      setError('');
+      resetTemplateForm();
+      await fetchShiftTemplates();
+    } catch (err) {
+      setError(getErrorMessage(err, 'Nie udało się zapisać szablonu zmiany.'));
+    }
+  };
+
+  const handleDeleteTemplate = async (template) => {
+    if (!window.confirm(`Usunąć zmianę „${template.name}"?`)) return;
+    try {
+      await deleteShiftTemplate(template.id);
+      setSuccess(`Usunięto zmianę „${template.name}".`);
+      setError('');
+      if (templateForm.id === template.id) resetTemplateForm();
+      await fetchShiftTemplates();
+    } catch (err) {
+      setError(getErrorMessage(err, 'Nie udało się usunąć szablonu.'));
+    }
+  };
+
+  const applySelectedTemplate = (templateId) => {
+    setSelectedShiftId(templateId);
+    if (!templateId || !selectedDate) return;
+    const template = shiftTemplates.find((t) => String(t.id) === String(templateId));
+    const hours = resolveTemplateHours(template, selectedDate);
+    if (hours) {
+      setTimeFrom(toDisplayTime(hours.start_time));
+      setTimeTo(toDisplayTime(hours.end_time));
+    }
+  };
+
+  const templatesForSelectedDate = selectedDate
+    ? shiftTemplates.filter((t) => resolveTemplateHours(t, selectedDate))
+    : [];
 
   const startQueueEdit = (item) => {
     setEditingQueueId(item.id);
@@ -799,6 +945,119 @@ const Manager = () => {
       <div className={styles.managerBody}>
         <div className={styles.leftCol}>
           <div className={styles.sectionCard}>
+            <h3>Szablony zmian</h3>
+            <p className={styles.statHint}>
+              Zdefiniuj zmiany (np. Poranna, Późniejsza) z godzinami na wybrane dni tygodnia.
+              Pracownicy wybierają tylko nazwę zmiany — bez wpisywania godzin.
+            </p>
+            <form className={styles.userCreateForm} onSubmit={handleSaveTemplate}>
+              <input
+                type="text"
+                placeholder="Nazwa zmiany (np. Poranna)"
+                value={templateForm.name}
+                onChange={(e) => setTemplateForm((prev) => ({ ...prev, name: e.target.value }))}
+                required
+              />
+              <label className={styles.checkboxRow}>
+                <input
+                  type="checkbox"
+                  checked={templateForm.is_active}
+                  onChange={(e) => setTemplateForm((prev) => ({ ...prev, is_active: e.target.checked }))}
+                />
+                Aktywna (widoczna dla pracowników)
+              </label>
+              <div className={styles.templateHoursGrid}>
+                {templateForm.hours.map((row) => (
+                  <div key={row.weekday} className={styles.templateHourRow}>
+                    <label className={styles.checkboxRow}>
+                      <input
+                        type="checkbox"
+                        checked={row.enabled}
+                        onChange={(e) => {
+                          const enabled = e.target.checked;
+                          setTemplateForm((prev) => ({
+                            ...prev,
+                            hours: prev.hours.map((h) =>
+                              h.weekday === row.weekday ? { ...h, enabled } : h
+                            ),
+                          }));
+                        }}
+                      />
+                      {WEEKDAY_SHORT[row.weekday]}
+                    </label>
+                    <input
+                      type="time"
+                      disabled={!row.enabled}
+                      value={row.start}
+                      onChange={(e) => {
+                        const start = e.target.value;
+                        setTemplateForm((prev) => ({
+                          ...prev,
+                          hours: prev.hours.map((h) =>
+                            h.weekday === row.weekday ? { ...h, start } : h
+                          ),
+                        }));
+                      }}
+                    />
+                    <input
+                      type="time"
+                      disabled={!row.enabled}
+                      value={row.end}
+                      onChange={(e) => {
+                        const end = e.target.value;
+                        setTemplateForm((prev) => ({
+                          ...prev,
+                          hours: prev.hours.map((h) =>
+                            h.weekday === row.weekday ? { ...h, end } : h
+                          ),
+                        }));
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className={styles.queueActions}>
+                <button type="submit" className={styles.btnPrimary}>
+                  {templateForm.id ? 'Zapisz zmiany szablonu' : 'Dodaj szablon'}
+                </button>
+                {templateForm.id ? (
+                  <button type="button" className={styles.btnSecondary} onClick={resetTemplateForm}>
+                    Anuluj edycję
+                  </button>
+                ) : null}
+              </div>
+            </form>
+
+            {shiftTemplates.length === 0 ? (
+              <p className={styles.emptyQueue}>Brak szablonów — dodaj pierwszą zmianę powyżej.</p>
+            ) : (
+              <ul className={styles.templateList}>
+                {shiftTemplates.map((template) => (
+                  <li key={template.id} className={styles.templateListItem}>
+                    <div>
+                      <strong>{template.name}</strong>
+                      {!template.is_active ? <span className={styles.inactiveTag}> nieaktywna</span> : null}
+                      <div className={styles.templateHoursSummary}>
+                        {template.hours
+                          .map((h) => `${WEEKDAY_SHORT[h.weekday]} ${toDisplayTime(h.start_time)}-${toDisplayTime(h.end_time)}`)
+                          .join(' · ')}
+                      </div>
+                    </div>
+                    <div className={styles.queueActions}>
+                      <button type="button" className={styles.btnSecondary} onClick={() => startEditTemplate(template)}>
+                        Edytuj
+                      </button>
+                      <button type="button" className={styles.btnDanger} onClick={() => handleDeleteTemplate(template)}>
+                        Usuń
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className={styles.sectionCard}>
             <h3>Zarządzanie kontami</h3>
             <p className={styles.statHint}>
               Dodawaj pracowników i kierowników z panelu — bez konsoli i Django admina na co dzień.
@@ -978,6 +1237,25 @@ const Manager = () => {
 
                 <div className={styles.shiftControls}>
                   <div>Wybrany dzień: {selectedDate || '—'}</div>
+                  <select
+                    className={styles.roleSelect}
+                    value={selectedShiftId}
+                    onChange={(e) => applySelectedTemplate(e.target.value)}
+                    disabled={!selectedDate}
+                  >
+                    <option value="">Szablon zmiany (opcjonalnie)</option>
+                    {templatesForSelectedDate.map((template) => {
+                      const hours = resolveTemplateHours(template, selectedDate);
+                      return (
+                        <option key={template.id} value={template.id}>
+                          {template.name}
+                          {hours
+                            ? ` (${toDisplayTime(hours.start_time)}-${toDisplayTime(hours.end_time)})`
+                            : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
                   <input type="time" value={timeFrom} onChange={(e) => setTimeFrom(e.target.value)} />
                   <input type="time" value={timeTo} onChange={(e) => setTimeTo(e.target.value)} />
                   {renderRoleSelect(selectedRoleId, (e) => setSelectedRoleId(e.target.value))}

@@ -19,10 +19,16 @@ import {
 } from '../api/swaps';
 import { getUsers, getSwappableWorkdays } from '../api/users';
 import { getTaskTypes } from '../api/taskTypes';
+import { getShiftTemplates } from '../api/shiftTemplates';
 import { getNotifications } from '../api/notifications';
 import { useTheme } from '../hooks/useTheme';
 import { useAutoDismiss } from '../hooks/useAutoDismiss';
-import { buildWorkdayPayload, toApiTime } from '../utils/time';
+import {
+  buildWorkdayPayload,
+  toApiTime,
+  toDisplayTime,
+  resolveTemplateHours,
+} from '../utils/time';
 
 const STATUS_LABELS = {
   proposed: 'Oczekuje',
@@ -63,8 +69,12 @@ const Dashboard = () => {
   const [taskTypes, setTaskTypes] = useState([]);
   const [selectedRoleId, setSelectedRoleId] = useState('');
   const [dayNote, setDayNote] = useState('');
+  const [shiftTemplates, setShiftTemplates] = useState([]);
+  const [selectedShiftId, setSelectedShiftId] = useState('');
+  const [scheduleSuccess, setScheduleSuccess] = useState('');
 
   useAutoDismiss(swapSuccess, setSwapSuccess);
+  useAutoDismiss(scheduleSuccess, setScheduleSuccess);
 
   const fetchTaskTypes = async () => {
     try {
@@ -72,6 +82,15 @@ const Dashboard = () => {
       setTaskTypes(data);
     } catch (err) {
       setError(getErrorMessage(err, 'Nie udało się pobrać stanowisk.'));
+    }
+  };
+
+  const fetchShiftTemplates = async () => {
+    try {
+      const data = await getShiftTemplates({ active: '1' });
+      setShiftTemplates(data);
+    } catch (err) {
+      setError(getErrorMessage(err, 'Nie udało się pobrać szablonów zmian.'));
     }
   };
 
@@ -224,16 +243,19 @@ const Dashboard = () => {
       setTimeTo(pending.end_time.slice(0, 5));
       setSelectedRoleId(pending.role ? String(pending.role) : '');
       setDayNote(pending.note || '');
+      setSelectedShiftId(pending.shift_template ? String(pending.shift_template) : '');
     } else if (existing) {
       setTimeFrom(existing.start_time.slice(0, 5));
       setTimeTo(existing.end_time.slice(0, 5));
       setSelectedRoleId(existing.role ? String(existing.role) : '');
       setDayNote(existing.note || '');
+      setSelectedShiftId(existing.shift_template ? String(existing.shift_template) : '');
     } else {
       setTimeFrom('12:00');
       setTimeTo('20:00');
       setSelectedRoleId('');
       setDayNote('');
+      setSelectedShiftId('');
     }
   };
 
@@ -254,13 +276,40 @@ const Dashboard = () => {
       return;
     }
 
+    const templatesForDay = shiftTemplates.filter((t) => resolveTemplateHours(t, selectedDate));
+
+    if (shiftTemplates.length > 0) {
+      if (templatesForDay.length === 0) {
+        setError('Brak zdefiniowanych zmian na ten dzień tygodnia.');
+        return;
+      }
+      if (!selectedShiftId) {
+        setError('Wybierz zmianę zdefiniowaną przez kierownika.');
+        return;
+      }
+    }
+
+    let start = toApiTime(timeFrom);
+    let end = toApiTime(timeTo);
+    if (selectedShiftId) {
+      const template = shiftTemplates.find((t) => String(t.id) === String(selectedShiftId));
+      const hours = resolveTemplateHours(template, selectedDate);
+      if (!hours) {
+        setError('Ta zmiana nie jest dostępna w wybranym dniu.');
+        return;
+      }
+      start = toApiTime(hours.start_time);
+      end = toApiTime(hours.end_time);
+    }
+
     const newSelectedDates = {
       ...selectedDates,
       [selectedDate]: {
-        start_time: toApiTime(timeFrom),
-        end_time: toApiTime(timeTo),
+        start_time: start,
+        end_time: end,
         role: selectedRoleId ? Number(selectedRoleId) : null,
         note: dayNote.trim(),
+        shift_template: selectedShiftId ? Number(selectedShiftId) : null,
       },
     };
 
@@ -363,6 +412,7 @@ const Dashboard = () => {
             end_time: times.end_time,
             role: times.role,
             note: times.note || '',
+            shift_template: times.shift_template,
           });
 
           if (existing?.status === 'approved') {
@@ -384,6 +434,7 @@ const Dashboard = () => {
         setSelectedDates({});
         await fetchWorkdays();
         setError('');
+        setScheduleSuccess('Deklaracje zostały wysłane.');
       } else {
         const failed = responses.filter((r) => !r.ok).map((r) => r.date);
         setError(`Nie udało się zapisać deklaracji dla: ${failed.join(', ')}`);
@@ -413,6 +464,7 @@ const Dashboard = () => {
     fetchSwaps();
     fetchColleagues();
     fetchTaskTypes();
+    fetchShiftTemplates();
     fetchNotifications();
   }, []);
 
@@ -465,6 +517,9 @@ const Dashboard = () => {
             {saved.start_time.slice(0, 5)} - {saved.end_time.slice(0, 5)}
           </div>
           {saved.role_name ? <div className={styles.tileStatus}>{saved.role_name}</div> : null}
+          {saved.shift_template_name ? (
+            <div className={styles.tileStatus}>{saved.shift_template_name}</div>
+          ) : null}
           <div className={styles.tileStatus}>{STATUS_LABELS[saved.status]}</div>
           {saved.note?.trim() ? <div className={styles.tileStatus}>nota</div> : null}
         </div>
@@ -491,6 +546,66 @@ const Dashboard = () => {
       ))}
     </select>
   );
+
+  const templatesForSelectedDate = selectedDate
+    ? shiftTemplates.filter((t) => resolveTemplateHours(t, selectedDate))
+    : [];
+  const templatesConfigured = shiftTemplates.length > 0;
+
+  const applyEmployeeTemplate = (templateId) => {
+    setSelectedShiftId(templateId);
+    if (!templateId || !selectedDate) return;
+    const template = shiftTemplates.find((t) => String(t.id) === String(templateId));
+    const hours = resolveTemplateHours(template, selectedDate);
+    if (hours) {
+      setTimeFrom(toDisplayTime(hours.start_time));
+      setTimeTo(toDisplayTime(hours.end_time));
+    }
+  };
+
+  const renderShiftSelect = () => {
+    if (!templatesConfigured) {
+      return (
+        <div className={styles.popupField}>
+          <input type="time" onChange={(e) => setTimeFrom(e.target.value)} value={timeFrom} />
+          <input type="time" onChange={(e) => setTimeTo(e.target.value)} value={timeTo} />
+          <p className={styles.popupInfo}>
+            Kierownik nie zdefiniował jeszcze szablonów zmian — możesz podać godziny ręcznie.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        <select
+          className={styles.roleSelect}
+          value={selectedShiftId}
+          onChange={(e) => applyEmployeeTemplate(e.target.value)}
+        >
+          <option value="">Wybierz zmianę</option>
+          {templatesForSelectedDate.map((template) => {
+            const hours = resolveTemplateHours(template, selectedDate);
+            return (
+              <option key={template.id} value={template.id}>
+                {template.name}
+                {hours ? ` (${toDisplayTime(hours.start_time)}-${toDisplayTime(hours.end_time)})` : ''}
+              </option>
+            );
+          })}
+        </select>
+        {templatesForSelectedDate.length === 0 ? (
+          <p className={styles.popupInfo}>Brak zdefiniowanych zmian na ten dzień tygodnia.</p>
+        ) : selectedShiftId ? (
+          <p className={styles.popupInfo}>
+            Godziny: {timeFrom} - {timeTo} (ustalone przez kierownika)
+          </p>
+        ) : (
+          <p className={styles.popupInfo}>Wybierz zmianę — godzin nie wpisujesz samodzielnie.</p>
+        )}
+      </>
+    );
+  };
 
   const renderStatusBadge = (status) => (
     <span
@@ -528,6 +643,7 @@ const Dashboard = () => {
           <p className={styles.popupInfo}>{selectedDate}</p>
           <p className={styles.popupInfo}>
             {existingWorkday.start_time.slice(0, 5)} - {existingWorkday.end_time.slice(0, 5)}
+            {existingWorkday.shift_template_name ? ` · ${existingWorkday.shift_template_name}` : ''}
             {existingWorkday.role_name ? ` (${existingWorkday.role_name})` : ''}
           </p>
           {renderStatusBadge('approved')}
@@ -555,8 +671,7 @@ const Dashboard = () => {
           ) : null}
           <p className={styles.popupInfo}>Możesz złożyć nową deklarację na ten dzień.</p>
           <div className={styles.popupField}>
-            <input type="time" onChange={(e) => setTimeFrom(e.target.value)} value={timeFrom} />
-            <input type="time" onChange={(e) => setTimeTo(e.target.value)} value={timeTo} />
+            {renderShiftSelect()}
           </div>
           {renderRoleSelect()}
           <label className={styles.noteLabel} htmlFor="day-note-rejected">
@@ -594,8 +709,7 @@ const Dashboard = () => {
           {canModify ? (
             <>
               <div className={styles.popupField}>
-                <input type="time" onChange={(e) => setTimeFrom(e.target.value)} value={timeFrom} />
-                <input type="time" onChange={(e) => setTimeTo(e.target.value)} value={timeTo} />
+                {renderShiftSelect()}
               </div>
               {renderRoleSelect()}
               <label className={styles.noteLabel} htmlFor="day-note-proposed">
@@ -644,10 +758,11 @@ const Dashboard = () => {
     return (
       <>
         <h2 className={styles.popupTitle}>{selectedDate}</h2>
-        <p className={styles.popupInfo}>Wybierz godziny dyspozycyjności</p>
+        <p className={styles.popupInfo}>
+          {templatesConfigured ? 'Wybierz zdefiniowaną zmianę' : 'Wybierz godziny dyspozycyjności'}
+        </p>
         <div className={styles.popupField}>
-          <input type="time" onChange={(e) => setTimeFrom(e.target.value)} value={timeFrom} />
-          <input type="time" onChange={(e) => setTimeTo(e.target.value)} value={timeTo} />
+          {renderShiftSelect()}
         </div>
         {renderRoleSelect()}
         <label className={styles.noteLabel} htmlFor="day-note-new">
@@ -693,6 +808,7 @@ const Dashboard = () => {
         ) : null}
       </div>
       {error ? <div className={styles.rejectionReason}>{error}</div> : null}
+      {scheduleSuccess ? <div className={styles.swapSuccess}>{scheduleSuccess}</div> : null}
       {swapSuccess ? <div className={styles.swapSuccess}>{swapSuccess}</div> : null}
       {notifications.items?.length ? (
         <div className={styles.notificationsBanner}>

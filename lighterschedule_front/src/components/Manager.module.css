@@ -270,6 +270,56 @@
   margin-top: 2px;
 }
 
+.templateHoursGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.templateHourRow {
+  display: grid;
+  grid-template-columns: minmax(70px, 0.6fr) 1fr 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.templateHourRow input[type='time']:disabled {
+  opacity: 0.45;
+}
+
+.templateList {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.templateListItem {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.templateHoursSummary {
+  margin-top: 4px;
+  font-size: 0.82rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.inactiveTag {
+  color: #b45309;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
 .userCreateForm {
   display: flex;
   flex-direction: column;
@@ -973,6 +1023,15 @@
   background: #0f172a;
   border-color: #334155 !important;
   color: #e2e8f0;
+}
+
+:global([data-theme='dark']) .templateListItem {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+:global([data-theme='dark']) .templateHoursSummary {
+  color: #94a3b8;
 }
 
 :global([data-theme='dark']) .queueItem {

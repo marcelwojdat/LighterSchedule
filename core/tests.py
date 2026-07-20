@@ -542,3 +542,105 @@ class UserManagementTests(APITestCase):
             'is_manager': False,
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class ShiftTemplateTests(APITestCase):
+    def setUp(self):
+        self.manager = User.objects.create_user('mgr_shift', password='pass')
+        EmployeeProfile.objects.create(user=self.manager, is_manager=True, hourly_rate=30)
+        self.employee = User.objects.create_user('emp_shift', password='pass')
+        EmployeeProfile.objects.create(user=self.employee, is_manager=False, hourly_rate=20)
+        self.future = date.today() + timedelta(days=(5 - date.today().weekday()) % 7 or 7)
+        # ensure a Saturday for predictable weekday tests when possible
+        while self.future.weekday() != 5:
+            self.future += timedelta(days=1)
+
+    def authenticate(self, user):
+        token = self.client.post('/api/token/', {
+            'username': user.username,
+            'password': 'pass',
+        }).data['access']
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+
+    def test_manager_creates_shift_template(self):
+        self.authenticate(self.manager)
+        response = self.client.post('/api/shift-templates/', {
+            'name': 'Poranna',
+            'is_active': True,
+            'hours': [
+                {'weekday': 5, 'start_time': '06:00:00', 'end_time': '14:00:00'},
+                {'weekday': 6, 'start_time': '09:00:00', 'end_time': '15:00:00'},
+            ],
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(len(response.data['hours']), 2)
+
+    def test_employee_picks_template_and_gets_resolved_times(self):
+        self.authenticate(self.manager)
+        created = self.client.post('/api/shift-templates/', {
+            'name': 'Poranna',
+            'is_active': True,
+            'hours': [
+                {'weekday': self.future.weekday(), 'start_time': '06:00:00', 'end_time': '14:00:00'},
+            ],
+        }, format='json')
+        template_id = created.data['id']
+
+        self.authenticate(self.employee)
+        response = self.client.post('/api/workdays/', {
+            'date': self.future.isoformat(),
+            'shift_template': template_id,
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data['start_time'], '06:00:00')
+        self.assertEqual(response.data['end_time'], '14:00:00')
+        self.assertEqual(response.data['shift_template'], template_id)
+        self.assertEqual(response.data['shift_template_name'], 'Poranna')
+
+    def test_employee_cannot_use_template_without_hours_for_weekday(self):
+        self.authenticate(self.manager)
+        created = self.client.post('/api/shift-templates/', {
+            'name': 'Tylko sobota',
+            'is_active': True,
+            'hours': [
+                {'weekday': 5, 'start_time': '06:00:00', 'end_time': '14:00:00'},
+            ],
+        }, format='json')
+        # pick a Monday
+        monday = self.future
+        while monday.weekday() != 0:
+            monday += timedelta(days=1)
+
+        self.authenticate(self.employee)
+        response = self.client.post('/api/workdays/', {
+            'date': monday.isoformat(),
+            'shift_template': created.data['id'],
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_list_templates_filtered_by_date(self):
+        self.authenticate(self.manager)
+        self.client.post('/api/shift-templates/', {
+            'name': 'Poranna',
+            'is_active': True,
+            'hours': [
+                {'weekday': self.future.weekday(), 'start_time': '06:00:00', 'end_time': '14:00:00'},
+            ],
+        }, format='json')
+        self.client.post('/api/shift-templates/', {
+            'name': 'Inny dzień',
+            'is_active': True,
+            'hours': [
+                {'weekday': (self.future.weekday() + 1) % 7, 'start_time': '12:00:00', 'end_time': '20:00:00'},
+            ],
+        }, format='json')
+
+        self.authenticate(self.employee)
+        response = self.client.get('/api/shift-templates/', {'date': self.future.isoformat()})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = [item['name'] for item in response.data]
+        self.assertIn('Poranna', names)
+        self.assertNotIn('Inny dzień', names)
+        poranna = next(item for item in response.data if item['name'] == 'Poranna')
+        self.assertEqual(poranna['resolved_start'], '06:00:00')
+        self.assertEqual(poranna['resolved_end'], '14:00:00')

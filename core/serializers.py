@@ -1,11 +1,15 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.utils import timezone
-from .models import TaskType, WorkDay, SwapRequest
+from .models import TaskType, WorkDay, SwapRequest, ShiftTemplate, ShiftTemplateHours
 from .permissions import is_manager
 from .utils import ensure_user_profile
-from datetime import datetime
+from datetime import datetime, date as date_cls
 
+
+WEEKDAY_LABELS = (
+    'Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota', 'Niedziela',
+)
 
 class UserSerializer(serializers.ModelSerializer):
     hourly_rate = serializers.SerializerMethodField()
@@ -87,9 +91,93 @@ class TaskTypeSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class ShiftTemplateHoursSerializer(serializers.ModelSerializer):
+    weekday_label = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ShiftTemplateHours
+        fields = ['id', 'weekday', 'weekday_label', 'start_time', 'end_time']
+        read_only_fields = ['id', 'weekday_label']
+
+    def get_weekday_label(self, obj):
+        if 0 <= obj.weekday <= 6:
+            return WEEKDAY_LABELS[obj.weekday]
+        return str(obj.weekday)
+
+
+class ShiftTemplateSerializer(serializers.ModelSerializer):
+    hours = ShiftTemplateHoursSerializer(many=True)
+    resolved_start = serializers.SerializerMethodField()
+    resolved_end = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ShiftTemplate
+        fields = [
+            'id', 'name', 'is_active', 'hours',
+            'resolved_start', 'resolved_end',
+        ]
+
+    def _filter_date(self):
+        raw = self.context.get('filter_date')
+        if isinstance(raw, date_cls):
+            return raw
+        return None
+
+    def get_resolved_start(self, obj):
+        work_date = self._filter_date()
+        if not work_date:
+            return None
+        entry = obj.hours_for_date(work_date)
+        return entry.start_time.strftime('%H:%M:%S') if entry else None
+
+    def get_resolved_end(self, obj):
+        work_date = self._filter_date()
+        if not work_date:
+            return None
+        entry = obj.hours_for_date(work_date)
+        return entry.end_time.strftime('%H:%M:%S') if entry else None
+
+    def validate_hours(self, value):
+        if not value:
+            raise serializers.ValidationError('Dodaj godziny przynajmniej dla jednego dnia tygodnia.')
+        weekdays = [item.get('weekday') for item in value]
+        if any(w is None or w < 0 or w > 6 for w in weekdays):
+            raise serializers.ValidationError('Dzień tygodnia musi być liczbą 0–6.')
+        if len(weekdays) != len(set(weekdays)):
+            raise serializers.ValidationError('Każdy dzień tygodnia może mieć tylko jeden zakres godzin.')
+        for item in value:
+            if item['start_time'] >= item['end_time']:
+                raise serializers.ValidationError(
+                    f"Godzina końcowa musi być później niż początkowa ({WEEKDAY_LABELS[item['weekday']]})."
+                )
+        return value
+
+    def create(self, validated_data):
+        hours_data = validated_data.pop('hours')
+        template = ShiftTemplate.objects.create(**validated_data)
+        ShiftTemplateHours.objects.bulk_create([
+            ShiftTemplateHours(template=template, **item) for item in hours_data
+        ])
+        return template
+
+    def update(self, instance, validated_data):
+        hours_data = validated_data.pop('hours', None)
+        instance.name = validated_data.get('name', instance.name)
+        instance.is_active = validated_data.get('is_active', instance.is_active)
+        instance.save()
+
+        if hours_data is not None:
+            instance.hours.all().delete()
+            ShiftTemplateHours.objects.bulk_create([
+                ShiftTemplateHours(template=instance, **item) for item in hours_data
+            ])
+        return instance
+
+
 class WorkDaySerializer(serializers.ModelSerializer):
     employee_name = serializers.ReadOnlyField(source='employee.username')
     role_name = serializers.SerializerMethodField()
+    shift_template_name = serializers.SerializerMethodField()
     approved_by_name = serializers.SerializerMethodField()
     total_hours = serializers.SerializerMethodField()
     earnings = serializers.SerializerMethodField()
@@ -103,12 +191,20 @@ class WorkDaySerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )
+    shift_template = serializers.PrimaryKeyRelatedField(
+        queryset=ShiftTemplate.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+    start_time = serializers.TimeField(required=False)
+    end_time = serializers.TimeField(required=False)
 
     class Meta:
         model = WorkDay
         fields = [
             'id', 'employee', 'employee_name', 'date',
             'start_time', 'end_time', 'role', 'role_name',
+            'shift_template', 'shift_template_name',
             'status', 'approved_by', 'approved_by_name', 'approved_at',
             'rejection_reason', 'note', 'rate_at_time', 'total_hours', 'earnings',
         ]
@@ -120,6 +216,9 @@ class WorkDaySerializer(serializers.ModelSerializer):
 
     def get_role_name(self, obj):
         return obj.role.name if obj.role_id else None
+
+    def get_shift_template_name(self, obj):
+        return obj.shift_template.name if obj.shift_template_id else None
 
     def get_approved_by_name(self, obj):
         return obj.approved_by.username if obj.approved_by_id else None
@@ -141,11 +240,70 @@ class WorkDaySerializer(serializers.ModelSerializer):
 
         user = request.user
         employee = attrs.get('employee', getattr(self.instance, 'employee', None))
+        manager = is_manager(user)
 
-        if not is_manager(user):
+        if not manager:
             if employee and employee != user:
                 raise serializers.ValidationError({'employee': 'Nie możesz zarządzać grafikiem innego pracownika.'})
             attrs['employee'] = user
+
+        work_date = attrs.get('date', getattr(self.instance, 'date', None))
+        if 'shift_template' in attrs:
+            template = attrs.get('shift_template')
+        else:
+            template = getattr(self.instance, 'shift_template', None) if self.instance else None
+
+        if not manager:
+            templates_configured = ShiftTemplate.objects.filter(is_active=True).exists()
+            if templates_configured:
+                if template is None:
+                    raise serializers.ValidationError({
+                        'shift_template': 'Wybierz zdefiniowaną zmianę (np. poranna / późniejsza).',
+                    })
+                if not template.is_active:
+                    raise serializers.ValidationError({'shift_template': 'Ta zmiana jest nieaktywna.'})
+                if not work_date:
+                    raise serializers.ValidationError({'date': 'Podaj datę.'})
+                hours = template.hours_for_date(work_date)
+                if not hours:
+                    raise serializers.ValidationError({
+                        'shift_template': 'Ta zmiana nie jest dostępna w wybranym dniu tygodnia.',
+                    })
+                attrs['start_time'] = hours.start_time
+                attrs['end_time'] = hours.end_time
+                attrs['shift_template'] = template
+            elif template is not None:
+                if not work_date:
+                    raise serializers.ValidationError({'date': 'Podaj datę.'})
+                hours = template.hours_for_date(work_date)
+                if not hours:
+                    raise serializers.ValidationError({
+                        'shift_template': 'Ta zmiana nie jest dostępna w wybranym dniu tygodnia.',
+                    })
+                attrs['start_time'] = hours.start_time
+                attrs['end_time'] = hours.end_time
+        elif template is not None and work_date:
+            has_start = 'start_time' in attrs and attrs.get('start_time') is not None
+            has_end = 'end_time' in attrs and attrs.get('end_time') is not None
+            if not (has_start and has_end):
+                hours = template.hours_for_date(work_date)
+                if not hours:
+                    raise serializers.ValidationError({
+                        'shift_template': 'Ta zmiana nie ma godzin na ten dzień tygodnia.',
+                    })
+                attrs['start_time'] = hours.start_time
+                attrs['end_time'] = hours.end_time
+
+        start_time = attrs.get('start_time', getattr(self.instance, 'start_time', None))
+        end_time = attrs.get('end_time', getattr(self.instance, 'end_time', None))
+        if start_time is None or end_time is None:
+            raise serializers.ValidationError({
+                'start_time': 'Podaj godziny lub wybierz szablon zmiany.',
+            })
+        if start_time >= end_time:
+            raise serializers.ValidationError({
+                'end_time': 'Godzina końcowa musi być później niż początkowa.',
+            })
 
         return attrs
 

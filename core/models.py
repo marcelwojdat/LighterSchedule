@@ -16,6 +16,39 @@ class TaskType(models.Model):
     def __str__(self):
         return self.name
 
+
+class ShiftTemplate(models.Model):
+    """Named shift defined by manager (e.g. Poranna), with hours per weekday."""
+    name = models.CharField(max_length=80)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+    def hours_for_date(self, work_date):
+        """Return ShiftTemplateHours for Python weekday (0=Mon … 6=Sun), or None."""
+        return self.hours.filter(weekday=work_date.weekday()).first()
+
+
+class ShiftTemplateHours(models.Model):
+    template = models.ForeignKey(ShiftTemplate, on_delete=models.CASCADE, related_name='hours')
+    weekday = models.PositiveSmallIntegerField(
+        help_text='0=poniedziałek … 6=niedziela (jak date.weekday()).',
+    )
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+
+    class Meta:
+        unique_together = ('template', 'weekday')
+        ordering = ['weekday']
+
+    def __str__(self):
+        return f"{self.template.name} / {self.weekday}: {self.start_time}-{self.end_time}"
+
+
 class WorkDay(models.Model):
     class Status(models.TextChoices):
         PROPOSED = 'proposed', 'Proposed'
@@ -27,6 +60,13 @@ class WorkDay(models.Model):
     start_time = models.TimeField()
     end_time = models.TimeField()
     role = models.ForeignKey(TaskType, on_delete=models.SET_NULL, null=True, blank=True)
+    shift_template = models.ForeignKey(
+        ShiftTemplate,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='workdays',
+    )
     status = models.CharField(
         max_length=20,
         choices=Status.choices,

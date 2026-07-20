@@ -20,7 +20,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 
-from .models import TaskType, WorkDay, SwapRequest, EmployeeProfile
+from .models import TaskType, WorkDay, SwapRequest, EmployeeProfile, ShiftTemplate
 from .permissions import is_manager, IsManager
 from .serializers import (
     TaskTypeSerializer,
@@ -29,6 +29,7 @@ from .serializers import (
     UserSerializer,
     UserProfileUpdateSerializer,
     ManagerUserCreateSerializer,
+    ShiftTemplateSerializer,
 )
 from .utils import ensure_user_profile
 
@@ -464,6 +465,47 @@ class TaskTypeViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
 
+class ShiftTemplateViewSet(viewsets.ModelViewSet):
+    queryset = ShiftTemplate.objects.all()
+    serializer_class = ShiftTemplateSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = ShiftTemplate.objects.prefetch_related('hours').all()
+        if not is_manager(self.request.user):
+            qs = qs.filter(is_active=True)
+
+        date_param = self.request.query_params.get('date')
+        if date_param:
+            try:
+                work_date = datetime.strptime(date_param, '%Y-%m-%d').date()
+            except ValueError:
+                return qs.none()
+            weekday = work_date.weekday()
+            qs = qs.filter(hours__weekday=weekday).distinct()
+
+        active_only = self.request.query_params.get('active')
+        if active_only == '1':
+            qs = qs.filter(is_active=True)
+
+        return qs
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        date_param = self.request.query_params.get('date')
+        if date_param:
+            try:
+                context['filter_date'] = datetime.strptime(date_param, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+        return context
+
+    def get_permissions(self):
+        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+            return [IsAuthenticated(), IsManager()]
+        return super().get_permissions()
+
+
 class WorkDayViewSet(viewsets.ModelViewSet):
     queryset = WorkDay.objects.all()
     serializer_class = WorkDaySerializer
@@ -564,6 +606,30 @@ class WorkDayViewSet(viewsets.ModelViewSet):
         end_time = request.data.get('end_time')
         role = request.data.get('role')
         note = request.data.get('note')
+        shift_template_id = request.data.get('shift_template')
+
+        if shift_template_id is not None:
+            if shift_template_id:
+                try:
+                    template = ShiftTemplate.objects.get(pk=shift_template_id)
+                except ShiftTemplate.DoesNotExist:
+                    return Response(
+                        {'error': 'Nie znaleziono szablonu zmiany.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                hours = template.hours_for_date(workday.date)
+                if not hours:
+                    return Response(
+                        {'error': 'Szablon nie ma godzin na ten dzień tygodnia.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                workday.shift_template = template
+                if not start_time:
+                    workday.start_time = hours.start_time
+                if not end_time:
+                    workday.end_time = hours.end_time
+            else:
+                workday.shift_template = None
 
         if start_time:
             workday.start_time = start_time
