@@ -120,13 +120,13 @@
   width: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-start;
+  gap: 10px;
   border: none;
   background: transparent;
   color: #0f172a;
-  font-size: 0.95rem;
-  padding: 14px 18px;
+  font-size: 0.9rem;
+  padding: 10px 16px;
   cursor: pointer;
   transition: background 0.2s ease;
 }
@@ -142,25 +142,31 @@
 
 .linkIcon {
   color: #334155;
-  min-width: 18px;
+  min-width: 16px;
 }
 
 .stateTag {
+  margin-left: auto;
   min-width: 65px;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   color: #475569;
   text-align: right;
 }
 
 .logoutButton {
-  margin: 0 18px 18px;
-  border-radius: 14px;
-  background: #ffe8e8;
+  width: calc(100% - 20px);
+  margin: 6px 10px 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: #fee2e2;
   color: #991b1b;
+  font-size: 0.88rem;
+  font-weight: 600;
+  justify-content: flex-start;
 }
 
 .logoutButton:hover {
-  background: #ffd6d6;
+  background: #fecaca;
 }
 
 :global([data-theme='dark']) .dropdown {
@@ -190,4 +196,17 @@
 :global([data-theme='dark']) .menuLink:hover,
 :global([data-theme='dark']) .menuButton:hover {
   background: rgba(148, 163, 184, 0.12);
+}
+
+:global([data-theme='dark']) .linkIcon {
+  color: #94a3b8;
+}
+
+:global([data-theme='dark']) .logoutButton {
+  background: rgba(248, 113, 113, 0.18);
+  color: #fecaca;
+}
+
+:global([data-theme='dark']) .logoutButton:hover {
+  background: rgba(248, 113, 113, 0.28);
 }

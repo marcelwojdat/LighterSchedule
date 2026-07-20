@@ -541,175 +541,194 @@ const Manager = () => {
         </div>
       ) : null}
 
+      <section className={styles.statsBar}>
+        <div className={styles.statsBarHeader}>
+          <div>
+            <h3>Statystyki zespołu</h3>
+            <p className={styles.statHint}>
+              Zatwierdzone wpisy w wybranym miesiącu — cały zespół.
+            </p>
+          </div>
+          <div className={styles.statsBarActions}>
+            <label htmlFor="manager-stats-month">Miesiąc</label>
+            <input
+              id="manager-stats-month"
+              type="month"
+              value={statsMonth}
+              onChange={(e) => setStatsMonth(e.target.value)}
+            />
+            <button type="button" className={styles.btnPrimary} onClick={handlePayrollDownload}>
+              Raport PDF
+            </button>
+          </div>
+        </div>
+        <div className={styles.statsGrid}>
+          <div className={styles.statCard}>
+            <span className={styles.statLabel}>Pracownicy</span>
+            <strong>{teamStats?.employee_count ?? employees.length}</strong>
+          </div>
+          <div className={styles.statCard}>
+            <span className={styles.statLabel}>Oczekujące deklaracje</span>
+            <strong>{pendingQueue.length}</strong>
+          </div>
+          <div className={styles.statCard}>
+            <span className={styles.statLabel}>Zamiany do zatwierdzenia</span>
+            <strong>{swapQueue.length}</strong>
+          </div>
+          <div className={styles.statCard}>
+            <span className={styles.statLabel}>Godziny</span>
+            <strong>{(teamStats?.total_hours ?? 0).toFixed(2)}</strong>
+          </div>
+          <div className={styles.statCard}>
+            <span className={styles.statLabel}>Wypłaty</span>
+            <strong>{(teamStats?.total_earnings ?? 0).toFixed(2)} zł</strong>
+          </div>
+          <div className={styles.statCard}>
+            <span className={styles.statLabel}>Zatwierdzone dni</span>
+            <strong>{teamStats?.approved_days ?? 0}</strong>
+          </div>
+        </div>
+      </section>
+
+      <div className={styles.queuesRow}>
+        <div className={styles.sectionCard}>
+          <div className={styles.sectionHeader}>
+            <h3>Do akceptacji</h3>
+            <span className={styles.queueBadge}>{pendingQueue.length}</span>
+          </div>
+          {pendingQueue.length === 0 ? (
+            <p className={styles.emptyQueue}>Brak deklaracji oczekujących na akceptację.</p>
+          ) : (
+            <div className={styles.queueList}>
+              {pendingQueue.map((item) => (
+                <div key={item.id} className={styles.queueItem}>
+                  <div className={styles.queueItemHeader}>
+                    <strong>{getEmployeeName(item)}</strong>
+                    <span>{item.date}</span>
+                  </div>
+                  {editingQueueId === item.id ? (
+                    <div className={styles.queueEditRow}>
+                      <input
+                        type="time"
+                        value={queueEditTimes.start}
+                        onChange={(e) => setQueueEditTimes((prev) => ({ ...prev, start: e.target.value }))}
+                      />
+                      <input
+                        type="time"
+                        value={queueEditTimes.end}
+                        onChange={(e) => setQueueEditTimes((prev) => ({ ...prev, end: e.target.value }))}
+                      />
+                      {renderRoleSelect(queueEditRole, (e) => setQueueEditRole(e.target.value))}
+                    </div>
+                  ) : (
+                    <div className={styles.queueHours}>
+                      {item.start_time.slice(0, 5)} - {item.end_time.slice(0, 5)}
+                      {item.role_name ? ` (${item.role_name})` : ''}
+                    </div>
+                  )}
+                  {rejectingId === item.id ? (
+                    <input
+                      className={styles.rejectionInput}
+                      type="text"
+                      placeholder="Powód odrzucenia (opcjonalnie)"
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                    />
+                  ) : null}
+                  <div className={styles.queueActions}>
+                    {rejectingId === item.id ? (
+                      <>
+                        <button className={styles.btnDanger} onClick={() => rejectQueueItem(item)}>
+                          Potwierdź odrzucenie
+                        </button>
+                        <button className={styles.btnSecondary} onClick={cancelQueueEdit}>
+                          Anuluj
+                        </button>
+                      </>
+                    ) : editingQueueId === item.id ? (
+                      <>
+                        <button className={styles.btnSuccess} onClick={() => approveQueueItem(item)}>
+                          Zatwierdź
+                        </button>
+                        <button className={styles.btnSecondary} onClick={cancelQueueEdit}>
+                          Anuluj
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button className={styles.btnSuccess} onClick={() => approveQueueItem(item, item)}>
+                          Zatwierdź
+                        </button>
+                        <button className={styles.btnSecondary} onClick={() => startQueueEdit(item)}>
+                          Edytuj godziny
+                        </button>
+                        <button
+                          className={styles.btnDanger}
+                          onClick={() => {
+                            setRejectingId(item.id);
+                            setEditingQueueId(null);
+                            setRejectionReason('');
+                          }}
+                        >
+                          Odrzuć
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className={styles.sectionCard}>
+          <div className={styles.sectionHeader}>
+            <h3>Zamiany do zatwierdzenia</h3>
+            <span className={styles.queueBadge}>{swapQueue.length}</span>
+          </div>
+          {swapQueue.length === 0 ? (
+            <p className={styles.emptyQueue}>Brak zamian oczekujących na zatwierdzenie.</p>
+          ) : (
+            <div className={styles.queueList}>
+              {swapQueue.map((swap) => (
+                <div key={swap.id} className={styles.swapQueueItem}>
+                  <div className={styles.queueItemHeader}>
+                    <strong>{swap.work_day_details?.date}</strong>
+                    <span>{SWAP_STATUS_LABELS[swap.status]}</span>
+                  </div>
+                  <div className={styles.queueHours}>
+                    {swap.work_day_details?.start_time?.slice(0, 5)} - {swap.work_day_details?.end_time?.slice(0, 5)}
+                    {swap.is_two_way ? ' · dwustronna' : ' · przekazanie'}
+                  </div>
+                  <div className={styles.swapTransfer}>
+                    <span>{swap.requested_by_name}</span>
+                    <span>{swap.is_two_way ? '⇄' : '→'}</span>
+                    <span>{swap.target_user_name}</span>
+                  </div>
+                  {swap.target_work_day_details ? (
+                    <div className={styles.queueHours}>
+                      Za: {swap.target_work_day_details.date}{' '}
+                      ({swap.target_work_day_details.start_time?.slice(0, 5)} -{' '}
+                      {swap.target_work_day_details.end_time?.slice(0, 5)})
+                    </div>
+                  ) : null}
+                  <div className={styles.queueActions}>
+                    <button className={styles.btnSuccess} onClick={() => approveSwap(swap)}>
+                      Zatwierdź zamianę
+                    </button>
+                    <button className={styles.btnDanger} onClick={() => rejectSwap(swap)}>
+                      Odrzuć
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className={styles.managerBody}>
         <div className={styles.leftCol}>
-          <div className={styles.sectionCard}>
-            <h3>Statystyki zespołu</h3>
-            <div className={styles.statRow}>
-              <strong>Pracownicy:</strong> {teamStats?.employee_count ?? employees.length}
-            </div>
-            <div className={styles.statRow}>
-              <strong>Oczekujące deklaracje:</strong> {pendingQueue.length}
-            </div>
-            <div className={styles.statRow}>
-              <strong>Zamiany do zatwierdzenia:</strong> {swapQueue.length}
-            </div>
-            <div className={styles.statRow}>
-              <strong>Godziny (zatwierdzone):</strong> {(teamStats?.total_hours ?? 0).toFixed(2)}
-            </div>
-            <div className={styles.statRow}>
-              <strong>Wypłaty (zatwierdzone):</strong> {(teamStats?.total_earnings ?? 0).toFixed(2)} zł
-            </div>
-            <div className={styles.statRow}>
-              <strong>Zatwierdzone dni:</strong> {teamStats?.approved_days ?? 0}
-            </div>
-            <div className={styles.sectionFooter}>
-              <label>Wybierz miesiąc</label>
-              <input type="month" value={statsMonth} onChange={(e) => setStatsMonth(e.target.value)} />
-            </div>
-            <button type="button" className={styles.btnPrimary} onClick={handlePayrollDownload}>
-              Pobierz raport PDF
-            </button>
-            <small className={styles.statHint}>
-              Statystyki obejmują cały zespół i tylko zatwierdzone wpisy w wybranym miesiącu.
-            </small>
-          </div>
-
-          <div className={styles.sectionCard}>
-            <div className={styles.sectionHeader}>
-              <h3>Do akceptacji</h3>
-              <span className={styles.queueBadge}>{pendingQueue.length}</span>
-            </div>
-            {pendingQueue.length === 0 ? (
-              <p className={styles.emptyQueue}>Brak deklaracji oczekujących na akceptację.</p>
-            ) : (
-              <div className={styles.queueList}>
-                {pendingQueue.map((item) => (
-                  <div key={item.id} className={styles.queueItem}>
-                    <div className={styles.queueItemHeader}>
-                      <strong>{getEmployeeName(item)}</strong>
-                      <span>{item.date}</span>
-                    </div>
-                    {editingQueueId === item.id ? (
-                      <div className={styles.queueEditRow}>
-                        <input
-                          type="time"
-                          value={queueEditTimes.start}
-                          onChange={(e) => setQueueEditTimes((prev) => ({ ...prev, start: e.target.value }))}
-                        />
-                        <input
-                          type="time"
-                          value={queueEditTimes.end}
-                          onChange={(e) => setQueueEditTimes((prev) => ({ ...prev, end: e.target.value }))}
-                        />
-                        {renderRoleSelect(queueEditRole, (e) => setQueueEditRole(e.target.value))}
-                      </div>
-                    ) : (
-                      <div className={styles.queueHours}>
-                        {item.start_time.slice(0, 5)} - {item.end_time.slice(0, 5)}
-                        {item.role_name ? ` (${item.role_name})` : ''}
-                      </div>
-                    )}
-                    {rejectingId === item.id ? (
-                      <input
-                        className={styles.rejectionInput}
-                        type="text"
-                        placeholder="Powód odrzucenia (opcjonalnie)"
-                        value={rejectionReason}
-                        onChange={(e) => setRejectionReason(e.target.value)}
-                      />
-                    ) : null}
-                    <div className={styles.queueActions}>
-                      {rejectingId === item.id ? (
-                        <>
-                          <button className={styles.btnDanger} onClick={() => rejectQueueItem(item)}>
-                            Potwierdź odrzucenie
-                          </button>
-                          <button className={styles.btnSecondary} onClick={cancelQueueEdit}>
-                            Anuluj
-                          </button>
-                        </>
-                      ) : editingQueueId === item.id ? (
-                        <>
-                          <button className={styles.btnSuccess} onClick={() => approveQueueItem(item)}>
-                            Zatwierdź
-                          </button>
-                          <button className={styles.btnSecondary} onClick={cancelQueueEdit}>
-                            Anuluj
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button className={styles.btnSuccess} onClick={() => approveQueueItem(item, item)}>
-                            Zatwierdź
-                          </button>
-                          <button className={styles.btnSecondary} onClick={() => startQueueEdit(item)}>
-                            Edytuj godziny
-                          </button>
-                          <button
-                            className={styles.btnDanger}
-                            onClick={() => {
-                              setRejectingId(item.id);
-                              setEditingQueueId(null);
-                              setRejectionReason('');
-                            }}
-                          >
-                            Odrzuć
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className={styles.sectionCard}>
-            <div className={styles.sectionHeader}>
-              <h3>Zamiany do zatwierdzenia</h3>
-              <span className={styles.queueBadge}>{swapQueue.length}</span>
-            </div>
-            {swapQueue.length === 0 ? (
-              <p className={styles.emptyQueue}>Brak zamian oczekujących na zatwierdzenie.</p>
-            ) : (
-              <div className={styles.queueList}>
-                {swapQueue.map((swap) => (
-                  <div key={swap.id} className={styles.swapQueueItem}>
-                    <div className={styles.queueItemHeader}>
-                      <strong>{swap.work_day_details?.date}</strong>
-                      <span>{SWAP_STATUS_LABELS[swap.status]}</span>
-                    </div>
-                    <div className={styles.queueHours}>
-                      {swap.work_day_details?.start_time?.slice(0, 5)} - {swap.work_day_details?.end_time?.slice(0, 5)}
-                      {swap.is_two_way ? ' · dwustronna' : ' · przekazanie'}
-                    </div>
-                    <div className={styles.swapTransfer}>
-                      <span>{swap.requested_by_name}</span>
-                      <span>{swap.is_two_way ? '⇄' : '→'}</span>
-                      <span>{swap.target_user_name}</span>
-                    </div>
-                    {swap.target_work_day_details ? (
-                      <div className={styles.queueHours}>
-                        Za: {swap.target_work_day_details.date}{' '}
-                        ({swap.target_work_day_details.start_time?.slice(0, 5)} -{' '}
-                        {swap.target_work_day_details.end_time?.slice(0, 5)})
-                      </div>
-                    ) : null}
-                    <div className={styles.queueActions}>
-                      <button className={styles.btnSuccess} onClick={() => approveSwap(swap)}>
-                        Zatwierdź zamianę
-                      </button>
-                      <button className={styles.btnDanger} onClick={() => rejectSwap(swap)}>
-                        Odrzuć
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
           <div className={styles.sectionCard}>
             <h3>Zarządzanie kontami</h3>
             <p className={styles.statHint}>
@@ -839,10 +858,12 @@ const Manager = () => {
         </div>
 
         <div className={styles.rightCol}>
-          <div className={styles.sectionCard}>
+          <div className={`${styles.sectionCard} ${styles.detailCard}`}>
             <h3>Szczegóły pracownika</h3>
             {!selectedEmployee ? (
-              <p>Wybierz pracownika z listy, aby zarządzać jego grafikiem.</p>
+              <p className={styles.emptyQueue}>
+                Wybierz pracownika z listy kont (przycisk Grafik), aby zarządzać jego zmianami.
+              </p>
             ) : (
               <>
                 <div className={styles.empHeader}>
@@ -875,7 +896,7 @@ const Manager = () => {
                 <div className={styles.scheduleSection}>
                   <h4>Aktualny grafik</h4>
                   {workdays.length === 0 ? (
-                    <p>Brak wpisów w grafiku.</p>
+                    <p className={styles.emptyQueue}>Brak wpisów w grafiku.</p>
                   ) : (
                     <ul className={styles.scheduleList}>
                       {workdays.map((w) => (

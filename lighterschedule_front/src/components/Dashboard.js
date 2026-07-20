@@ -113,6 +113,14 @@ const Dashboard = () => {
     }
   };
 
+  const isPastDate = (dateStr) => {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const selectedDateObj = new Date(year, month - 1, day);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return selectedDateObj < today;
+  };
+
   const isActiveSwap = (swap) => !swap.is_rejected && !swap.approved_by_manager;
 
   const hasActiveSwapForWorkday = (workdayId) =>
@@ -188,14 +196,6 @@ const Dashboard = () => {
     } catch (err) {
       setError(getErrorMessage(err, 'Nie udało się pobrać grafika.'));
     }
-  };
-
-  const isPastDate = (dateStr) => {
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const selectedDateObj = new Date(year, month - 1, day);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return selectedDateObj < today;
   };
 
   const getWorkdayForDate = (dateStr) => workdays.find((d) => d.date === dateStr);

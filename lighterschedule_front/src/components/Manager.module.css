@@ -1,7 +1,9 @@
 .managerPage {
-  padding: 24px;
-  max-width: 1400px;
+  padding: 20px 28px 36px;
+  max-width: 1450px;
   margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .pageHeader {
@@ -9,12 +11,14 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  margin-bottom: 4px;
 }
 
 .managerTitle {
   text-align: left;
   font-size: 1.9rem;
   margin: 0;
+  color: #0f172a;
 }
 
 .notificationsBanner {
@@ -25,29 +29,153 @@
 }
 
 .notificationItem {
-  padding: 12px 14px;
+  padding: 10px 14px;
   border-radius: 12px;
   background: #fff7ed;
   border: 1px solid #fed7aa;
   color: #9a3412;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   font-weight: 600;
 }
 
+/* —— Stats strip —— */
+.statsBar {
+  margin-top: 16px;
+  padding: 16px 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
+  border-radius: 20px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
+}
+
+.statsBarHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin-bottom: 14px;
+}
+
+.statsBarHeader h3 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+  color: #0f172a;
+}
+
+.statsBarActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.statsBarActions label {
+  font-size: 0.85rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.statsBarActions input[type='month'] {
+  height: 38px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.statCard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  min-height: 72px;
+}
+
+.statLabel {
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #64748b;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.statCard strong {
+  font-size: 1.25rem;
+  color: #0f172a;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.statHint {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+/* —— Queues side by side —— */
+.queuesRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  margin-top: 14px;
+  align-items: stretch;
+}
+
+.queuesRow > .sectionCard {
+  margin-bottom: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* —— Main body: accounts | employee —— */
 .managerBody {
   display: grid;
-  grid-template-columns: 360px 1fr;
-  gap: 20px;
-  margin-top: 24px;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr);
+  gap: 14px;
+  margin-top: 14px;
+  align-items: stretch;
+}
+
+.leftCol,
+.rightCol {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.leftCol > .sectionCard,
+.rightCol > .sectionCard {
+  margin-bottom: 0;
+  flex: 1;
 }
 
 .sectionCard {
-  padding: 18px;
+  padding: 16px 18px;
   background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
-  border-radius: 16px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
-  margin-bottom: 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
+  margin-bottom: 14px;
+}
+
+.sectionCard h3 {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+  color: #0f172a;
 }
 
 .sectionHeader {
@@ -76,34 +204,16 @@
   font-weight: 700;
 }
 
-.statRow {
-  margin: 8px 0;
-}
-
-.statHint {
-  display: block;
-  margin-top: 10px;
-  color: #64748b;
-  font-size: 0.82rem;
-}
-
-.sectionFooter {
-  margin-top: 12px;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.sectionFooter input {
-  height: 40px;
-  padding: 8px;
-  border-radius: 8px;
-  border: 1px solid #cbd5e1;
+.detailCard {
+  min-height: 100%;
 }
 
 .tableWrap {
   overflow: auto;
-  max-height: 360px;
+  max-height: min(520px, 55vh);
+  margin-top: 4px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
 }
 
 .empTable {
@@ -114,22 +224,43 @@
 .empTable th,
 .empTable td {
   text-align: left;
-  padding: 8px;
+  padding: 10px 12px;
   border-bottom: 1px solid #eef2f7;
+  vertical-align: middle;
 }
 
-.empTable input {
-  width: 100px;
-  padding: 6px;
-  border-radius: 6px;
+.empTable th {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  z-index: 1;
+}
+
+.empTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.empTable tbody tr:hover {
+  background: rgba(59, 130, 246, 0.04);
+}
+
+.empTable input[type='number'] {
+  width: 88px;
+  padding: 6px 8px;
+  border-radius: 8px;
   border: 1px solid #e2e8f0;
 }
 
 .empTable select {
   padding: 6px 8px;
-  border-radius: 6px;
+  border-radius: 8px;
   border: 1px solid #e2e8f0;
   background: #fff;
+  max-width: 130px;
 }
 
 .empTable small {
@@ -142,20 +273,21 @@
 .userCreateForm {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin: 12px 0 18px;
+  gap: 10px;
+  margin: 10px 0 14px;
 }
 
 .userCreateGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
 .userCreateGrid input {
-  padding: 8px 10px;
-  border-radius: 8px;
+  padding: 9px 11px;
+  border-radius: 10px;
   border: 1px solid #cbd5e1;
+  font-size: 0.9rem;
 }
 
 .checkboxRow {
@@ -175,10 +307,19 @@
 .btnSuccess,
 .btnDanger {
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: 10px;
   border: none;
   cursor: pointer;
   font-size: 0.85rem;
+  font-weight: 600;
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.btnPrimary:hover,
+.btnSecondary:hover,
+.btnSuccess:hover,
+.btnDanger:hover {
+  filter: brightness(0.96);
 }
 
 .btnPrimary {
@@ -205,14 +346,17 @@
   margin: 0;
   color: #64748b;
   font-size: 0.92rem;
+  line-height: 1.45;
 }
 
 .queueList {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  max-height: 420px;
+  gap: 10px;
+  max-height: 380px;
   overflow-y: auto;
+  flex: 1;
+  padding-right: 2px;
 }
 
 .queueItem {
@@ -255,6 +399,7 @@
   display: flex;
   gap: 8px;
   margin-bottom: 8px;
+  flex-wrap: wrap;
 }
 
 .queueEditRow input {
@@ -269,6 +414,7 @@
   padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid #fecaca;
+  box-sizing: border-box;
 }
 
 .queueActions {
@@ -281,34 +427,50 @@
   margin-top: 12px;
   padding: 12px;
   background: #fff;
-  border-radius: 12px;
+  border-radius: 14px;
   border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.calendarContainer :global(.react-calendar) {
+  width: 100%;
+  border: none;
+  background: transparent;
 }
 
 .shiftControls {
   display: flex;
   gap: 8px;
   align-items: center;
-  margin-top: 8px;
+  margin-top: 10px;
   flex-wrap: wrap;
 }
 
+.shiftControls input[type='time'] {
+  padding: 7px 9px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+}
+
 .empHeader {
-  font-size: 1.05rem;
+  font-size: 1.1rem;
   font-weight: 700;
   margin-bottom: 8px;
+  color: #0f172a;
 }
 
 .empInfo {
-  margin-bottom: 6px;
+  margin-bottom: 4px;
+  font-size: 0.92rem;
+  color: #334155;
 }
 
 .scheduleSection {
-  margin-top: 16px;
+  margin-top: 14px;
 }
 
 .scheduleSection h4 {
   margin: 0 0 10px;
+  font-size: 0.95rem;
 }
 
 .scheduleList {
@@ -318,6 +480,8 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
 }
 
 .scheduleItem {
@@ -329,6 +493,7 @@
   border-radius: 10px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
+  font-size: 0.9rem;
 }
 
 .statusBadge {
@@ -354,26 +519,12 @@
   color: #991b1b;
 }
 
-.footerActions {
-  margin-top: 18px;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.scheduleSetBtn {
-  padding: 10px 18px;
-  border-radius: 8px;
-  border: 1px solid #000;
-  background: #f8f9fa;
-  cursor: pointer;
-}
-
 .errorBox {
   margin-top: 12px;
   color: #991b1b;
   background: #fee2e2;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: 10px;
 }
 
 .successBox {
@@ -381,7 +532,7 @@
   color: #065f46;
   background: #d1fae5;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: 10px;
 }
 
 .roleSelect {
@@ -393,12 +544,12 @@
 }
 
 .teamOverviewSection {
-  margin-top: 24px;
-  padding: 20px;
+  margin-top: 14px;
+  padding: 16px 18px;
   background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
-  border-radius: 16px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+  border-radius: 20px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
 }
 
 .teamOverviewHeader {
@@ -406,17 +557,18 @@
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 .teamOverviewHeader h3 {
-  margin: 0 0 6px;
+  margin: 0 0 4px;
+  font-size: 1.05rem;
 }
 
 .teamOverviewHint {
   margin: 0;
   color: #64748b;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
 .weekNav {
@@ -427,6 +579,8 @@
 
 .teamTableWrap {
   overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
 }
 
 .teamTable {
@@ -468,28 +622,106 @@
   margin-bottom: 0;
 }
 
-@media (max-width: 960px) {
-  .managerBody {
-    grid-template-columns: 1fr;
+@media (max-width: 1200px) {
+  .statsGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .userCreateGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-:global([data-theme='dark']) .managerTitle {
+@media (max-width: 960px) {
+  .managerPage {
+    padding: 16px 16px 28px;
+  }
+
+  .queuesRow,
+  .managerBody {
+    grid-template-columns: 1fr;
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tableWrap {
+    max-height: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .statsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .userCreateGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .managerTitle {
+    font-size: 1.55rem;
+  }
+}
+
+:global([data-theme='dark']) .managerTitle,
+:global([data-theme='dark']) .statsBarHeader h3,
+:global([data-theme='dark']) .sectionCard h3,
+:global([data-theme='dark']) .empHeader,
+:global([data-theme='dark']) .teamOverviewHeader h3 {
   color: #f1f5f9;
 }
 
+:global([data-theme='dark']) .statsBar,
 :global([data-theme='dark']) .sectionCard,
 :global([data-theme='dark']) .teamOverviewSection {
   background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
   border-color: #334155;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.25);
   color: #e2e8f0;
 }
 
+:global([data-theme='dark']) .statCard {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+:global([data-theme='dark']) .statCard strong {
+  color: #f8fafc;
+}
+
+:global([data-theme='dark']) .statLabel,
 :global([data-theme='dark']) .statHint,
 :global([data-theme='dark']) .emptyQueue,
 :global([data-theme='dark']) .teamOverviewHint,
-:global([data-theme='dark']) .teamEmptyCell {
+:global([data-theme='dark']) .teamEmptyCell,
+:global([data-theme='dark']) .statsBarActions label,
+:global([data-theme='dark']) .queueHours,
+:global([data-theme='dark']) .empInfo {
+  color: #94a3b8;
+}
+
+:global([data-theme='dark']) .statsBarActions input[type='month'],
+:global([data-theme='dark']) .roleSelect,
+:global([data-theme='dark']) .empTable input,
+:global([data-theme='dark']) .empTable select,
+:global([data-theme='dark']) .userCreateGrid input,
+:global([data-theme='dark']) .queueEditRow input,
+:global([data-theme='dark']) .rejectionInput,
+:global([data-theme='dark']) .shiftControls input {
+  background: #0f172a;
+  border-color: #475569;
+  color: #f1f5f9;
+}
+
+:global([data-theme='dark']) .tableWrap,
+:global([data-theme='dark']) .teamTableWrap {
+  border-color: #334155;
+}
+
+:global([data-theme='dark']) .empTable th {
+  background: #1e293b;
   color: #94a3b8;
 }
 
@@ -501,28 +733,47 @@
   color: #e2e8f0;
 }
 
+:global([data-theme='dark']) .empTable tbody tr:hover {
+  background: rgba(148, 163, 184, 0.08);
+}
+
 :global([data-theme='dark']) .teamEmployeeCell {
   background: #1e293b;
 }
 
 :global([data-theme='dark']) .teamDayCell,
-:global([data-theme='dark']) .scheduleItem,
-:global([data-theme='dark']) .queueItem {
+:global([data-theme='dark']) .scheduleItem {
   background: #0f172a;
   border-color: #334155;
 }
 
-:global([data-theme='dark']) .roleSelect,
-:global([data-theme='dark']) .empTable input,
-:global([data-theme='dark']) .queueEditRow input,
-:global([data-theme='dark']) .rejectionInput,
-:global([data-theme='dark']) .shiftControls input {
+:global([data-theme='dark']) .queueItem {
+  background: #1c1917;
+  border-color: #78350f;
+}
+
+:global([data-theme='dark']) .swapQueueItem {
   background: #0f172a;
-  border-color: #475569;
-  color: #f1f5f9;
+  border-color: #1e3a8a;
+}
+
+:global([data-theme='dark']) .swapTransfer,
+:global([data-theme='dark']) .checkboxRow {
+  color: #cbd5e1;
 }
 
 :global([data-theme='dark']) .calendarContainer {
   background: #1e293b;
   border-color: #334155;
+}
+
+:global([data-theme='dark']) .notificationItem {
+  background: #431407;
+  border-color: #9a3412;
+  color: #fdba74;
+}
+
+:global([data-theme='dark']) .btnSecondary {
+  background: #334155;
+  color: #f1f5f9;
 }
