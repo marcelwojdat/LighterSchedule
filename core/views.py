@@ -381,6 +381,7 @@ def register_user(request):
 
 class UserViewSet(
     mixins.CreateModelMixin,
+    mixins.DestroyModelMixin,
     viewsets.ReadOnlyModelViewSet,
 ):
     queryset = User.objects.select_related('profile').all().order_by('username')
@@ -388,7 +389,7 @@ class UserViewSet(
     permission_classes = [IsAuthenticated]
 
     def get_permissions(self):
-        if self.action == 'create':
+        if self.action in ('create', 'destroy'):
             return [IsAuthenticated(), IsManager()]
         return super().get_permissions()
 
@@ -396,6 +397,67 @@ class UserViewSet(
         if self.action == 'create':
             return ManagerUserCreateSerializer
         return UserSerializer
+
+    def _is_last_active_manager(self, user):
+        profile = ensure_user_profile(user)
+        if not profile or not profile.is_manager or not user.is_active:
+            return False
+        return not User.objects.filter(
+            is_active=True,
+            profile__is_manager=True,
+        ).exclude(pk=user.pk).exists()
+
+    def _user_has_schedule_history(self, user):
+        has_workdays = WorkDay.objects.filter(employee=user).exists()
+        has_swaps = SwapRequest.objects.filter(
+            Q(requested_by=user) | Q(target_user=user)
+        ).exists()
+        return has_workdays or has_swaps
+
+    def destroy(self, request, *args, **kwargs):
+        user = self.get_object()
+        permanent = str(request.query_params.get('permanent', '')).lower() in ('1', 'true', 'yes')
+
+        if self._is_last_active_manager(user):
+            return Response(
+                {'error': 'Nie można usunąć ani dezaktywować ostatniego aktywnego kierownika.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if user.id == request.user.id:
+            return Response(
+                {'error': 'Nie możesz usunąć ani dezaktywować własnego konta.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if permanent:
+            if self._user_has_schedule_history(user):
+                return Response(
+                    {
+                        'error': (
+                            'Konto ma historię grafiku lub zamian. '
+                            'Użyj dezaktywacji zamiast trwałego usunięcia.'
+                        ),
+                        'can_hard_delete': False,
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            username = user.username
+            user.delete()
+            return Response(
+                {'message': f'Usunięto konto „{username}".', 'deleted': True},
+                status=status.HTTP_200_OK,
+            )
+
+        if not user.is_active:
+            return Response(
+                {'error': 'Konto jest już nieaktywne. Możesz spróbować trwałego usunięcia.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.is_active = False
+        user.save(update_fields=['is_active'])
+        return Response(UserSerializer(user, context={'request': request}).data)
 
     @action(detail=True, methods=['patch'], permission_classes=[IsAuthenticated, IsManager])
     def profile(self, request, pk=None):
@@ -423,11 +485,26 @@ class UserViewSet(
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        if has_active and data.get('is_active') is False and self._is_last_active_manager(user):
+            return Response(
+                {'error': 'Nie można dezaktywować ostatniego aktywnego kierownika.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         profile = ensure_user_profile(user)
 
         if has_rate:
             profile.hourly_rate = data.get('hourly_rate')
         if has_manager:
+            if (
+                profile.is_manager
+                and not bool(data.get('is_manager'))
+                and self._is_last_active_manager(user)
+            ):
+                return Response(
+                    {'error': 'Nie można odebrać roli ostatniemu aktywnemu kierownikowi.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             profile.is_manager = bool(data.get('is_manager'))
         profile.save()
 

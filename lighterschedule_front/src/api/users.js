@@ -9,6 +9,14 @@ export const createUser = (data) =>
 export const updateUserProfile = (userId, data) =>
   apiClient.patch(`/users/${userId}/profile/`, data).then((response) => response.data);
 
+/** Soft-delete (is_active=False) by default; pass { permanent: true } for hard delete when allowed. */
+export const deleteUser = (userId, { permanent = false } = {}) =>
+  apiClient
+    .delete(`/users/${userId}/`, {
+      params: permanent ? { permanent: true } : undefined,
+    })
+    .then((response) => response.data);
+
 export const getCurrentUser = () =>
   apiClient.get('/me/').then((response) => response.data);
 

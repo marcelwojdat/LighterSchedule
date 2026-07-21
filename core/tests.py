@@ -543,6 +543,56 @@ class UserManagementTests(APITestCase):
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_soft_delete_deactivates_user(self):
+        self.authenticate(self.manager)
+        response = self.client.delete(f'/api/users/{self.employee.id}/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.employee.refresh_from_db()
+        self.assertFalse(self.employee.is_active)
+        self.assertTrue(User.objects.filter(pk=self.employee.pk).exists())
+
+    def test_cannot_delete_self(self):
+        other = User.objects.create_user('mgr2', password='pass')
+        set_profile(other, hourly_rate=30, is_manager=True)
+        self.authenticate(self.manager)
+        response = self.client.delete(f'/api/users/{self.manager.id}/')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('własnego', response.data['error'])
+
+    def test_cannot_deactivate_last_manager(self):
+        self.authenticate(self.manager)
+        response = self.client.delete(f'/api/users/{self.manager.id}/')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('ostatniego', response.data['error'])
+        self.manager.refresh_from_db()
+        self.assertTrue(self.manager.is_active)
+
+    def test_hard_delete_without_history(self):
+        self.authenticate(self.manager)
+        response = self.client.delete(f'/api/users/{self.employee.id}/?permanent=true')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertFalse(User.objects.filter(pk=self.employee.pk).exists())
+
+    def test_hard_delete_blocked_with_workday_history(self):
+        from datetime import date, timedelta
+        WorkDay.objects.create(
+            employee=self.employee,
+            date=date.today() + timedelta(days=3),
+            start_time='09:00:00',
+            end_time='17:00:00',
+            status=WorkDay.Status.APPROVED,
+        )
+        self.authenticate(self.manager)
+        response = self.client.delete(f'/api/users/{self.employee.id}/?permanent=true')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(response.data.get('can_hard_delete', True))
+        self.assertTrue(User.objects.filter(pk=self.employee.pk).exists())
+
+    def test_employee_cannot_delete_users(self):
+        self.authenticate(self.employee)
+        response = self.client.delete(f'/api/users/{self.manager.id}/')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
 
 class ShiftTemplateTests(APITestCase):
     def setUp(self):

@@ -209,9 +209,8 @@
 }
 
 .tableWrap {
-  overflow: auto;
-  max-height: min(520px, 55vh);
-  margin-top: 4px;
+  overflow: visible;
+  margin-top: 10px;
   border-radius: 12px;
   border: 1px solid #e2e8f0;
 }
@@ -219,25 +218,57 @@
 .empTable {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .empTable th,
 .empTable td {
   text-align: left;
-  padding: 10px 12px;
+  padding: 8px 6px;
   border-bottom: 1px solid #eef2f7;
   vertical-align: middle;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
 }
 
 .empTable th {
-  position: sticky;
-  top: 0;
   background: #f8fafc;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   color: #64748b;
-  z-index: 1;
+  white-space: nowrap;
+}
+
+.empTable th:nth-child(1),
+.empTable td:nth-child(1) {
+  width: 26%;
+}
+
+.empTable th:nth-child(2),
+.empTable td:nth-child(2) {
+  width: 18%;
+}
+
+.empTable th:nth-child(3),
+.empTable td:nth-child(3) {
+  width: 12%;
+}
+
+.empTable th:nth-child(4),
+.empTable td:nth-child(4) {
+  width: 10%;
+  text-align: center;
+}
+
+.empTable th:nth-child(5),
+.empTable td:nth-child(5) {
+  width: 12%;
+}
+
+.empTable th:nth-child(6),
+.empTable td:nth-child(6) {
+  width: 22%;
 }
 
 .empTable tbody tr:last-child td {
@@ -248,28 +279,74 @@
   background: rgba(59, 130, 246, 0.04);
 }
 
+.empName {
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.empActiveCell {
+  text-align: center;
+}
+
 .empTable input[type='number'] {
-  width: 88px;
-  padding: 6px 8px;
+  width: 100%;
+  max-width: 72px;
+  box-sizing: border-box;
+  padding: 5px 6px;
   border-radius: 8px;
   border: 1px solid #e2e8f0;
+  font-size: 0.85rem;
 }
 
 .empTable select {
-  padding: 6px 8px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 5px 6px;
   border-radius: 8px;
   border: 1px solid #e2e8f0;
   background: #fff;
-  max-width: 130px;
+  font-size: 0.82rem;
 }
 
 .empTable small {
   display: block;
   color: #64748b;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   margin-top: 2px;
+  line-height: 1.2;
 }
 
+.empTable .btnPrimary,
+.empTable .btnSecondary,
+.empTable .btnDanger {
+  padding: 5px 8px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.empActions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.empMoreOptions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  margin-top: 2px;
+  padding-top: 6px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.usersExpandBtn {
+  width: 100%;
+  margin-top: 10px;
+}
 .templateHoursGrid {
   display: flex;
   flex-direction: column;
@@ -921,9 +998,6 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .tableWrap {
-    max-height: none;
-  }
 }
 
 @media (max-width: 560px) {
@@ -1032,6 +1106,10 @@
 
 :global([data-theme='dark']) .empTable tbody tr:hover {
   background: rgba(148, 163, 184, 0.08);
+}
+
+:global([data-theme='dark']) .empMoreOptions {
+  border-color: #334155;
 }
 
 :global([data-theme='dark']) .teamEmployeeCell {

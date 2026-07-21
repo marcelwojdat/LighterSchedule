@@ -5,7 +5,7 @@ import Auth from './Auth';
 import UserMenu from './UserMenu';
 import styles from './Manager.module.css';
 import { getErrorMessage } from '../api/client';
-import { getUsers, createUser, updateUserProfile } from '../api/users';
+import { getUsers, createUser, updateUserProfile, deleteUser } from '../api/users';
 import {
   getWorkdays,
   createWorkday,
@@ -59,6 +59,8 @@ const EMPTY_USER_FORM = {
   is_manager: false,
   hourly_rate: '20',
 };
+
+const USERS_PREVIEW_COUNT = 5;
 
 const formatDateStr = (dateObj) => {
   const year = dateObj.getFullYear();
@@ -125,6 +127,8 @@ const Manager = () => {
   const [dayNote, setDayNote] = useState('');
   const [showShiftTemplates, setShowShiftTemplates] = useState(false);
   const [showAddUserForm, setShowAddUserForm] = useState(false);
+  const [showAllUsers, setShowAllUsers] = useState(false);
+  const [moreOptionsUserId, setMoreOptionsUserId] = useState(null);
   const [newUserForm, setNewUserForm] = useState(() => ({ ...EMPTY_USER_FORM }));
   const { darkMode, toggleTheme } = useTheme();
   useAutoDismiss(success, setSuccess);
@@ -526,6 +530,54 @@ const Manager = () => {
     setShowAddUserForm(false);
     setNewUserForm({ ...EMPTY_USER_FORM });
     setError('');
+  };
+
+  const deactivateUserAccount = async (user) => {
+    if (user.id === currentUser?.id) {
+      setError('Nie możesz dezaktywować własnego konta.');
+      return;
+    }
+    const label = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username;
+    if (!window.confirm(`Dezaktywować konto „${label}"? Osoba nie będzie mogła się logować, historia grafiku zostanie.`)) {
+      return;
+    }
+    try {
+      await deleteUser(user.id);
+      setSuccess(`Dezaktywowano konto „${label}".`);
+      setError('');
+      if (selectedEmployee?.id === user.id) {
+        setSelectedEmployee(null);
+      }
+      await fetchEmployees();
+    } catch (e) {
+      setError(getErrorMessage(e, 'Nie udało się dezaktywować konta.'));
+    }
+  };
+
+  const permanentlyDeleteUser = async (user) => {
+    if (user.id === currentUser?.id) {
+      setError('Nie możesz usunąć własnego konta.');
+      return;
+    }
+    const label = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username;
+    if (
+      !window.confirm(
+        `Trwale usunąć konto „${label}"?\n\nTo możliwe tylko bez historii grafiku/zamian. W przeciwnym razie użyj dezaktywacji.`
+      )
+    ) {
+      return;
+    }
+    try {
+      await deleteUser(user.id, { permanent: true });
+      setSuccess(`Usunięto konto „${label}".`);
+      setError('');
+      if (selectedEmployee?.id === user.id) {
+        setSelectedEmployee(null);
+      }
+      await fetchEmployees();
+    } catch (e) {
+      setError(getErrorMessage(e, 'Nie udało się usunąć konta.'));
+    }
   };
 
   const startEditTemplate = (template) => {
@@ -1046,14 +1098,17 @@ const Manager = () => {
                     <th>Stawka</th>
                     <th>Aktywne</th>
                     <th>Grafik</th>
+                    <th>Akcje</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {allUsers.map((user) => (
+                  {(showAllUsers ? allUsers : allUsers.slice(0, USERS_PREVIEW_COUNT)).map((user) => (
                     <tr key={user.id} className={user.is_active === false ? styles.inactiveRow : undefined}>
                       <td>
-                        <div>{user.first_name} {user.last_name}</div>
-                        <small>{user.username} · {user.email || 'brak e-mail'}</small>
+                        <div className={styles.empName}>
+                          {user.first_name} {user.last_name}
+                        </div>
+                        <small>{user.username}</small>
                       </td>
                       <td>
                         <select
@@ -1076,12 +1131,13 @@ const Manager = () => {
                           onBlur={(e) => updateRate(user.id, e.target.value)}
                         />
                       </td>
-                      <td>
+                      <td className={styles.empActiveCell}>
                         <input
                           type="checkbox"
                           checked={user.is_active !== false}
                           disabled={user.id === currentUser?.id}
                           onChange={(e) => updateUserFlags(user.id, { is_active: e.target.checked })}
+                          aria-label={`Aktywne: ${user.username}`}
                         />
                       </td>
                       <td>
@@ -1093,11 +1149,61 @@ const Manager = () => {
                           <span>—</span>
                         )}
                       </td>
+                      <td>
+                        {user.id === currentUser?.id ? (
+                          <span>—</span>
+                        ) : (
+                          <div className={styles.empActions}>
+                            <button
+                              type="button"
+                              className={styles.btnSecondary}
+                              onClick={() =>
+                                setMoreOptionsUserId((prev) => (prev === user.id ? null : user.id))
+                              }
+                              aria-expanded={moreOptionsUserId === user.id}
+                            >
+                              {moreOptionsUserId === user.id ? 'Ukryj opcje' : 'Więcej opcji'}
+                            </button>
+                            {moreOptionsUserId === user.id ? (
+                              <div className={styles.empMoreOptions}>
+                                {user.is_active !== false ? (
+                                  <button
+                                    type="button"
+                                    className={styles.btnSecondary}
+                                    onClick={() => deactivateUserAccount(user)}
+                                  >
+                                    Dezaktywuj
+                                  </button>
+                                ) : null}
+                                <button
+                                  type="button"
+                                  className={styles.btnDanger}
+                                  onClick={() => permanentlyDeleteUser(user)}
+                                >
+                                  Usuń
+                                </button>
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            {allUsers.length > USERS_PREVIEW_COUNT ? (
+              <button
+                type="button"
+                className={`${styles.btnSecondary} ${styles.usersExpandBtn}`}
+                onClick={() => setShowAllUsers((prev) => !prev)}
+                aria-expanded={showAllUsers}
+              >
+                {showAllUsers
+                  ? 'Zwiń listę'
+                  : `Pokaż wszystkich (${allUsers.length})`}
+              </button>
+            ) : null}
           </div>
         </div>
 
