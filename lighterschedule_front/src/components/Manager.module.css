@@ -324,7 +324,9 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin: 10px 0 14px;
+  margin: 12px 0 14px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
 }
 
 .userCreateGrid {
@@ -811,8 +813,12 @@
 }
 
 .settingsToggleRow h3 {
-  margin: 0;
+  margin: 0 0 4px;
   font-size: 1.05rem;
+}
+
+.settingsToggleRow .statHint {
+  margin: 0;
 }
 
 .shiftTemplatesPanel {
@@ -966,6 +972,10 @@
 }
 
 :global([data-theme='dark']) .shiftTemplatesPanel {
+  border-top-color: #334155;
+}
+
+:global([data-theme='dark']) .userCreateForm {
   border-top-color: #334155;
 }
 

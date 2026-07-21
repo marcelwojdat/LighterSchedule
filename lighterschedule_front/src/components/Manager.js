@@ -50,6 +50,16 @@ const SWAP_STATUS_LABELS = {
 
 const DAY_LABELS = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Ndz'];
 
+const EMPTY_USER_FORM = {
+  username: '',
+  first_name: '',
+  last_name: '',
+  email: '',
+  password: '',
+  is_manager: false,
+  hourly_rate: '20',
+};
+
 const formatDateStr = (dateObj) => {
   const year = dateObj.getFullYear();
   const month = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -114,15 +124,8 @@ const Manager = () => {
   const [notifications, setNotifications] = useState({ total: 0, items: [] });
   const [dayNote, setDayNote] = useState('');
   const [showShiftTemplates, setShowShiftTemplates] = useState(false);
-  const [newUserForm, setNewUserForm] = useState({
-    username: '',
-    first_name: '',
-    last_name: '',
-    email: '',
-    password: '',
-    is_manager: false,
-    hourly_rate: '20',
-  });
+  const [showAddUserForm, setShowAddUserForm] = useState(false);
+  const [newUserForm, setNewUserForm] = useState(() => ({ ...EMPTY_USER_FORM }));
   const { darkMode, toggleTheme } = useTheme();
   useAutoDismiss(success, setSuccess);
 
@@ -509,21 +512,20 @@ const Manager = () => {
         is_manager,
         hourly_rate: hourly_rate === '' ? 0 : Number(hourly_rate),
       });
-      setNewUserForm({
-        username: '',
-        first_name: '',
-        last_name: '',
-        email: '',
-        password: '',
-        is_manager: false,
-        hourly_rate: '20',
-      });
+      setNewUserForm({ ...EMPTY_USER_FORM });
+      setShowAddUserForm(false);
       setSuccess(is_manager ? 'Dodano kierownika.' : 'Dodano pracownika.');
       setError('');
       await fetchEmployees();
     } catch (err) {
       setError(getErrorMessage(err, 'Nie udało się dodać użytkownika.'));
     }
+  };
+
+  const cancelAddUserForm = () => {
+    setShowAddUserForm(false);
+    setNewUserForm({ ...EMPTY_USER_FORM });
+    setError('');
   };
 
   const startEditTemplate = (template) => {
@@ -946,68 +948,94 @@ const Manager = () => {
       <div className={styles.managerBody}>
         <div className={styles.leftCol}>
           <div className={styles.sectionCard}>
-            <h3>Zarządzanie kontami</h3>
-            <p className={styles.statHint}>
-              Dodawaj pracowników i kierowników z panelu — bez konsoli i Django admina na co dzień.
-            </p>
-            <form className={styles.userCreateForm} onSubmit={handleCreateUser}>
-              <div className={styles.userCreateGrid}>
-                <input
-                  type="text"
-                  placeholder="Login"
-                  value={newUserForm.username}
-                  onChange={(e) => setNewUserForm((prev) => ({ ...prev, username: e.target.value }))}
-                  required
-                />
-                <input
-                  type="text"
-                  placeholder="Imię"
-                  value={newUserForm.first_name}
-                  onChange={(e) => setNewUserForm((prev) => ({ ...prev, first_name: e.target.value }))}
-                  required
-                />
-                <input
-                  type="text"
-                  placeholder="Nazwisko"
-                  value={newUserForm.last_name}
-                  onChange={(e) => setNewUserForm((prev) => ({ ...prev, last_name: e.target.value }))}
-                  required
-                />
-                <input
-                  type="email"
-                  placeholder="E-mail"
-                  value={newUserForm.email}
-                  onChange={(e) => setNewUserForm((prev) => ({ ...prev, email: e.target.value }))}
-                  required
-                />
-                <input
-                  type="password"
-                  placeholder="Hasło (min. 8 znaków)"
-                  value={newUserForm.password}
-                  onChange={(e) => setNewUserForm((prev) => ({ ...prev, password: e.target.value }))}
-                  minLength={8}
-                  required
-                />
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="Stawka zł/h"
-                  value={newUserForm.hourly_rate}
-                  onChange={(e) => setNewUserForm((prev) => ({ ...prev, hourly_rate: e.target.value }))}
-                />
+            <div className={styles.settingsToggleRow}>
+              <div>
+                <h3>Zarządzanie kontami</h3>
+                <p className={styles.statHint}>
+                  Lista kont zespołu — dodawaj pracowników i kierowników z panelu.
+                </p>
               </div>
-              <label className={styles.checkboxRow}>
-                <input
-                  type="checkbox"
-                  checked={newUserForm.is_manager}
-                  onChange={(e) => setNewUserForm((prev) => ({ ...prev, is_manager: e.target.checked }))}
-                />
-                Konto kierownika
-              </label>
-              <button type="submit" className={styles.btnPrimary}>
-                Dodaj osobę
+              <button
+                type="button"
+                className={styles.btnPrimary}
+                onClick={() => {
+                  if (showAddUserForm) {
+                    cancelAddUserForm();
+                  } else {
+                    setShowAddUserForm(true);
+                  }
+                }}
+                aria-expanded={showAddUserForm}
+              >
+                {showAddUserForm ? 'Anuluj' : 'Dodaj pracownika'}
               </button>
-            </form>
+            </div>
+
+            {showAddUserForm ? (
+              <form className={styles.userCreateForm} onSubmit={handleCreateUser}>
+                <div className={styles.userCreateGrid}>
+                  <input
+                    type="text"
+                    placeholder="Login"
+                    value={newUserForm.username}
+                    onChange={(e) => setNewUserForm((prev) => ({ ...prev, username: e.target.value }))}
+                    required
+                  />
+                  <input
+                    type="text"
+                    placeholder="Imię"
+                    value={newUserForm.first_name}
+                    onChange={(e) => setNewUserForm((prev) => ({ ...prev, first_name: e.target.value }))}
+                    required
+                  />
+                  <input
+                    type="text"
+                    placeholder="Nazwisko"
+                    value={newUserForm.last_name}
+                    onChange={(e) => setNewUserForm((prev) => ({ ...prev, last_name: e.target.value }))}
+                    required
+                  />
+                  <input
+                    type="email"
+                    placeholder="E-mail"
+                    value={newUserForm.email}
+                    onChange={(e) => setNewUserForm((prev) => ({ ...prev, email: e.target.value }))}
+                    required
+                  />
+                  <input
+                    type="password"
+                    placeholder="Hasło (min. 8 znaków)"
+                    value={newUserForm.password}
+                    onChange={(e) => setNewUserForm((prev) => ({ ...prev, password: e.target.value }))}
+                    minLength={8}
+                    required
+                  />
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Stawka zł/h"
+                    value={newUserForm.hourly_rate}
+                    onChange={(e) => setNewUserForm((prev) => ({ ...prev, hourly_rate: e.target.value }))}
+                  />
+                </div>
+                <label className={styles.checkboxRow}>
+                  <input
+                    type="checkbox"
+                    checked={newUserForm.is_manager}
+                    onChange={(e) => setNewUserForm((prev) => ({ ...prev, is_manager: e.target.checked }))}
+                  />
+                  Konto kierownika
+                </label>
+                <div className={styles.queueActions}>
+                  <button type="submit" className={styles.btnPrimary}>
+                    Dodaj osobę
+                  </button>
+                  <button type="button" className={styles.btnSecondary} onClick={cancelAddUserForm}>
+                    Anuluj
+                  </button>
+                </div>
+              </form>
+            ) : null}
 
             <div className={styles.tableWrap}>
               <table className={styles.empTable}>
