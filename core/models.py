@@ -21,6 +21,10 @@ class ShiftTemplate(models.Model):
     """Named shift defined by manager (e.g. Poranna), with hours per weekday."""
     name = models.CharField(max_length=80)
     is_active = models.BooleanField(default=True)
+    max_slots = models.PositiveSmallIntegerField(
+        default=1,
+        help_text='Maksymalna liczba zatwierdzonych osób na tę zmianę w jednym dniu.',
+    )
 
     class Meta:
         ordering = ['name']

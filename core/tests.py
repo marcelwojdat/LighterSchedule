@@ -597,9 +597,9 @@ class UserManagementTests(APITestCase):
 class ShiftTemplateTests(APITestCase):
     def setUp(self):
         self.manager = User.objects.create_user('mgr_shift', password='pass')
-        EmployeeProfile.objects.create(user=self.manager, is_manager=True, hourly_rate=30)
+        set_profile(self.manager, hourly_rate=30, is_manager=True)
         self.employee = User.objects.create_user('emp_shift', password='pass')
-        EmployeeProfile.objects.create(user=self.employee, is_manager=False, hourly_rate=20)
+        set_profile(self.employee, hourly_rate=20, is_manager=False)
         self.future = date.today() + timedelta(days=(5 - date.today().weekday()) % 7 or 7)
         # ensure a Saturday for predictable weekday tests when possible
         while self.future.weekday() != 5:
@@ -694,3 +694,112 @@ class ShiftTemplateTests(APITestCase):
         poranna = next(item for item in response.data if item['name'] == 'Poranna')
         self.assertEqual(poranna['resolved_start'], '06:00:00')
         self.assertEqual(poranna['resolved_end'], '14:00:00')
+
+
+class ShiftSlotLimitTests(APITestCase):
+    def setUp(self):
+        self.manager = User.objects.create_user('mgr_slots', password='pass', first_name='Anna', last_name='Kierownik')
+        set_profile(self.manager, hourly_rate=30, is_manager=True)
+        self.employee1 = User.objects.create_user('emp_slot1', password='pass', first_name='Jan', last_name='Kowalski')
+        self.employee2 = User.objects.create_user('emp_slot2', password='pass', first_name='Ewa', last_name='Nowak')
+        set_profile(self.employee1, hourly_rate=20)
+        set_profile(self.employee2, hourly_rate=22)
+
+        self.work_date = date.today() + timedelta(days=(5 - date.today().weekday()) % 7 or 7)
+        while self.work_date.weekday() != 5:
+            self.work_date += timedelta(days=1)
+
+    def authenticate(self, user):
+        token = self.client.post('/api/token/', {
+            'username': user.username,
+            'password': 'pass',
+        }).data['access']
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+
+    def create_template(self, max_slots=1):
+        self.authenticate(self.manager)
+        response = self.client.post('/api/shift-templates/', {
+            'name': 'Poranna',
+            'is_active': True,
+            'max_slots': max_slots,
+            'hours': [
+                {'weekday': self.work_date.weekday(), 'start_time': '06:00:00', 'end_time': '14:00:00'},
+            ],
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data['max_slots'], max_slots)
+        return response.data['id']
+
+    def test_first_approve_ok_second_same_day_template_rejected(self):
+        template_id = self.create_template(max_slots=1)
+
+        self.authenticate(self.employee1)
+        first = self.client.post('/api/workdays/', {
+            'date': self.work_date.isoformat(),
+            'shift_template': template_id,
+        }, format='json')
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED, first.data)
+
+        self.authenticate(self.employee2)
+        second = self.client.post('/api/workdays/', {
+            'date': self.work_date.isoformat(),
+            'shift_template': template_id,
+        }, format='json')
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED, second.data)
+
+        self.authenticate(self.manager)
+        approve1 = self.client.post(f'/api/workdays/{first.data["id"]}/approve/', {}, format='json')
+        self.assertEqual(approve1.status_code, status.HTTP_200_OK, approve1.data)
+        self.assertEqual(approve1.data['status'], 'approved')
+
+        approve2 = self.client.post(f'/api/workdays/{second.data["id"]}/approve/', {}, format='json')
+        self.assertEqual(approve2.status_code, status.HTTP_400_BAD_REQUEST, approve2.data)
+        self.assertIn('Poranna', approve2.data.get('error', ''))
+
+        pending = self.client.get('/api/workdays/', {'status': 'proposed'}, format='json')
+        self.assertEqual(pending.status_code, status.HTTP_200_OK)
+        item = next(row for row in pending.data if row['id'] == second.data['id'])
+        self.assertTrue(item['shift_slots']['is_full'])
+        self.assertEqual(item['shift_slots']['filled'], 1)
+        self.assertEqual(item['shift_slots']['max_slots'], 1)
+        holder_names = [h['name'] for h in item['shift_slots']['holders']]
+        self.assertIn('Jan Kowalski', holder_names)
+
+    def test_manager_create_approved_respects_max_slots(self):
+        template_id = self.create_template(max_slots=1)
+
+        self.authenticate(self.manager)
+        first = self.client.post('/api/workdays/', {
+            'date': self.work_date.isoformat(),
+            'employee': self.employee1.id,
+            'shift_template': template_id,
+        }, format='json')
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED, first.data)
+        self.assertEqual(first.data['status'], 'approved')
+
+        second = self.client.post('/api/workdays/', {
+            'date': self.work_date.isoformat(),
+            'employee': self.employee2.id,
+            'shift_template': template_id,
+        }, format='json')
+        self.assertEqual(second.status_code, status.HTTP_400_BAD_REQUEST, second.data)
+        self.assertIn('Poranna', str(second.data))
+
+    def test_employee_cannot_propose_when_shift_already_full(self):
+        template_id = self.create_template(max_slots=1)
+
+        self.authenticate(self.manager)
+        created = self.client.post('/api/workdays/', {
+            'date': self.work_date.isoformat(),
+            'employee': self.employee1.id,
+            'shift_template': template_id,
+        }, format='json')
+        self.assertEqual(created.status_code, status.HTTP_201_CREATED, created.data)
+
+        self.authenticate(self.employee2)
+        blocked = self.client.post('/api/workdays/', {
+            'date': self.work_date.isoformat(),
+            'shift_template': template_id,
+        }, format='json')
+        self.assertEqual(blocked.status_code, status.HTTP_400_BAD_REQUEST, blocked.data)
+        self.assertIn('Poranna', str(blocked.data))

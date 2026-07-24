@@ -466,9 +466,38 @@
   color: white;
 }
 
+.btnSuccess:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: none;
+}
+
 .btnDanger {
   background: #dc2626;
   color: white;
+}
+
+.slotFullHint {
+  margin-top: 6px;
+  font-size: 0.82rem;
+  color: #b45309;
+  line-height: 1.35;
+}
+
+.maxSlotsRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 12px;
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+.maxSlotsRow input {
+  width: 72px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
 }
 
 .emptyQueue {
@@ -1190,6 +1219,20 @@
 
 :global([data-theme='dark']) .btnSecondary {
   background: #334155;
+  color: #f1f5f9;
+}
+
+:global([data-theme='dark']) .slotFullHint {
+  color: #fbbf24;
+}
+
+:global([data-theme='dark']) .maxSlotsRow {
+  color: #cbd5e1;
+}
+
+:global([data-theme='dark']) .maxSlotsRow input {
+  background: #0f172a;
+  border-color: #475569;
   color: #f1f5f9;
 }
 

@@ -27,7 +27,7 @@ from .serializers import (
     ManagerUserCreateSerializer,
     ShiftTemplateSerializer,
 )
-from .utils import ensure_user_profile
+from .utils import ensure_user_profile, assert_shift_slot_available
 
 
 @api_view(['GET'])
@@ -717,6 +717,15 @@ class WorkDayViewSet(viewsets.ModelViewSet):
             workday.role_id = role if role else None
         if note is not None:
             workday.note = str(note).strip()[:500]
+
+        if workday.shift_template_id:
+            try:
+                assert_shift_slot_available(workday.shift_template, workday.date)
+            except ValueError as exc:
+                return Response(
+                    {'error': str(exc)},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         workday.status = WorkDay.Status.APPROVED
         workday.approved_by = request.user

@@ -9,7 +9,7 @@ class ShiftTemplateHoursInline(admin.TabularInline):
 
 @admin.register(ShiftTemplate)
 class ShiftTemplateAdmin(admin.ModelAdmin):
-    list_display = ('name', 'is_active')
+    list_display = ('name', 'is_active', 'max_slots')
     inlines = [ShiftTemplateHoursInline]
 
 

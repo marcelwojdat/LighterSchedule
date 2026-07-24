@@ -70,6 +70,7 @@ const Dashboard = () => {
   const [selectedRoleId, setSelectedRoleId] = useState('');
   const [dayNote, setDayNote] = useState('');
   const [shiftTemplates, setShiftTemplates] = useState([]);
+  const [dayTemplates, setDayTemplates] = useState(null);
   const [selectedShiftId, setSelectedShiftId] = useState('');
   const [scheduleSuccess, setScheduleSuccess] = useState('');
 
@@ -292,7 +293,14 @@ const Dashboard = () => {
     let start = toApiTime(timeFrom);
     let end = toApiTime(timeTo);
     if (selectedShiftId) {
-      const template = shiftTemplates.find((t) => String(t.id) === String(selectedShiftId));
+      const template =
+        (Array.isArray(dayTemplates) ? dayTemplates : shiftTemplates).find(
+          (t) => String(t.id) === String(selectedShiftId)
+        );
+      if (template?.is_full) {
+        setError(`Zmiana ${template.name} jest już obsadzona (brak miejsc).`);
+        return;
+      }
       const hours = resolveTemplateHours(template, selectedDate);
       if (!hours) {
         setError('Ta zmiana nie jest dostępna w wybranym dniu.');
@@ -468,6 +476,27 @@ const Dashboard = () => {
     fetchNotifications();
   }, []);
 
+  useEffect(() => {
+    if (!selectedDate) {
+      setDayTemplates(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setDayTemplates(null);
+    getShiftTemplates({ active: '1', date: selectedDate })
+      .then((data) => {
+        if (!cancelled) setDayTemplates(data);
+      })
+      .catch(() => {
+        if (!cancelled) setDayTemplates([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDate]);
+
   const getTileClassName = ({ date: tileDate, view }) => {
     if (view !== 'month') return null;
 
@@ -548,14 +577,24 @@ const Dashboard = () => {
   );
 
   const templatesForSelectedDate = selectedDate
-    ? shiftTemplates.filter((t) => resolveTemplateHours(t, selectedDate))
+    ? (Array.isArray(dayTemplates)
+      ? dayTemplates
+      : shiftTemplates.filter((t) => resolveTemplateHours(t, selectedDate)))
     : [];
   const templatesConfigured = shiftTemplates.length > 0;
+  const selectedTemplateFull = Boolean(
+    selectedShiftId &&
+      templatesForSelectedDate.find(
+        (t) => String(t.id) === String(selectedShiftId) && t.is_full
+      )
+  );
 
   const applyEmployeeTemplate = (templateId) => {
     setSelectedShiftId(templateId);
     if (!templateId || !selectedDate) return;
-    const template = shiftTemplates.find((t) => String(t.id) === String(templateId));
+    const template = templatesForSelectedDate.find((t) => String(t.id) === String(templateId))
+      || shiftTemplates.find((t) => String(t.id) === String(templateId));
+    if (template?.is_full) return;
     const hours = resolveTemplateHours(template, selectedDate);
     if (hours) {
       setTimeFrom(toDisplayTime(hours.start_time));
@@ -586,16 +625,20 @@ const Dashboard = () => {
           <option value="">Wybierz zmianę</option>
           {templatesForSelectedDate.map((template) => {
             const hours = resolveTemplateHours(template, selectedDate);
+            const full = template.is_full === true;
             return (
-              <option key={template.id} value={template.id}>
+              <option key={template.id} value={template.id} disabled={full}>
                 {template.name}
                 {hours ? ` (${toDisplayTime(hours.start_time)}-${toDisplayTime(hours.end_time)})` : ''}
+                {full ? ' — brak miejsc' : ''}
               </option>
             );
           })}
         </select>
         {templatesForSelectedDate.length === 0 ? (
           <p className={styles.popupInfo}>Brak zdefiniowanych zmian na ten dzień tygodnia.</p>
+        ) : selectedTemplateFull ? (
+          <p className={styles.popupInfo}>Brak miejsc na wybranej zmianie.</p>
         ) : selectedShiftId ? (
           <p className={styles.popupInfo}>
             Godziny: {timeFrom} - {timeTo} (ustalone przez kierownika)

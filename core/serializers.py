@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from .models import TaskType, WorkDay, SwapRequest, ShiftTemplate, ShiftTemplateHours
 from .permissions import is_manager
-from .utils import ensure_user_profile
+from .utils import ensure_user_profile, assert_shift_slot_available, get_shift_slots_info
 from datetime import datetime, date as date_cls
 
 
@@ -109,12 +109,18 @@ class ShiftTemplateSerializer(serializers.ModelSerializer):
     hours = ShiftTemplateHoursSerializer(many=True)
     resolved_start = serializers.SerializerMethodField()
     resolved_end = serializers.SerializerMethodField()
+    slots_filled = serializers.SerializerMethodField()
+    slots_remaining = serializers.SerializerMethodField()
+    is_full = serializers.SerializerMethodField()
+    slot_holders = serializers.SerializerMethodField()
+    max_slots = serializers.IntegerField(min_value=1, default=1)
 
     class Meta:
         model = ShiftTemplate
         fields = [
-            'id', 'name', 'is_active', 'hours',
+            'id', 'name', 'is_active', 'max_slots', 'hours',
             'resolved_start', 'resolved_end',
+            'slots_filled', 'slots_remaining', 'is_full', 'slot_holders',
         ]
 
     def _filter_date(self):
@@ -122,6 +128,9 @@ class ShiftTemplateSerializer(serializers.ModelSerializer):
         if isinstance(raw, date_cls):
             return raw
         return None
+
+    def _slots_info(self, obj):
+        return get_shift_slots_info(obj, self._filter_date())
 
     def get_resolved_start(self, obj):
         work_date = self._filter_date()
@@ -136,6 +145,24 @@ class ShiftTemplateSerializer(serializers.ModelSerializer):
             return None
         entry = obj.hours_for_date(work_date)
         return entry.end_time.strftime('%H:%M:%S') if entry else None
+
+    def get_slots_filled(self, obj):
+        info = self._slots_info(obj)
+        return info['filled'] if info else None
+
+    def get_slots_remaining(self, obj):
+        info = self._slots_info(obj)
+        if not info:
+            return None
+        return max(0, info['max_slots'] - info['filled'])
+
+    def get_is_full(self, obj):
+        info = self._slots_info(obj)
+        return info['is_full'] if info else None
+
+    def get_slot_holders(self, obj):
+        info = self._slots_info(obj)
+        return info['holders'] if info else None
 
     def validate_hours(self, value):
         if not value:
@@ -164,6 +191,7 @@ class ShiftTemplateSerializer(serializers.ModelSerializer):
         hours_data = validated_data.pop('hours', None)
         instance.name = validated_data.get('name', instance.name)
         instance.is_active = validated_data.get('is_active', instance.is_active)
+        instance.max_slots = validated_data.get('max_slots', instance.max_slots)
         instance.save()
 
         if hours_data is not None:
@@ -181,6 +209,7 @@ class WorkDaySerializer(serializers.ModelSerializer):
     approved_by_name = serializers.SerializerMethodField()
     total_hours = serializers.SerializerMethodField()
     earnings = serializers.SerializerMethodField()
+    shift_slots = serializers.SerializerMethodField()
     employee = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(),
         required=False,
@@ -204,7 +233,7 @@ class WorkDaySerializer(serializers.ModelSerializer):
         fields = [
             'id', 'employee', 'employee_name', 'date',
             'start_time', 'end_time', 'role', 'role_name',
-            'shift_template', 'shift_template_name',
+            'shift_template', 'shift_template_name', 'shift_slots',
             'status', 'approved_by', 'approved_by_name', 'approved_at',
             'rejection_reason', 'note', 'rate_at_time', 'total_hours', 'earnings',
         ]
@@ -222,6 +251,11 @@ class WorkDaySerializer(serializers.ModelSerializer):
 
     def get_approved_by_name(self, obj):
         return obj.approved_by.username if obj.approved_by_id else None
+
+    def get_shift_slots(self, obj):
+        if not obj.shift_template_id:
+            return None
+        return get_shift_slots_info(obj.shift_template, obj.date)
 
     def get_total_hours(self, obj):
         tdelta = datetime.combine(obj.date, obj.end_time) - datetime.combine(obj.date, obj.start_time)
@@ -304,6 +338,25 @@ class WorkDaySerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'end_time': 'Godzina końcowa musi być później niż początkowa.',
             })
+
+        # Capacity: managers filling approved slots, and employees declaring when already full.
+        if template is not None and work_date is not None:
+            will_occupy_approved_slot = False
+            if manager:
+                if self.instance is None:
+                    will_occupy_approved_slot = True
+                elif self.instance.status == WorkDay.Status.APPROVED:
+                    will_occupy_approved_slot = True
+            else:
+                # Block new proposals when the shift is already at capacity.
+                will_occupy_approved_slot = True
+
+            if will_occupy_approved_slot:
+                exclude_id = self.instance.pk if self.instance else None
+                try:
+                    assert_shift_slot_available(template, work_date, exclude_workday_id=exclude_id)
+                except ValueError as exc:
+                    raise serializers.ValidationError({'shift_template': str(exc)})
 
         return attrs
 

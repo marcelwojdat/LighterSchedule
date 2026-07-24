@@ -107,6 +107,7 @@ const Manager = () => {
     id: null,
     name: '',
     is_active: true,
+    max_slots: 1,
     hours: buildEmptyTemplateHours(),
   });
   const [weekStart, setWeekStart] = useState(() => formatDateStr(getMonday()));
@@ -140,6 +141,7 @@ const Manager = () => {
       id: null,
       name: '',
       is_active: true,
+      max_slots: 1,
       hours: buildEmptyTemplateHours(),
     });
   };
@@ -595,6 +597,7 @@ const Manager = () => {
       id: template.id,
       name: template.name,
       is_active: template.is_active !== false,
+      max_slots: template.max_slots ?? 1,
       hours,
     });
   };
@@ -617,9 +620,16 @@ const Manager = () => {
       return;
     }
 
+    const maxSlots = Number(templateForm.max_slots);
+    if (!Number.isInteger(maxSlots) || maxSlots < 1) {
+      setError('Max. osób na zmianę musi być liczbą całkowitą ≥ 1.');
+      return;
+    }
+
     const payload = {
       name: templateForm.name.trim(),
       is_active: templateForm.is_active,
+      max_slots: maxSlots,
       hours,
     };
 
@@ -896,6 +906,22 @@ const Manager = () => {
                   {item.note?.trim() ? (
                     <div className={styles.dayNoteBox}>Notatka: {item.note}</div>
                   ) : null}
+                  {item.shift_template_name ? (
+                    <div className={styles.queueHours}>
+                      Zmiana: {item.shift_template_name}
+                      {item.shift_slots
+                        ? ` · ${item.shift_slots.filled}/${item.shift_slots.max_slots} miejsc`
+                        : ''}
+                    </div>
+                  ) : null}
+                  {item.shift_slots?.is_full ? (
+                    <div className={styles.slotFullHint}>
+                      Zmiana obsadzona
+                      {item.shift_slots.holders?.length
+                        ? `: ${item.shift_slots.holders.map((h) => h.name).join(', ')}`
+                        : ''}
+                    </div>
+                  ) : null}
                   {rejectingId === item.id ? (
                     <input
                       className={styles.rejectionInput}
@@ -917,7 +943,16 @@ const Manager = () => {
                       </>
                     ) : editingQueueId === item.id ? (
                       <>
-                        <button className={styles.btnSuccess} onClick={() => approveQueueItem(item)}>
+                        <button
+                          className={styles.btnSuccess}
+                          onClick={() => approveQueueItem(item)}
+                          disabled={item.shift_slots?.is_full}
+                          title={
+                            item.shift_slots?.is_full
+                              ? `Zmiana ${item.shift_template_name || ''} jest już obsadzona`
+                              : undefined
+                          }
+                        >
                           Zatwierdź
                         </button>
                         <button className={styles.btnSecondary} onClick={cancelQueueEdit}>
@@ -926,8 +961,17 @@ const Manager = () => {
                       </>
                     ) : (
                       <>
-                        <button className={styles.btnSuccess} onClick={() => approveQueueItem(item, item)}>
-                          Zatwierdź
+                        <button
+                          className={styles.btnSuccess}
+                          onClick={() => approveQueueItem(item, item)}
+                          disabled={item.shift_slots?.is_full}
+                          title={
+                            item.shift_slots?.is_full
+                              ? `Zmiana ${item.shift_template_name || ''} jest już obsadzona`
+                              : undefined
+                          }
+                        >
+                          {item.shift_slots?.is_full ? 'Brak miejsc' : 'Zatwierdź'}
                         </button>
                         <button className={styles.btnSecondary} onClick={() => startQueueEdit(item)}>
                           Edytuj godziny
@@ -1377,6 +1421,19 @@ const Manager = () => {
                   />
                   Aktywna (widoczna dla pracowników)
                 </label>
+                <label className={styles.maxSlotsRow}>
+                  <span>Max. osób na zmianę</span>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={templateForm.max_slots}
+                    onChange={(e) =>
+                      setTemplateForm((prev) => ({ ...prev, max_slots: e.target.value }))
+                    }
+                    required
+                  />
+                </label>
                 <div className={styles.templateHoursGrid}>
                   {templateForm.hours.map((row) => (
                     <div key={row.weekday} className={styles.templateHourRow}>
@@ -1448,6 +1505,10 @@ const Manager = () => {
                       <div>
                         <strong>{template.name}</strong>
                         {!template.is_active ? <span className={styles.inactiveTag}> nieaktywna</span> : null}
+                        <span className={styles.inactiveTag}>
+                          {' '}· max {template.max_slots ?? 1}{' '}
+                          {(template.max_slots ?? 1) === 1 ? 'osoba' : 'osób'}
+                        </span>
                         <div className={styles.templateHoursSummary}>
                           {template.hours
                             .map((h) => `${WEEKDAY_SHORT[h.weekday]} ${toDisplayTime(h.start_time)}-${toDisplayTime(h.end_time)}`)
