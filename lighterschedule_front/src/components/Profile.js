@@ -97,7 +97,7 @@ const Profile = () => {
   }
 
   return (
-    <div className={styles.profilePage}>
+    <div className={`${styles.profilePage} lsFields`}>
       <div className={styles.pageHeader}>
         <div>
           <h1 className={styles.pageTitle}>Ustawienia profilu</h1>

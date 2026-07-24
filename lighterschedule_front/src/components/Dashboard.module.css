@@ -312,12 +312,7 @@
 
 .noteInput {
   width: 100%;
-  box-sizing: border-box;
-  padding: 8px 10px;
-  border-radius: 10px;
-  border: 1px solid #cbd5e1;
-  font-family: inherit;
-  font-size: 0.9rem;
+  min-width: 0;
   resize: vertical;
   min-height: 56px;
 }
@@ -376,11 +371,9 @@
 }
 
 .swapForm select {
-  min-width: 220px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid #cbd5e1;
-  background: #fff;
+  min-width: min(220px, 100%);
+  flex: 1 1 200px;
+  max-width: 100%;
 }
 
 .swapSubmitBtn {
@@ -538,11 +531,8 @@
 
 .statsMonthPicker input {
   height: 42px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #0f172a;
+  width: 100%;
+  border-radius: 12px;
 }
 
 .statsGrid {
@@ -636,24 +626,26 @@
 .roleSelect {
   width: 100%;
   margin-top: 10px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid #cbd5e1;
-  background: #fff;
+  max-width: 100%;
 }
 
 .popupField {
   margin-top: 16px;
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 10px;
+  width: 100%;
 }
 
 .popupField input {
-  width: 45%;
-  padding: 8px;
-  border-radius: 8px;
-  border: 1px solid #c4c4c4;
+  width: calc(50% - 5px);
+  min-width: 0;
+  flex: 1 1 120px;
+}
+
+.popupField select {
+  width: 100%;
 }
 
 .popupButtons {
@@ -729,16 +721,6 @@
 
 :global([data-theme='dark']) .popupBox {
   color: #e2e8f0;
-}
-
-:global([data-theme='dark']) .popupField input,
-:global([data-theme='dark']) .roleSelect,
-:global([data-theme='dark']) .swapForm select,
-:global([data-theme='dark']) .noteInput,
-:global([data-theme='dark']) .statsMonthPicker input {
-  background: #0f172a;
-  border-color: #475569;
-  color: #f1f5f9;
 }
 
 :global([data-theme='dark']) .dayNoteBox {

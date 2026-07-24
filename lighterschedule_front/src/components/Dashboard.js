@@ -833,7 +833,7 @@ const Dashboard = () => {
   const receivedSwaps = swaps.filter((swap) => swap.target_user === currentUser?.id);
 
   return (
-    <div className={styles.dashboardPage}>
+    <div className={`${styles.dashboardPage} lsFields`}>
       <div className={styles.pageHeader}>
         <h1 className={styles.dashboardTitle}>Twój Grafik Pracy</h1>
         {currentUser ? (

@@ -16,6 +16,14 @@
   border: 1px solid rgba(15, 23, 42, 0.08);
   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.15);
   padding: 40px;
+  color-scheme: light;
+  --field-bg: #ffffff;
+  --field-bg-disabled: #f1f5f9;
+  --field-border: #cbd5e1;
+  --field-text: #0f172a;
+  --field-placeholder: #94a3b8;
+  --field-focus-border: #3b82f6;
+  --field-focus-ring: rgba(59, 130, 246, 0.28);
 }
 
 .registerHeader {
@@ -62,25 +70,10 @@
 }
 
 .formGroup input {
+  width: 100%;
   padding: 12px 14px;
   border-radius: 12px;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #0f172a;
   font-size: 1rem;
-  transition: all 0.2s ease;
-  font-family: inherit;
-}
-
-.formGroup input:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-  background: #ffffff;
-}
-
-.formGroup input::placeholder {
-  color: #94a3b8;
 }
 
 .registerButton {

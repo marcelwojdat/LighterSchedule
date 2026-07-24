@@ -788,7 +788,7 @@ const Manager = () => {
   );
 
   return (
-    <div className={styles.managerPage}>
+    <div className={`${styles.managerPage} lsFields`}>
       <div className={styles.pageHeader}>
         <h1 className={styles.managerTitle}>Panel Kierownika</h1>
         {currentUser ? (
@@ -1115,7 +1115,7 @@ const Manager = () => {
                     onChange={(e) => setNewUserForm((prev) => ({ ...prev, hourly_rate: e.target.value }))}
                   />
                 </div>
-                <label className={styles.checkboxRow}>
+                <label className="checkboxRow">
                   <input
                     type="checkbox"
                     checked={newUserForm.is_manager}
@@ -1414,7 +1414,7 @@ const Manager = () => {
                   onChange={(e) => setTemplateForm((prev) => ({ ...prev, name: e.target.value }))}
                   required
                 />
-                <label className={styles.checkboxRow}>
+                <label className="checkboxRow">
                   <input
                     type="checkbox"
                     checked={templateForm.is_active}
@@ -1438,7 +1438,7 @@ const Manager = () => {
                 <div className={styles.templateHoursGrid}>
                   {templateForm.hours.map((row) => (
                     <div key={row.weekday} className={styles.templateHourRow}>
-                      <label className={styles.checkboxRow}>
+                      <label className="checkboxRow">
                         <input
                           type="checkbox"
                           checked={row.enabled}

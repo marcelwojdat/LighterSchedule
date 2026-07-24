@@ -40,7 +40,7 @@ const Login = () => {
 
         {error && <div className={styles.errorMessage}>{error}</div>}
 
-        <form className={styles.loginForm} onSubmit={handleSubmit}>
+        <form className={`${styles.loginForm} lsFields`} onSubmit={handleSubmit}>
           <div className={styles.formGroup}>
             <label htmlFor="username">Login</label>
             <input

@@ -1,8 +1,242 @@
+:root {
+  --field-bg: #ffffff;
+  --field-bg-disabled: #f1f5f9;
+  --field-border: #cbd5e1;
+  --field-text: #0f172a;
+  --field-placeholder: #94a3b8;
+  --field-radius: 10px;
+  --field-padding-y: 8px;
+  --field-padding-x: 11px;
+  --field-font-size: 0.9rem;
+  --field-focus-border: #3b82f6;
+  --field-focus-ring: rgba(59, 130, 246, 0.28);
+  --checkbox-size: 1.1rem;
+  --checkbox-accent: #2563eb;
+  --checkbox-border: #94a3b8;
+  --checkbox-check: #ffffff;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+  --field-bg: #0f172a;
+  --field-bg-disabled: #1e293b;
+  --field-border: #475569;
+  --field-text: #f1f5f9;
+  --field-placeholder: #64748b;
+  --field-focus-border: #60a5fa;
+  --field-focus-ring: rgba(96, 165, 250, 0.32);
+  --checkbox-accent: #3b82f6;
+  --checkbox-border: #64748b;
+  --checkbox-check: #f8fafc;
+}
+
 [data-theme='dark'] body {
   background: #0f172a;
   color: #e2e8f0;
 }
 
+/* —— Shared field primitives —— */
+.fieldInput,
+.fieldSelect,
+.fieldTextarea {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: var(--field-padding-y) var(--field-padding-x);
+  border-radius: var(--field-radius);
+  border: 1px solid var(--field-border);
+  background-color: var(--field-bg);
+  color: var(--field-text);
+  font-size: var(--field-font-size);
+  font-family: inherit;
+  line-height: 1.35;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.fieldInput::placeholder,
+.fieldTextarea::placeholder {
+  color: var(--field-placeholder);
+}
+
+.fieldInput:hover:not(:disabled):not(:focus),
+.fieldSelect:hover:not(:disabled):not(:focus),
+.fieldTextarea:hover:not(:disabled):not(:focus) {
+  border-color: #94a3b8;
+}
+
+[data-theme='dark'] .fieldInput:hover:not(:disabled):not(:focus),
+[data-theme='dark'] .fieldSelect:hover:not(:disabled):not(:focus),
+[data-theme='dark'] .fieldTextarea:hover:not(:disabled):not(:focus) {
+  border-color: #64748b;
+}
+
+.fieldInput:focus,
+.fieldSelect:focus,
+.fieldTextarea:focus {
+  outline: none;
+  border-color: var(--field-focus-border);
+  box-shadow: 0 0 0 3px var(--field-focus-ring);
+}
+
+.fieldInput:disabled,
+.fieldSelect:disabled,
+.fieldTextarea:disabled {
+  opacity: 0.55;
+  background-color: var(--field-bg-disabled);
+  color: var(--field-placeholder);
+  cursor: not-allowed;
+}
+
+.fieldSelect {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2364748b' d='M1.41 0 6 4.58 10.59 0 12 1.41l-6 6-6-6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px 8px;
+  padding-right: 34px;
+  cursor: pointer;
+}
+
+[data-theme='dark'] .fieldSelect {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2394a3b8' d='M1.41 0 6 4.58 10.59 0 12 1.41l-6 6-6-6z'/%3E%3C/svg%3E");
+}
+
+.fieldTextarea {
+  resize: vertical;
+  min-height: 56px;
+}
+
+/* —— Checkboxes —— */
+.checkboxRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: #334155;
+  cursor: pointer;
+  user-select: none;
+}
+
+[data-theme='dark'] .checkboxRow {
+  color: #cbd5e1;
+}
+
+.fieldCheckbox,
+.checkboxRow input[type='checkbox'],
+.lsFields input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: var(--checkbox-size);
+  height: var(--checkbox-size);
+  margin: 0;
+  flex-shrink: 0;
+  border: 2px solid var(--checkbox-border);
+  border-radius: 5px;
+  background-color: var(--field-bg);
+  cursor: pointer;
+  display: inline-grid;
+  place-content: center;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.fieldCheckbox::before,
+.checkboxRow input[type='checkbox']::before,
+.lsFields input[type='checkbox']::before {
+  content: '';
+  width: 0.55em;
+  height: 0.55em;
+  transform: scale(0);
+  transition: transform 0.12s ease;
+  box-shadow: inset 1em 1em var(--checkbox-check);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0, 43% 62%);
+}
+
+.fieldCheckbox:checked,
+.checkboxRow input[type='checkbox']:checked,
+.lsFields input[type='checkbox']:checked {
+  background-color: var(--checkbox-accent);
+  border-color: var(--checkbox-accent);
+}
+
+.fieldCheckbox:checked::before,
+.checkboxRow input[type='checkbox']:checked::before,
+.lsFields input[type='checkbox']:checked::before {
+  transform: scale(1);
+}
+
+.fieldCheckbox:focus-visible,
+.checkboxRow input[type='checkbox']:focus-visible,
+.lsFields input[type='checkbox']:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--field-focus-ring);
+}
+
+.fieldCheckbox:disabled,
+.checkboxRow input[type='checkbox']:disabled,
+.lsFields input[type='checkbox']:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* —— Scoped auto-style for page roots / forms —— */
+.lsFields input:not([type='checkbox']):not([type='radio']):not([type='button']):not([type='submit']):not([type='reset']):not([type='file']):not([type='hidden']):not([type='image']):not([type='range']):not([type='color']),
+.lsFields select,
+.lsFields textarea {
+  box-sizing: border-box;
+  padding: var(--field-padding-y) var(--field-padding-x);
+  border-radius: var(--field-radius);
+  border: 1px solid var(--field-border);
+  background-color: var(--field-bg);
+  color: var(--field-text);
+  font-size: var(--field-font-size);
+  font-family: inherit;
+  line-height: 1.35;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.lsFields input::placeholder,
+.lsFields textarea::placeholder {
+  color: var(--field-placeholder);
+}
+
+.lsFields select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2364748b' d='M1.41 0 6 4.58 10.59 0 12 1.41l-6 6-6-6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px 8px;
+  padding-right: 34px;
+  cursor: pointer;
+}
+
+[data-theme='dark'] .lsFields select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2394a3b8' d='M1.41 0 6 4.58 10.59 0 12 1.41l-6 6-6-6z'/%3E%3C/svg%3E");
+}
+
+.lsFields input:not([type='checkbox']):not([type='radio']):not([type='button']):not([type='submit']):not([type='reset']):focus,
+.lsFields select:focus,
+.lsFields textarea:focus {
+  outline: none;
+  border-color: var(--field-focus-border);
+  box-shadow: 0 0 0 3px var(--field-focus-ring);
+}
+
+.lsFields input:disabled:not([type='checkbox']),
+.lsFields select:disabled,
+.lsFields textarea:disabled {
+  opacity: 0.55;
+  background-color: var(--field-bg-disabled);
+  color: var(--field-placeholder);
+  cursor: not-allowed;
+}
+
+.lsFields input[type='time']:disabled {
+  opacity: 0.45;
+}
+
+/* —— React Calendar (kept from previous theme) —— */
 [data-theme='dark'] .react-calendar {
   background: #1e293b;
   color: #e2e8f0;

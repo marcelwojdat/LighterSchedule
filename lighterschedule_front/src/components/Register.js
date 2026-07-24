@@ -113,7 +113,7 @@ const Register = () => {
           </div>
         )}
 
-        <form className={styles.registerForm} onSubmit={handleRegister}>
+        <form className={`${styles.registerForm} lsFields`} onSubmit={handleRegister}>
           <div className={styles.formGroup}>
             <label htmlFor="username">Login</label>
             <input

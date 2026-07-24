@@ -78,11 +78,8 @@
 
 .statsBarActions input[type='month'] {
   height: 38px;
-  padding: 6px 10px;
-  border-radius: 10px;
-  border: 1px solid #cbd5e1;
-  background: #fff;
-  color: #0f172a;
+  width: auto;
+  min-width: 150px;
 }
 
 .statsGrid {
@@ -292,22 +289,17 @@
 .empTable input[type='number'] {
   width: 100%;
   max-width: 72px;
-  box-sizing: border-box;
-  padding: 5px 6px;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
   font-size: 0.85rem;
+  padding: 6px 8px;
 }
 
 .empTable select {
   width: 100%;
   max-width: 100%;
-  box-sizing: border-box;
-  padding: 5px 6px;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  background: #fff;
   font-size: 0.82rem;
+  padding: 6px 8px;
+  padding-right: 28px;
+  background-position: right 8px center;
 }
 
 .empTable small {
@@ -360,8 +352,9 @@
   align-items: center;
 }
 
-.templateHourRow input[type='time']:disabled {
-  opacity: 0.45;
+.templateHourRow input[type='time'] {
+  width: 100%;
+  min-width: 0;
 }
 
 .templateList {
@@ -406,6 +399,15 @@
   border-top: 1px solid #e2e8f0;
 }
 
+.userCreateForm > input:not([type='checkbox']),
+.userCreateForm > select,
+.userCreateForm > textarea,
+.shiftTemplatesPanel .userCreateForm input:not([type='checkbox']),
+.shiftTemplatesPanel .userCreateForm select,
+.shiftTemplatesPanel .userCreateForm textarea {
+  width: 100%;
+}
+
 .userCreateGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -413,18 +415,8 @@
 }
 
 .userCreateGrid input {
-  padding: 9px 11px;
-  border-radius: 10px;
-  border: 1px solid #cbd5e1;
-  font-size: 0.9rem;
-}
-
-.checkboxRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.9rem;
-  color: #334155;
+  width: 100%;
+  min-width: 0;
 }
 
 .inactiveRow {
@@ -495,9 +487,8 @@
 
 .maxSlotsRow input {
   width: 72px;
-  padding: 6px 8px;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  min-width: 72px;
+  flex: 0 0 auto;
 }
 
 .emptyQueue {
@@ -561,18 +552,14 @@
 }
 
 .queueEditRow input {
-  padding: 6px 8px;
-  border-radius: 8px;
-  border: 1px solid #cbd5e1;
+  min-width: 0;
+  flex: 1 1 110px;
 }
 
 .rejectionInput {
   width: 100%;
   margin-bottom: 8px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid #fecaca;
-  box-sizing: border-box;
+  border-color: #fca5a5;
 }
 
 .queueActions {
@@ -759,13 +746,7 @@
 
 .noteInput {
   width: 100%;
-  min-width: 180px;
-  box-sizing: border-box;
-  padding: 8px 10px;
-  border-radius: 10px;
-  border: 1px solid #cbd5e1;
-  font-family: inherit;
-  font-size: 0.9rem;
+  min-width: 0;
   resize: vertical;
 }
 
@@ -778,9 +759,8 @@
 }
 
 .shiftControls input[type='time'] {
-  padding: 7px 9px;
-  border-radius: 8px;
-  border: 1px solid #cbd5e1;
+  min-width: 0;
+  flex: 1 1 110px;
 }
 
 .empHeader {
@@ -887,10 +867,7 @@
 
 .roleSelect {
   min-width: 140px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid #cbd5e1;
-  background: #fff;
+  max-width: 100%;
 }
 
 .teamOverviewSection {
@@ -1038,6 +1015,10 @@
     grid-template-columns: 1fr;
   }
 
+  .templateHourRow {
+    grid-template-columns: 1fr;
+  }
+
   .managerTitle {
     font-size: 1.5rem;
   }
@@ -1102,17 +1083,8 @@
   color: #94a3b8;
 }
 
-:global([data-theme='dark']) .statsBarActions input[type='month'],
-:global([data-theme='dark']) .roleSelect,
-:global([data-theme='dark']) .empTable input,
-:global([data-theme='dark']) .empTable select,
-:global([data-theme='dark']) .userCreateGrid input,
-:global([data-theme='dark']) .queueEditRow input,
-:global([data-theme='dark']) .rejectionInput,
-:global([data-theme='dark']) .shiftControls input {
-  background: #0f172a;
-  border-color: #475569;
-  color: #f1f5f9;
+:global([data-theme='dark']) .rejectionInput {
+  border-color: #f87171;
 }
 
 :global([data-theme='dark']) .tableWrap,
@@ -1162,12 +1134,6 @@
   color: #99f6e4;
 }
 
-:global([data-theme='dark']) .noteInput {
-  background: #0f172a;
-  border-color: #475569;
-  color: #f1f5f9;
-}
-
 :global([data-theme='dark']) .legendItem {
   color: #94a3b8;
 }
@@ -1206,8 +1172,7 @@
   border-color: #1e3a8a;
 }
 
-:global([data-theme='dark']) .swapTransfer,
-:global([data-theme='dark']) .checkboxRow {
+:global([data-theme='dark']) .swapTransfer {
   color: #cbd5e1;
 }
 
@@ -1230,12 +1195,6 @@
   color: #cbd5e1;
 }
 
-:global([data-theme='dark']) .maxSlotsRow input {
-  background: #0f172a;
-  border-color: #475569;
-  color: #f1f5f9;
-}
-
 :global([data-theme='dark']) .successBox {
   background: #064e3b;
   color: #a7f3d0;
@@ -1248,10 +1207,4 @@
 
 :global([data-theme='dark']) .scheduleNote {
   color: #5eead4;
-}
-
-:global([data-theme='dark']) .templateHourRow input[type='time'] {
-  background: #0f172a;
-  border-color: #475569;
-  color: #f1f5f9;
 }
