@@ -614,6 +614,7 @@
 }
 
 .calendarContainer :global(.react-calendar__tile) {
+  position: relative;
   flex-basis: calc(100% / 7 - 4px) !important;
   max-width: calc(100% / 7 - 4px) !important;
   margin: 2px !important;
@@ -671,6 +672,30 @@
   box-shadow: 0 8px 18px rgba(220, 38, 38, 0.28);
 }
 
+/* Team shift coverage — always visible, including on employee status tiles */
+.calendarContainer :global(.day-coverage-closed) {
+  border-color: #059669 !important;
+  border-width: 2.5px !important;
+}
+
+.calendarContainer :global(.day-coverage-open) {
+  border-color: #dc2626 !important;
+  border-width: 2.5px !important;
+}
+
+.calendarContainer :global(.day-coverage-closed:not(.custom-selected-day):not(.custom-proposed-day):not(.custom-approved-day):not(.custom-approved-note-day):not(.custom-rejected-day)) {
+  background: #ecfdf5 !important;
+}
+
+.calendarContainer :global(.day-coverage-open:not(.custom-selected-day):not(.custom-proposed-day):not(.custom-approved-day):not(.custom-approved-note-day):not(.custom-rejected-day)) {
+  background: #fef2f2 !important;
+}
+
+.calendarContainer :global(.day-coverage-none:not(.custom-selected-day):not(.custom-proposed-day):not(.custom-approved-day):not(.custom-approved-note-day):not(.custom-rejected-day)) {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+}
+
 .statusLegend {
   display: flex;
   flex-wrap: wrap;
@@ -681,12 +706,24 @@
   border-top: 1px solid rgba(15, 23, 42, 0.08);
 }
 
+.coverageLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
 .legendItem {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.8rem;
-  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #334155;
 }
 
 .legendDot {
@@ -694,6 +731,7 @@
   height: 12px;
   border-radius: 999px;
   flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.12);
 }
 
 .legendProposed {
@@ -717,11 +755,47 @@
   background: #3b82f6;
 }
 
+.legendCoverageClosed {
+  background: #059669;
+}
+
+.legendCoverageOpen {
+  background: #dc2626;
+}
+
+.legendCoverageNone {
+  background: #94a3b8;
+}
+
 .tileContent {
   margin-top: 4px;
   font-size: 0.68rem;
   line-height: 1.2;
   text-align: center;
+  width: 100%;
+}
+
+.coverageMark {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid #ffffff;
+  box-shadow:
+    0 0 0 1.5px rgba(15, 23, 42, 0.35),
+    0 2px 5px rgba(15, 23, 42, 0.28);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.coverageClosed {
+  background: #059669;
+}
+
+.coverageOpen {
+  background: #dc2626;
 }
 
 .tileHours {
@@ -955,6 +1029,40 @@
   vertical-align: top;
 }
 
+.teamDayHeader {
+  position: relative;
+  min-width: 96px;
+}
+
+.teamDayHeader small {
+  display: block;
+  margin-top: 2px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.teamDayHeaderClosed {
+  background: #ecfdf5;
+  box-shadow: inset 0 -3px 0 #059669;
+}
+
+.teamDayHeaderOpen {
+  background: #fef2f2;
+  box-shadow: inset 0 -3px 0 #dc2626;
+}
+
+.teamDayHeaderNone {
+  background: #f8fafc;
+  box-shadow: inset 0 -3px 0 #94a3b8;
+}
+
+.teamDayHeaderMeta {
+  margin-top: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #334155;
+}
+
 .teamEmployeeCell {
   text-align: left;
   min-width: 120px;
@@ -962,8 +1070,21 @@
 }
 
 .teamDayCell {
+  position: relative;
   min-width: 92px;
   background: #fff;
+}
+
+.teamDayCellClosed {
+  background: #f0fdf4;
+}
+
+.teamDayCellOpen {
+  background: #fff7f7;
+}
+
+.teamDayCellNone {
+  background: #f8fafc;
 }
 
 .teamEmptyCell {
@@ -971,6 +1092,7 @@
 }
 
 .teamShift {
+  position: relative;
   font-size: 0.82rem;
   line-height: 1.3;
   margin-bottom: 4px;
@@ -978,6 +1100,20 @@
 
 .teamShift:last-child {
   margin-bottom: 0;
+}
+
+.teamShiftIncomplete {
+  padding-right: 12px;
+}
+
+.teamShiftDot {
+  position: absolute;
+  top: 3px;
+  right: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #dc2626;
 }
 
 @media (max-width: 1200px) {
@@ -1134,10 +1270,6 @@
   color: #99f6e4;
 }
 
-:global([data-theme='dark']) .legendItem {
-  color: #94a3b8;
-}
-
 :global([data-theme='dark']) .calendarContainer {
   background: #1e293b;
   border-color: #334155;
@@ -1151,6 +1283,82 @@
   background: #0f172a;
   border-color: #334155 !important;
   color: #e2e8f0;
+}
+
+:global([data-theme='dark']) .calendarContainer :global(.day-coverage-closed) {
+  border-color: #34d399 !important;
+}
+
+:global([data-theme='dark']) .calendarContainer :global(.day-coverage-open) {
+  border-color: #f87171 !important;
+}
+
+:global([data-theme='dark']) .calendarContainer :global(.day-coverage-closed:not(.custom-selected-day):not(.custom-proposed-day):not(.custom-approved-day):not(.custom-approved-note-day):not(.custom-rejected-day)) {
+  background: #042f2e !important;
+}
+
+:global([data-theme='dark']) .calendarContainer :global(.day-coverage-open:not(.custom-selected-day):not(.custom-proposed-day):not(.custom-approved-day):not(.custom-approved-note-day):not(.custom-rejected-day)) {
+  background: #450a0a !important;
+}
+
+:global([data-theme='dark']) .calendarContainer :global(.day-coverage-none:not(.custom-selected-day):not(.custom-proposed-day):not(.custom-approved-day):not(.custom-approved-note-day):not(.custom-rejected-day)) {
+  background: #0f172a !important;
+  border-color: #475569 !important;
+}
+
+:global([data-theme='dark']) .coverageLegend {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+:global([data-theme='dark']) .legendItem {
+  color: #e2e8f0;
+}
+
+:global([data-theme='dark']) .legendCoverageNone {
+  background: #94a3b8;
+}
+
+:global([data-theme='dark']) .coverageMark {
+  border-color: #0f172a;
+  box-shadow:
+    0 0 0 1.5px rgba(248, 250, 252, 0.55),
+    0 2px 5px rgba(0, 0, 0, 0.45);
+}
+
+:global([data-theme='dark']) .teamDayHeaderClosed {
+  background: #042f2e;
+  box-shadow: inset 0 -3px 0 #34d399;
+  color: #e2e8f0;
+}
+
+:global([data-theme='dark']) .teamDayHeaderOpen {
+  background: #450a0a;
+  box-shadow: inset 0 -3px 0 #f87171;
+  color: #e2e8f0;
+}
+
+:global([data-theme='dark']) .teamDayHeaderNone {
+  background: #1e293b;
+  box-shadow: inset 0 -3px 0 #94a3b8;
+  color: #e2e8f0;
+}
+
+:global([data-theme='dark']) .teamDayHeader small,
+:global([data-theme='dark']) .teamDayHeaderMeta {
+  color: #cbd5e1;
+}
+
+:global([data-theme='dark']) .teamDayCellClosed {
+  background: #042f2e;
+}
+
+:global([data-theme='dark']) .teamDayCellOpen {
+  background: #3f0a0a;
+}
+
+:global([data-theme='dark']) .teamDayCellNone {
+  background: #0f172a;
 }
 
 :global([data-theme='dark']) .templateListItem {

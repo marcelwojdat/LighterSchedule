@@ -34,6 +34,7 @@ import {
   WEEKDAY_SHORT,
   buildEmptyTemplateHours,
 } from '../utils/time';
+import { getDayShiftCoverage, monthBounds } from '../utils/shiftCoverage';
 
 const STATUS_LABELS = {
   proposed: 'Oczekuje',
@@ -100,6 +101,11 @@ const Manager = () => {
   const [swapQueue, setSwapQueue] = useState([]);
   const [teamStats, setTeamStats] = useState(null);
   const [teamWorkdays, setTeamWorkdays] = useState([]);
+  const [coverageWorkdays, setCoverageWorkdays] = useState([]);
+  const [coverageMonth, setCoverageMonth] = useState(() => {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() };
+  });
   const [taskTypes, setTaskTypes] = useState([]);
   const [shiftTemplates, setShiftTemplates] = useState([]);
   const [selectedShiftId, setSelectedShiftId] = useState('');
@@ -199,6 +205,20 @@ const Manager = () => {
     }
   };
 
+  const fetchMonthCoverage = async (month = coverageMonth) => {
+    try {
+      const { dateFrom, dateTo } = monthBounds(month.year, month.month);
+      const data = await getWorkdays({
+        status: 'approved',
+        date_from: dateFrom,
+        date_to: dateTo,
+      });
+      setCoverageWorkdays(data);
+    } catch (e) {
+      setError(getErrorMessage(e, 'Nie udało się pobrać obsadzenia zmian'));
+    }
+  };
+
   const fetchTaskTypes = async () => {
     try {
       const data = await getTaskTypes();
@@ -242,6 +262,7 @@ const Manager = () => {
       fetchSwapQueue(),
       fetchTeamStats(),
       fetchTeamWorkdays(),
+      fetchMonthCoverage(),
       fetchTaskTypes(),
       fetchShiftTemplates(),
       fetchNotifications(),
@@ -273,6 +294,10 @@ const Manager = () => {
   useEffect(() => {
     fetchTeamWorkdays();
   }, [weekStart]);
+
+  useEffect(() => {
+    fetchMonthCoverage(coverageMonth);
+  }, [coverageMonth.year, coverageMonth.month]);
 
   const openManage = (employee) => {
     setSelectedEmployee(employee);
@@ -315,59 +340,79 @@ const Manager = () => {
   const getTileClassName = ({ date: tileDate, view }) => {
     if (view !== 'month') return null;
 
-    const year = tileDate.getFullYear();
-    const month = String(tileDate.getMonth() + 1).padStart(2, '0');
-    const day = String(tileDate.getDate()).padStart(2, '0');
-    const dateStr = `${year}-${month}-${day}`;
+    const dateStr = formatDateStr(tileDate);
+    const classes = [];
 
-    if (selectedDates[dateStr]) return 'custom-selected-day';
-
-    const saved = workdays.find((d) => d.date === dateStr);
-    if (!saved) return null;
-
-    if (saved.status === 'approved') {
-      return saved.note?.trim() ? 'custom-approved-note-day' : 'custom-approved-day';
+    if (selectedDates[dateStr]) {
+      classes.push('custom-selected-day');
+    } else {
+      const saved = workdays.find((d) => d.date === dateStr);
+      if (saved) {
+        if (saved.status === 'approved') {
+          classes.push(saved.note?.trim() ? 'custom-approved-note-day' : 'custom-approved-day');
+        } else if (saved.status === 'rejected') {
+          classes.push('custom-rejected-day');
+        } else {
+          classes.push('custom-proposed-day');
+        }
+      }
     }
-    if (saved.status === 'rejected') return 'custom-rejected-day';
-    return 'custom-proposed-day';
+
+    const coverage = getCoverageForDate(dateStr);
+    if (coverage.status === 'closed') classes.push('day-coverage-closed');
+    else if (coverage.status === 'open') classes.push('day-coverage-open');
+    else classes.push('day-coverage-none');
+
+    return classes.length ? classes.join(' ') : null;
   };
 
   const getTileContent = ({ date: tileDate, view }) => {
     if (view !== 'month') return null;
 
-    const year = tileDate.getFullYear();
-    const month = String(tileDate.getMonth() + 1).padStart(2, '0');
-    const day = String(tileDate.getDate()).padStart(2, '0');
-    const dateStr = `${year}-${month}-${day}`;
-
+    const dateStr = formatDateStr(tileDate);
+    const coverage = getCoverageForDate(dateStr);
     const pending = selectedDates[dateStr];
+    const saved = workdays.find((d) => d.date === dateStr);
+
+    let body = null;
     if (pending) {
-      return (
-        <div className={styles.tileContent}>
+      body = (
+        <>
           <div className={styles.tileHours}>
             {pending.start_time.slice(0, 5)} - {pending.end_time.slice(0, 5)}
           </div>
           <div className={styles.tileStatus}>Do zapisu</div>
           {pending.note?.trim() ? <div className={styles.tileStatus}>nota</div> : null}
-        </div>
+        </>
       );
-    }
-
-    const saved = workdays.find((d) => d.date === dateStr);
-    if (saved) {
-      return (
-        <div className={styles.tileContent}>
+    } else if (saved) {
+      body = (
+        <>
           <div className={styles.tileHours}>
             {saved.start_time.slice(0, 5)} - {saved.end_time.slice(0, 5)}
           </div>
           {saved.role_name ? <div className={styles.tileStatus}>{saved.role_name}</div> : null}
           <div className={styles.tileStatus}>{STATUS_LABELS[saved.status]}</div>
           {saved.note?.trim() ? <div className={styles.tileStatus}>nota</div> : null}
-        </div>
+        </>
       );
     }
 
-    return null;
+    if (!body && coverage.status === 'none') return null;
+
+    return (
+      <div className={styles.tileContent} title={coverage.tooltip || undefined}>
+        {coverage.status !== 'none' ? (
+          <span
+            className={`${styles.coverageMark} ${
+              coverage.status === 'closed' ? styles.coverageClosed : styles.coverageOpen
+            }`}
+            aria-hidden="true"
+          />
+        ) : null}
+        {body}
+      </div>
+    );
   };
 
   const addShift = () => {
@@ -769,6 +814,39 @@ const Manager = () => {
 
   const getShiftsForCell = (employeeId, dateStr) =>
     teamWorkdays.filter((day) => day.employee === employeeId && day.date === dateStr);
+
+  const getCoverageForDate = (dateStr, approvedSource = coverageWorkdays) =>
+    getDayShiftCoverage(dateStr, shiftTemplates, approvedSource);
+
+  const coverageClass = (status, closedCls, openCls, noneCls) => {
+    if (status === 'closed') return closedCls;
+    if (status === 'open') return openCls;
+    return noneCls;
+  };
+
+  const renderCoverageLegend = (extraClass = '') => (
+    <div className={`${styles.coverageLegend} ${extraClass}`.trim()}>
+      <div className={styles.legendItem}>
+        <span className={`${styles.legendDot} ${styles.legendCoverageClosed}`} />
+        Dzień zamknięty (pełne obsadzenie)
+      </div>
+      <div className={styles.legendItem}>
+        <span className={`${styles.legendDot} ${styles.legendCoverageOpen}`} />
+        Dzień otwarty (brakuje osób)
+      </div>
+      <div className={styles.legendItem}>
+        <span className={`${styles.legendDot} ${styles.legendCoverageNone}`} />
+        Brak szablonów na ten dzień
+      </div>
+    </div>
+  );
+
+  const coverageSlotSummary = (coverage) => {
+    if (!coverage?.slots?.length) return '';
+    const filled = coverage.slots.reduce((sum, slot) => sum + slot.filled, 0);
+    const max = coverage.slots.reduce((sum, slot) => sum + slot.max, 0);
+    return `${filled}/${max}`;
+  };
 
   const changeWeek = (offset) => {
     const current = new Date(weekStart);
@@ -1277,8 +1355,16 @@ const Manager = () => {
                     value={null}
                     tileClassName={getTileClassName}
                     tileContent={getTileContent}
+                    onActiveStartDateChange={({ activeStartDate }) => {
+                      if (!activeStartDate) return;
+                      setCoverageMonth({
+                        year: activeStartDate.getFullYear(),
+                        month: activeStartDate.getMonth(),
+                      });
+                    }}
                   />
                 </div>
+                {renderCoverageLegend()}
                 <div className={styles.statusLegend}>
                   <div className={styles.legendItem}>
                     <span className={`${styles.legendDot} ${styles.legendProposed}`} />
@@ -1551,17 +1637,32 @@ const Manager = () => {
             </button>
           </div>
         </div>
+        {renderCoverageLegend()}
         <div className={styles.teamTableWrap}>
           <table className={styles.teamTable}>
             <thead>
               <tr>
                 <th>Pracownik</th>
-                {weekDates.map((dateStr, index) => (
-                  <th key={dateStr}>
-                    <div>{DAY_LABELS[index]}</div>
-                    <small>{dateStr.slice(5)}</small>
-                  </th>
-                ))}
+                {weekDates.map((dateStr, index) => {
+                  const coverage = getCoverageForDate(dateStr, teamWorkdays);
+                  const summary = coverageSlotSummary(coverage);
+                  return (
+                    <th
+                      key={dateStr}
+                      className={`${styles.teamDayHeader} ${coverageClass(
+                        coverage.status,
+                        styles.teamDayHeaderClosed,
+                        styles.teamDayHeaderOpen,
+                        styles.teamDayHeaderNone
+                      )}`}
+                      title={coverage.tooltip || undefined}
+                    >
+                      <div>{DAY_LABELS[index]}</div>
+                      <small>{dateStr.slice(5)}</small>
+                      {summary ? <div className={styles.teamDayHeaderMeta}>{summary}</div> : null}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -1570,17 +1671,42 @@ const Manager = () => {
                   <th className={styles.teamEmployeeCell}>{getEmployeeDisplayName(employee)}</th>
                   {weekDates.map((dateStr) => {
                     const shifts = getShiftsForCell(employee.id, dateStr);
+                    const coverage = getCoverageForDate(dateStr, teamWorkdays);
                     return (
-                      <td key={`${employee.id}-${dateStr}`} className={styles.teamDayCell}>
+                      <td
+                        key={`${employee.id}-${dateStr}`}
+                        className={`${styles.teamDayCell} ${coverageClass(
+                          coverage.status,
+                          styles.teamDayCellClosed,
+                          styles.teamDayCellOpen,
+                          styles.teamDayCellNone
+                        )}`}
+                        title={coverage.tooltip || undefined}
+                      >
                         {shifts.length === 0 ? (
                           <span className={styles.teamEmptyCell}>—</span>
                         ) : (
-                          shifts.map((shift) => (
-                            <div key={shift.id} className={styles.teamShift}>
-                              <div>{shift.start_time.slice(0, 5)}-{shift.end_time.slice(0, 5)}</div>
-                              {shift.role_name ? <small>{shift.role_name}</small> : null}
-                            </div>
-                          ))
+                          shifts.map((shift) => {
+                            const slot = coverage.slots.find(
+                              (item) => Number(item.id) === Number(shift.shift_template)
+                            );
+                            const incomplete = slot && !slot.isFull;
+                            return (
+                              <div
+                                key={shift.id}
+                                className={`${styles.teamShift} ${incomplete ? styles.teamShiftIncomplete : ''}`}
+                              >
+                                <div>
+                                  {shift.start_time.slice(0, 5)}-{shift.end_time.slice(0, 5)}
+                                </div>
+                                {shift.shift_template_name ? (
+                                  <small>{shift.shift_template_name}</small>
+                                ) : null}
+                                {shift.role_name ? <small>{shift.role_name}</small> : null}
+                                {incomplete ? <span className={styles.teamShiftDot} aria-hidden="true" /> : null}
+                              </div>
+                            );
+                          })
                         )}
                       </td>
                     );
