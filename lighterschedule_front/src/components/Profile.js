@@ -26,6 +26,7 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
 
   useAutoDismiss(success, setSuccess);
+  useAutoDismiss(error, setError);
 
   const loadUser = async () => {
     try {

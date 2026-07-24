@@ -76,6 +76,7 @@ const Dashboard = () => {
 
   useAutoDismiss(swapSuccess, setSwapSuccess);
   useAutoDismiss(scheduleSuccess, setScheduleSuccess);
+  useAutoDismiss(error, setError);
 
   const fetchTaskTypes = async () => {
     try {

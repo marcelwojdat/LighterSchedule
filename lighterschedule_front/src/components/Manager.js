@@ -133,6 +133,7 @@ const Manager = () => {
   const [newUserForm, setNewUserForm] = useState(() => ({ ...EMPTY_USER_FORM }));
   const { darkMode, toggleTheme } = useTheme();
   useAutoDismiss(success, setSuccess);
+  useAutoDismiss(error, setError);
 
   const weekDates = getWeekDates(weekStart);
 
