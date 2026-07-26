@@ -126,6 +126,8 @@ const Manager = () => {
   const [editingQueueId, setEditingQueueId] = useState(null);
   const [queueEditTimes, setQueueEditTimes] = useState({ start: '12:00', end: '20:00' });
   const [rejectingId, setRejectingId] = useState(null);
+  const [rejectingSwapId, setRejectingSwapId] = useState(null);
+  const [showRejectNote, setShowRejectNote] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -731,12 +733,33 @@ const Manager = () => {
     });
     setQueueEditRole(item.role ? String(item.role) : '');
     setRejectingId(null);
+    setRejectingSwapId(null);
+    setShowRejectNote(false);
+    setRejectionReason('');
     setError('');
+  };
+
+  const beginRejectWorkday = (item) => {
+    setRejectingId(item.id);
+    setRejectingSwapId(null);
+    setEditingQueueId(null);
+    setShowRejectNote(false);
+    setRejectionReason('');
+  };
+
+  const beginRejectSwap = (swap) => {
+    setRejectingSwapId(swap.id);
+    setRejectingId(null);
+    setEditingQueueId(null);
+    setShowRejectNote(false);
+    setRejectionReason('');
   };
 
   const cancelQueueEdit = () => {
     setEditingQueueId(null);
     setRejectingId(null);
+    setRejectingSwapId(null);
+    setShowRejectNote(false);
     setRejectionReason('');
     setQueueEditRole('');
   };
@@ -766,7 +789,8 @@ const Manager = () => {
 
   const rejectQueueItem = async (item) => {
     try {
-      await rejectWorkday(item.id, { rejection_reason: rejectionReason });
+      const reason = rejectionReason.trim();
+      await rejectWorkday(item.id, reason ? { rejection_reason: reason } : {});
 
       setSuccess(`Odrzucono deklarację ${item.employee_name} na ${item.date}.`);
       setError('');
@@ -782,6 +806,9 @@ const Manager = () => {
       await approveSwapRequest(swap.id);
       setSuccess(`Zatwierdzono zamianę zmiany z dnia ${swap.work_day_details?.date}.`);
       setError('');
+      setRejectingSwapId(null);
+      setShowRejectNote(false);
+      setRejectionReason('');
       await refreshData(selectedEmployee?.id);
     } catch (e) {
       setError(getErrorMessage(e, 'Nie udało się zatwierdzić zamiany.'));
@@ -790,9 +817,11 @@ const Manager = () => {
 
   const rejectSwap = async (swap) => {
     try {
-      await rejectSwapRequest(swap.id);
+      const reason = rejectionReason.trim();
+      await rejectSwapRequest(swap.id, reason ? { rejection_reason: reason } : {});
       setSuccess(`Odrzucono zamianę zmiany z dnia ${swap.work_day_details?.date}.`);
       setError('');
+      cancelQueueEdit();
       await refreshData(selectedEmployee?.id);
     } catch (e) {
       setError(getErrorMessage(e, 'Nie udało się odrzucić zamiany.'));
@@ -1001,13 +1030,14 @@ const Manager = () => {
                         : ''}
                     </div>
                   ) : null}
-                  {rejectingId === item.id ? (
+                  {rejectingId === item.id && showRejectNote ? (
                     <input
                       className={styles.rejectionInput}
                       type="text"
-                      placeholder="Powód odrzucenia (opcjonalnie)"
+                      placeholder="Uwaga dla pracownika (opcjonalnie)"
                       value={rejectionReason}
                       onChange={(e) => setRejectionReason(e.target.value)}
+                      maxLength={255}
                     />
                   ) : null}
                   <div className={styles.queueActions}>
@@ -1019,6 +1049,15 @@ const Manager = () => {
                         <button className={styles.btnSecondary} onClick={cancelQueueEdit}>
                           Anuluj
                         </button>
+                        {!showRejectNote ? (
+                          <button
+                            type="button"
+                            className={styles.btnLink}
+                            onClick={() => setShowRejectNote(true)}
+                          >
+                            Dodaj uwagę
+                          </button>
+                        ) : null}
                       </>
                     ) : editingQueueId === item.id ? (
                       <>
@@ -1057,11 +1096,7 @@ const Manager = () => {
                         </button>
                         <button
                           className={styles.btnDanger}
-                          onClick={() => {
-                            setRejectingId(item.id);
-                            setEditingQueueId(null);
-                            setRejectionReason('');
-                          }}
+                          onClick={() => beginRejectWorkday(item)}
                         >
                           Odrzuć
                         </button>
@@ -1105,13 +1140,45 @@ const Manager = () => {
                       {swap.target_work_day_details.end_time?.slice(0, 5)})
                     </div>
                   ) : null}
+                  {rejectingSwapId === swap.id && showRejectNote ? (
+                    <input
+                      className={styles.rejectionInput}
+                      type="text"
+                      placeholder="Uwaga (opcjonalnie)"
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                      maxLength={255}
+                    />
+                  ) : null}
                   <div className={styles.queueActions}>
-                    <button className={styles.btnSuccess} onClick={() => approveSwap(swap)}>
-                      Zatwierdź zamianę
-                    </button>
-                    <button className={styles.btnDanger} onClick={() => rejectSwap(swap)}>
-                      Odrzuć
-                    </button>
+                    {rejectingSwapId === swap.id ? (
+                      <>
+                        <button className={styles.btnDanger} onClick={() => rejectSwap(swap)}>
+                          Potwierdź odrzucenie
+                        </button>
+                        <button className={styles.btnSecondary} onClick={cancelQueueEdit}>
+                          Anuluj
+                        </button>
+                        {!showRejectNote ? (
+                          <button
+                            type="button"
+                            className={styles.btnLink}
+                            onClick={() => setShowRejectNote(true)}
+                          >
+                            Dodaj uwagę
+                          </button>
+                        ) : null}
+                      </>
+                    ) : (
+                      <>
+                        <button className={styles.btnSuccess} onClick={() => approveSwap(swap)}>
+                          Zatwierdź zamianę
+                        </button>
+                        <button className={styles.btnDanger} onClick={() => beginRejectSwap(swap)}>
+                          Odrzuć
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}

@@ -558,8 +558,24 @@
 
 .rejectionInput {
   width: 100%;
-  margin-bottom: 8px;
+  margin: 8px 0;
   border-color: #fca5a5;
+}
+
+.btnLink {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.btnLink:hover {
+  color: #334155;
 }
 
 .queueActions {
@@ -1393,6 +1409,14 @@
 :global([data-theme='dark']) .btnSecondary {
   background: #334155;
   color: #f1f5f9;
+}
+
+:global([data-theme='dark']) .btnLink {
+  color: #94a3b8;
+}
+
+:global([data-theme='dark']) .btnLink:hover {
+  color: #e2e8f0;
 }
 
 :global([data-theme='dark']) .slotFullHint {
