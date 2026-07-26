@@ -951,3 +951,88 @@ class DeclarationDeadlineTests(APITestCase):
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(response.data['status'], 'approved')
+
+
+class CopyScheduleTests(APITestCase):
+    def setUp(self):
+        self.employee = User.objects.create_user('emp_copy', password='pass')
+        self.manager = User.objects.create_user('mgr_copy', password='pass')
+        set_profile(self.employee, hourly_rate=20)
+        set_profile(self.manager, hourly_rate=30, is_manager=True)
+
+        # Source: Monday of next week
+        today = date.today()
+        self.source_monday = today + timedelta(days=(7 - today.weekday()) % 7 or 7)
+        while self.source_monday.weekday() != 0:
+            self.source_monday += timedelta(days=1)
+        self.target_monday = self.source_monday + timedelta(days=7)
+
+        WorkDay.objects.create(
+            employee=self.employee,
+            date=self.source_monday,
+            start_time='09:00:00',
+            end_time='17:00:00',
+            status=WorkDay.Status.APPROVED,
+            note='Z biura',
+        )
+        WorkDay.objects.create(
+            employee=self.employee,
+            date=self.source_monday + timedelta(days=2),
+            start_time='12:00:00',
+            end_time='20:00:00',
+            status=WorkDay.Status.APPROVED,
+        )
+
+    def authenticate(self, user):
+        token = self.client.post('/api/token/', {
+            'username': user.username,
+            'password': 'pass',
+        }).data['access']
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+
+    def test_employee_copies_week_as_proposed(self):
+        self.authenticate(self.employee)
+        response = self.client.post('/api/workdays/copy/', {
+            'mode': 'week',
+            'source_start': self.source_monday.isoformat(),
+            'target_start': self.target_monday.isoformat(),
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data['created_count'], 2)
+
+        copied = WorkDay.objects.get(employee=self.employee, date=self.target_monday)
+        self.assertEqual(copied.status, WorkDay.Status.PROPOSED)
+        self.assertEqual(str(copied.start_time), '09:00:00')
+        self.assertEqual(copied.note, 'Z biura')
+
+    def test_copy_skips_existing_target(self):
+        WorkDay.objects.create(
+            employee=self.employee,
+            date=self.target_monday,
+            start_time='08:00:00',
+            end_time='12:00:00',
+            status=WorkDay.Status.PROPOSED,
+        )
+        self.authenticate(self.employee)
+        response = self.client.post('/api/workdays/copy/', {
+            'mode': 'week',
+            'source_start': self.source_monday.isoformat(),
+            'target_start': self.target_monday.isoformat(),
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['created_count'], 1)
+        self.assertEqual(response.data['skipped_count'], 1)
+        existing = WorkDay.objects.get(employee=self.employee, date=self.target_monday)
+        self.assertEqual(str(existing.start_time), '08:00:00')
+
+    def test_manager_copies_as_approved(self):
+        self.authenticate(self.manager)
+        response = self.client.post('/api/workdays/copy/', {
+            'mode': 'week',
+            'source_start': self.source_monday.isoformat(),
+            'target_start': self.target_monday.isoformat(),
+            'employee': self.employee.id,
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        copied = WorkDay.objects.get(employee=self.employee, date=self.target_monday)
+        self.assertEqual(copied.status, WorkDay.Status.APPROVED)

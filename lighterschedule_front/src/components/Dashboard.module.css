@@ -689,6 +689,36 @@
   color: #475569;
 }
 
+.copyScheduleRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin: 12px 0 4px;
+}
+
+.copyScheduleBtn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.copyScheduleBtn:hover:not(:disabled) {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+}
+
+.copyScheduleBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .scheduleSetBtn {
   padding: 10px 25px;
   border-radius: 8px;
@@ -841,7 +871,8 @@
 }
 
 :global([data-theme='dark']) .calendarExportToggle,
-:global([data-theme='dark']) .calendarExportBtnSecondary {
+:global([data-theme='dark']) .calendarExportBtnSecondary,
+:global([data-theme='dark']) .copyScheduleBtn {
   background: #0f172a;
   border-color: #475569;
   color: #e2e8f0;

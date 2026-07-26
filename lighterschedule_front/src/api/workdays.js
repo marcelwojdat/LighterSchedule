@@ -21,6 +21,9 @@ export const rejectWorkday = (id, data = {}) =>
 export const getCalendarFeedInfo = () =>
   apiClient.get('/workdays/calendar-feed/').then((response) => response.data);
 
+export const copyWorkdays = (data) =>
+  apiClient.post('/workdays/copy/', data).then((response) => response.data);
+
 export const downloadWorkdaysIcs = async (params = {}) => {
   const response = await apiClient.get('/workdays/export.ics/', {
     params,

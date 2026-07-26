@@ -13,6 +13,7 @@ import {
   deleteWorkday,
   approveWorkday,
   rejectWorkday,
+  copyWorkdays,
 } from '../api/workdays';
 import { getSwaps, approveSwap as approveSwapRequest, rejectSwap as rejectSwapRequest } from '../api/swaps';
 import { getTaskTypes } from '../api/taskTypes';
@@ -36,6 +37,7 @@ import {
   buildEmptyTemplateHours,
 } from '../utils/time';
 import { getDayShiftCoverage, monthBounds } from '../utils/shiftCoverage';
+import { formatDateStr, getMonday, getWeekDates, addDays, shiftMonth } from '../utils/dates';
 
 const STATUS_LABELS = {
   proposed: 'Oczekuje',
@@ -63,31 +65,6 @@ const EMPTY_USER_FORM = {
 };
 
 const USERS_PREVIEW_COUNT = 5;
-
-const formatDateStr = (dateObj) => {
-  const year = dateObj.getFullYear();
-  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-  const day = String(dateObj.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-const getMonday = (baseDate = new Date()) => {
-  const d = new Date(baseDate);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  d.setDate(diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
-};
-
-const getWeekDates = (weekStartStr) => {
-  const start = new Date(weekStartStr);
-  return Array.from({ length: 7 }, (_, index) => {
-    const d = new Date(start);
-    d.setDate(start.getDate() + index);
-    return formatDateStr(d);
-  });
-};
 
 const Manager = () => {
   const [employees, setEmployees] = useState([]);
@@ -141,6 +118,7 @@ const Manager = () => {
   const [showAllUsers, setShowAllUsers] = useState(false);
   const [moreOptionsUserId, setMoreOptionsUserId] = useState(null);
   const [newUserForm, setNewUserForm] = useState(() => ({ ...EMPTY_USER_FORM }));
+  const [copyBusy, setCopyBusy] = useState(false);
   const { darkMode, toggleTheme } = useTheme();
   useAutoDismiss(success, setSuccess);
   useAutoDismiss(error, setError);
@@ -908,9 +886,49 @@ const Manager = () => {
   };
 
   const changeWeek = (offset) => {
-    const current = new Date(weekStart);
-    current.setDate(current.getDate() + offset * 7);
-    setWeekStart(formatDateStr(getMonday(current)));
+    setWeekStart(addDays(weekStart, offset * 7));
+  };
+
+  const handleCopySchedule = async (mode) => {
+    if (!selectedEmployee) return;
+    const thisMonday = formatDateStr(getMonday());
+    const targetStart = mode === 'week' ? thisMonday : `${statsMonth}-01`;
+    const sourceStart = mode === 'week' ? addDays(thisMonday, -7) : shiftMonth(targetStart, -1);
+    const periodLabel = mode === 'week' ? 'tygodnia' : 'miesiąca';
+
+    if (
+      !window.confirm(
+        `Skopiować grafik ${selectedEmployee.first_name || selectedEmployee.username} z poprzedniego ${periodLabel}? Istniejące dni zostaną pominięte; nowe wpisy będą od razu zatwierdzone.`
+      )
+    ) {
+      return;
+    }
+
+    setCopyBusy(true);
+    try {
+      const result = await copyWorkdays({
+        mode,
+        source_start: sourceStart,
+        target_start: targetStart,
+        employee: selectedEmployee.id,
+        on_conflict: 'skip',
+      });
+      await refreshData(selectedEmployee.id);
+      const parts = [];
+      if (result.created_count) parts.push(`dodano ${result.created_count}`);
+      if (result.skipped_count) parts.push(`pominięto ${result.skipped_count}`);
+      if (result.updated_count) parts.push(`zaktualizowano ${result.updated_count}`);
+      setSuccess(
+        parts.length
+          ? `Skopiowano poprzedni ${mode === 'week' ? 'tydzień' : 'miesiąc'}: ${parts.join(', ')}.`
+          : `Brak dni do skopiowania z poprzedniego ${periodLabel}.`
+      );
+      setError('');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Nie udało się skopiować grafiku.'));
+    } finally {
+      setCopyBusy(false);
+    }
   };
 
   const renderRoleSelect = (value, onChange) => (
@@ -1483,6 +1501,26 @@ const Manager = () => {
                     <span className={`${styles.legendDot} ${styles.legendSelected}`} />
                     Do zapisu
                   </div>
+                </div>
+
+                <div className={styles.copyScheduleRow}>
+                  <button
+                    type="button"
+                    className={styles.btnSecondary}
+                    disabled={copyBusy}
+                    onClick={() => handleCopySchedule('week')}
+                  >
+                    Kopiuj poprzedni tydzień
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.btnSecondary}
+                    disabled={copyBusy}
+                    onClick={() => handleCopySchedule('month')}
+                    title={`Na miesiąc ${statsMonth}`}
+                  >
+                    Kopiuj poprzedni miesiąc
+                  </button>
                 </div>
 
                 <div className={styles.shiftControls}>

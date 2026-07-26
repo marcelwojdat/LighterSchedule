@@ -12,6 +12,7 @@ import {
   deleteWorkday,
   downloadWorkdaysIcs,
   getCalendarFeedInfo,
+  copyWorkdays,
 } from '../api/workdays';
 import {
   getSwaps,
@@ -32,6 +33,7 @@ import {
   toDisplayTime,
   resolveTemplateHours,
 } from '../utils/time';
+import { formatDateStr, getMonday, addDays, shiftMonth } from '../utils/dates';
 
 const STATUS_LABELS = {
   proposed: 'Oczekuje',
@@ -80,6 +82,7 @@ const Dashboard = () => {
   const [calendarFeed, setCalendarFeed] = useState(null);
   const [calendarExportBusy, setCalendarExportBusy] = useState(false);
   const [scheduleSettings, setScheduleSettings] = useState(null);
+  const [copyBusy, setCopyBusy] = useState(false);
 
   useAutoDismiss(swapSuccess, setSwapSuccess);
   useAutoDismiss(scheduleSuccess, setScheduleSuccess);
@@ -144,6 +147,50 @@ const Dashboard = () => {
       setError(getErrorMessage(err, 'Nie udało się pobrać pliku kalendarza.'));
     } finally {
       setCalendarExportBusy(false);
+    }
+  };
+
+  const handleCopySchedule = async (mode) => {
+    if (declarationsClosed) {
+      setError(deadlineMessage);
+      return;
+    }
+    const thisMonday = formatDateStr(getMonday());
+    const targetStart = mode === 'week' ? thisMonday : `${statsMonth}-01`;
+    const sourceStart = mode === 'week' ? addDays(thisMonday, -7) : shiftMonth(targetStart, -1);
+    const periodLabel = mode === 'week' ? 'tygodnia' : 'miesiąca';
+
+    if (
+      !window.confirm(
+        `Skopiować grafik z poprzedniego ${periodLabel} na bieżący? Istniejące dni zostaną pominięte.`
+      )
+    ) {
+      return;
+    }
+
+    setCopyBusy(true);
+    try {
+      const result = await copyWorkdays({
+        mode,
+        source_start: sourceStart,
+        target_start: targetStart,
+        on_conflict: 'skip',
+      });
+      await fetchWorkdays();
+      const parts = [];
+      if (result.created_count) parts.push(`dodano ${result.created_count}`);
+      if (result.skipped_count) parts.push(`pominięto ${result.skipped_count}`);
+      if (result.updated_count) parts.push(`zaktualizowano ${result.updated_count}`);
+      setScheduleSuccess(
+        parts.length
+          ? `Skopiowano poprzedni ${mode === 'week' ? 'tydzień' : 'miesiąc'}: ${parts.join(', ')}.`
+          : `Brak dni do skopiowania z poprzedniego ${periodLabel}.`
+      );
+      setError('');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Nie udało się skopiować grafiku.'));
+    } finally {
+      setCopyBusy(false);
     }
   };
 
@@ -1084,6 +1131,25 @@ const Dashboard = () => {
               <span className={`${styles.legendDot} ${styles.legendSelected}`} />
               Do wysłania
             </div>
+          </div>
+          <div className={styles.copyScheduleRow}>
+            <button
+              type="button"
+              className={styles.copyScheduleBtn}
+              disabled={declarationsClosed || copyBusy}
+              onClick={() => handleCopySchedule('week')}
+            >
+              Kopiuj poprzedni tydzień
+            </button>
+            <button
+              type="button"
+              className={styles.copyScheduleBtn}
+              disabled={declarationsClosed || copyBusy}
+              onClick={() => handleCopySchedule('month')}
+              title={`Na miesiąc ${statsMonth}`}
+            >
+              Kopiuj poprzedni miesiąc
+            </button>
           </div>
           <input
             type="button"

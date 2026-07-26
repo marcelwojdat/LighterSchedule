@@ -35,6 +35,7 @@ from .utils import (
     DECLARATION_DEADLINE_MESSAGE,
 )
 from .ical import build_workdays_ics, make_calendar_token, resolve_calendar_token
+from .schedule_copy import copy_workdays, parse_iso_date
 
 
 @api_view(['GET'])
@@ -774,6 +775,71 @@ class WorkDayViewSet(viewsets.ModelViewSet):
             'url': absolute,
             'webcal_url': webcal,
         })
+
+    @action(detail=False, methods=['post'], url_path='copy', permission_classes=[IsAuthenticated])
+    def copy(self, request):
+        """
+        Duplicate a previous week/month of workdays onto a target period.
+        Employees get proposed rows; managers create approved rows for an employee.
+        """
+        user = request.user
+        ensure_user_profile(user)
+        manager = is_manager(user)
+        if not manager:
+            self._ensure_employee_can_declare(user)
+
+        mode = request.data.get('mode')
+        if mode not in ('week', 'month'):
+            return Response(
+                {'error': 'Podaj mode: "week" albo "month".'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            source_start = parse_iso_date(request.data.get('source_start'), 'source_start')
+            target_start = parse_iso_date(request.data.get('target_start'), 'target_start')
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        on_conflict = request.data.get('on_conflict', 'skip')
+        if on_conflict not in ('skip', 'overwrite'):
+            return Response(
+                {'error': 'on_conflict musi być "skip" albo "overwrite".'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if manager:
+            employee_id = request.data.get('employee')
+            if not employee_id:
+                return Response(
+                    {'error': 'Podaj pracownika (employee), którego grafik kopiujesz.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            try:
+                employee = User.objects.get(pk=employee_id)
+            except (User.DoesNotExist, TypeError, ValueError):
+                return Response(
+                    {'error': 'Nie znaleziono pracownika.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            ensure_user_profile(employee)
+        else:
+            employee = user
+
+        try:
+            result = copy_workdays(
+                employee=employee,
+                mode=mode,
+                source_start=source_start,
+                target_start=target_start,
+                as_manager=manager,
+                manager_user=user if manager else None,
+                on_conflict=on_conflict,
+            )
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(result, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsManager])
     def approve(self, request, pk=None):
