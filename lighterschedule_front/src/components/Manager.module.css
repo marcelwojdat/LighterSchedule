@@ -129,6 +129,78 @@
 }
 
 /* —— Queues side by side —— */
+.holesSection {
+  margin-top: 14px;
+}
+
+.holesControls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.holesToggle {
+  display: flex;
+  gap: 6px;
+}
+
+.holesToggleActive {
+  outline: 2px solid #3b82f6;
+  outline-offset: 1px;
+}
+
+.holesList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.holesItem {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+}
+
+.holesItemMain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+}
+
+.holesShiftName {
+  font-weight: 700;
+  color: #7f1d1d;
+}
+
+.holesHours {
+  font-size: 0.88rem;
+  color: #64748b;
+}
+
+.holesItemMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.holesNeeded {
+  font-weight: 700;
+  color: #b91c1c;
+}
+
 .queuesRow {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -1554,6 +1626,21 @@
   background: #450a0a;
   border-color: #7f1d1d;
   color: #fca5a5;
+}
+
+:global([data-theme='dark']) .holesItem {
+  background: #450a0a;
+  border-color: #7f1d1d;
+}
+
+:global([data-theme='dark']) .holesShiftName,
+:global([data-theme='dark']) .holesNeeded {
+  color: #fca5a5;
+}
+
+:global([data-theme='dark']) .holesHours,
+:global([data-theme='dark']) .holesItemMeta {
+  color: #94a3b8;
 }
 
 :global([data-theme='dark']) .btnSecondary {

@@ -89,7 +89,8 @@ def assert_shift_slot_available(template, work_date, exclude_workday_id=None):
 def find_shift_shortages(work_date):
     """
     Active templates scheduled that weekday with unfilled approved slots.
-    Returns list of dicts: shift_template_id/name, date, needed, filled, max_slots.
+    Returns list of dicts: shift_template_id/name, date, needed, filled, max_slots,
+    start_time, end_time, holders.
     """
     from .models import ShiftTemplate
 
@@ -99,7 +100,8 @@ def find_shift_shortages(work_date):
     shortages = []
     templates = ShiftTemplate.objects.filter(is_active=True).prefetch_related('hours')
     for template in templates:
-        if template.hours_for_date(work_date) is None:
+        hours = template.hours_for_date(work_date)
+        if hours is None:
             continue
         info = get_shift_slots_info(template, work_date)
         if not info or info['is_full']:
@@ -114,8 +116,43 @@ def find_shift_shortages(work_date):
             'needed': needed,
             'filled': info['filled'],
             'max_slots': info['max_slots'],
+            'start_time': hours.start_time,
+            'end_time': hours.end_time,
+            'holders': info['holders'],
         })
     return shortages
+
+
+def find_shortages_in_range(start_date, days):
+    """Shortages from start_date inclusive for `days` calendar days (1–14)."""
+    from datetime import timedelta
+
+    if start_date is None:
+        return []
+    span = max(1, min(int(days), 14))
+    items = []
+    for offset in range(span):
+        work_date = start_date + timedelta(days=offset)
+        items.extend(find_shift_shortages(work_date))
+    return items
+
+
+def serialize_shortage(shortage):
+    """API-friendly dict for a shortage row."""
+    start = shortage.get('start_time')
+    end = shortage.get('end_time')
+    work_date = shortage['date']
+    return {
+        'date': work_date.isoformat() if hasattr(work_date, 'isoformat') else str(work_date),
+        'shift_template_id': shortage['shift_template_id'],
+        'shift_template_name': shortage['shift_template_name'],
+        'needed': shortage['needed'],
+        'filled': shortage['filled'],
+        'max_slots': shortage['max_slots'],
+        'start_time': start.strftime('%H:%M:%S') if hasattr(start, 'strftime') else start,
+        'end_time': end.strftime('%H:%M:%S') if hasattr(end, 'strftime') else end,
+        'holders': shortage.get('holders') or [],
+    }
 
 
 def format_shortage_message(shortage, *, day_label='Jutro'):

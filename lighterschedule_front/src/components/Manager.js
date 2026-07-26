@@ -31,6 +31,7 @@ import {
   createRejectionReason,
   deleteRejectionReason,
 } from '../api/rejectionReasons';
+import { getScheduleHoles } from '../api/scheduleHoles';
 import { useTheme } from '../hooks/useTheme';
 import { useAutoDismiss } from '../hooks/useAutoDismiss';
 import {
@@ -126,6 +127,8 @@ const Manager = () => {
   const [moreOptionsUserId, setMoreOptionsUserId] = useState(null);
   const [newUserForm, setNewUserForm] = useState(() => ({ ...EMPTY_USER_FORM }));
   const [copyBusy, setCopyBusy] = useState(false);
+  const [holesDays, setHolesDays] = useState(7);
+  const [scheduleHoles, setScheduleHoles] = useState({ count: 0, items: [] });
   const { darkMode, toggleTheme } = useTheme();
   useAutoDismiss(success, setSuccess);
   useAutoDismiss(error, setError);
@@ -157,6 +160,15 @@ const Manager = () => {
       setRejectionReasons(Array.isArray(data) ? data : []);
     } catch {
       setRejectionReasons([]);
+    }
+  };
+
+  const fetchScheduleHoles = async (days = holesDays) => {
+    try {
+      const data = await getScheduleHoles({ days });
+      setScheduleHoles(data);
+    } catch {
+      setScheduleHoles({ count: 0, items: [] });
     }
   };
 
@@ -292,6 +304,7 @@ const Manager = () => {
       fetchShiftTemplates(),
       fetchScheduleSettings(),
       fetchRejectionReasons(),
+      fetchScheduleHoles(),
       fetchNotifications(),
       employeeId ? fetchWorkdaysForEmployee(employeeId) : Promise.resolve(),
     ]);
@@ -325,6 +338,10 @@ const Manager = () => {
   useEffect(() => {
     fetchMonthCoverage(coverageMonth);
   }, [coverageMonth.year, coverageMonth.month]);
+
+  useEffect(() => {
+    fetchScheduleHoles(holesDays);
+  }, [holesDays]);
 
   const openManage = (employee) => {
     setSelectedEmployee(employee);
@@ -1106,6 +1123,72 @@ const Manager = () => {
             <span className={styles.statLabel}>Zatwierdzone dni</span>
             <strong>{teamStats?.approved_days ?? 0}</strong>
           </div>
+        </div>
+      </section>
+
+      <section className={styles.holesSection}>
+        <div className={styles.sectionCard}>
+          <div className={styles.sectionHeader}>
+            <div>
+              <h3>Dziury w grafiku</h3>
+              <p className={styles.statHint}>
+                Wolne miejsca na aktywnych zmianach
+                {scheduleHoles.date_from && scheduleHoles.date_to
+                  ? ` · ${scheduleHoles.date_from} – ${scheduleHoles.date_to}`
+                  : ''}
+              </p>
+            </div>
+            <div className={styles.holesControls}>
+              <div className={styles.holesToggle}>
+                <button
+                  type="button"
+                  className={`${styles.btnSecondary}${holesDays === 7 ? ` ${styles.holesToggleActive}` : ''}`}
+                  onClick={() => setHolesDays(7)}
+                >
+                  7 dni
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.btnSecondary}${holesDays === 14 ? ` ${styles.holesToggleActive}` : ''}`}
+                  onClick={() => setHolesDays(14)}
+                >
+                  14 dni
+                </button>
+              </div>
+              <span className={styles.queueBadge}>{scheduleHoles.count ?? 0}</span>
+            </div>
+          </div>
+          {!scheduleHoles.items?.length ? (
+            <p className={styles.emptyQueue}>Brak dziur — wszystkie zaplanowane zmiany są obsadzone.</p>
+          ) : (
+            <ul className={styles.holesList}>
+              {scheduleHoles.items.map((hole) => (
+                <li
+                  key={`${hole.date}-${hole.shift_template_id}`}
+                  className={styles.holesItem}
+                >
+                  <div className={styles.holesItemMain}>
+                    <strong>{hole.date}</strong>
+                    <span className={styles.holesShiftName}>{hole.shift_template_name}</span>
+                    <span className={styles.holesHours}>
+                      {hole.start_time?.slice(0, 5)} – {hole.end_time?.slice(0, 5)}
+                    </span>
+                  </div>
+                  <div className={styles.holesItemMeta}>
+                    <span className={styles.holesNeeded}>
+                      brakuje {hole.needed} / {hole.max_slots}
+                    </span>
+                    <small>
+                      Obsada: {hole.filled}
+                      {hole.holders?.length
+                        ? ` · ${hole.holders.map((h) => h.name).join(', ')}`
+                        : ' · nikt'}
+                    </small>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </section>
 

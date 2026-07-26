@@ -1172,6 +1172,73 @@ class RejectionReasonTemplateTests(APITestCase):
         self.assertIsNotNone(saved.last_used_at)
 
 
+class ScheduleHolesTests(APITestCase):
+    def setUp(self):
+        from core.models import ShiftTemplate, ShiftTemplateHours
+
+        self.employee = User.objects.create_user('emp_holes', password='pass')
+        self.manager = User.objects.create_user('mgr_holes', password='pass')
+        set_profile(self.employee, hourly_rate=20)
+        set_profile(self.manager, hourly_rate=30, is_manager=True)
+
+        self.today = date.today()
+        self.template = ShiftTemplate.objects.create(name='Wieczorna', is_active=True, max_slots=2)
+        # Cover every weekday so the next 7 days always include this template
+        for weekday in range(7):
+            ShiftTemplateHours.objects.create(
+                template=self.template,
+                weekday=weekday,
+                start_time='16:00:00',
+                end_time='22:00:00',
+            )
+
+    def authenticate(self, user):
+        token = self.client.post('/api/token/', {
+            'username': user.username,
+            'password': 'pass',
+        }).data['access']
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+
+    def test_manager_lists_holes_for_7_days(self):
+        self.authenticate(self.manager)
+        response = self.client.get('/api/schedule-holes/', {'days': 7})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data['days'], 7)
+        self.assertEqual(response.data['count'], 7)
+        self.assertEqual(len(response.data['items']), 7)
+        first = response.data['items'][0]
+        self.assertEqual(first['shift_template_name'], 'Wieczorna')
+        self.assertEqual(first['needed'], 2)
+        self.assertEqual(first['filled'], 0)
+
+    def test_filled_slot_reduces_needed(self):
+        WorkDay.objects.create(
+            employee=self.employee,
+            date=self.today,
+            start_time='16:00:00',
+            end_time='22:00:00',
+            status=WorkDay.Status.APPROVED,
+            shift_template=self.template,
+        )
+        self.authenticate(self.manager)
+        response = self.client.get('/api/schedule-holes/', {'days': 1})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['count'], 1)
+        self.assertEqual(response.data['items'][0]['needed'], 1)
+        self.assertEqual(response.data['items'][0]['filled'], 1)
+
+    def test_employee_forbidden(self):
+        self.authenticate(self.employee)
+        response = self.client.get('/api/schedule-holes/')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_days_clamped_to_14(self):
+        self.authenticate(self.manager)
+        response = self.client.get('/api/schedule-holes/', {'days': 99})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['days'], 14)
+
+
 @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
 class EmailNotificationTests(APITestCase):
     def setUp(self):

@@ -43,8 +43,10 @@ from .utils import (
     declaration_deadline_passed,
     DECLARATION_DEADLINE_MESSAGE,
     find_shift_shortages,
+    find_shortages_in_range,
     format_shortage_message,
     remember_rejection_reason,
+    serialize_shortage,
 )
 from .ical import build_workdays_ics, make_calendar_token, resolve_calendar_token
 from .schedule_copy import copy_workdays, parse_iso_date
@@ -110,6 +112,33 @@ def team_stats(request):
         'total_hours': round(total_hours, 2),
         'total_earnings': round(total_earnings, 2),
         'pending_proposals': pending_proposals,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsManager])
+def schedule_holes(request):
+    """
+    Open shift slots for the next N days (default 7, max 14).
+    Helps managers see coverage gaps beyond the tomorrow alert.
+    """
+    try:
+        days = int(request.query_params.get('days', 7))
+    except (TypeError, ValueError):
+        days = 7
+    days = max(1, min(days, 14))
+
+    start = timezone.localdate()
+    end = start + timedelta(days=days - 1)
+    raw = find_shortages_in_range(start, days)
+    items = [serialize_shortage(row) for row in raw]
+
+    return Response({
+        'days': days,
+        'date_from': start.isoformat(),
+        'date_to': end.isoformat(),
+        'count': len(items),
+        'items': items,
     })
 
 
