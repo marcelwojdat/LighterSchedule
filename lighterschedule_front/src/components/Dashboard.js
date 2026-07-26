@@ -10,6 +10,8 @@ import {
   createWorkday,
   updateWorkday,
   deleteWorkday,
+  downloadWorkdaysIcs,
+  getCalendarFeedInfo,
 } from '../api/workdays';
 import {
   getSwaps,
@@ -73,6 +75,9 @@ const Dashboard = () => {
   const [dayTemplates, setDayTemplates] = useState(null);
   const [selectedShiftId, setSelectedShiftId] = useState('');
   const [scheduleSuccess, setScheduleSuccess] = useState('');
+  const [showCalendarExport, setShowCalendarExport] = useState(false);
+  const [calendarFeed, setCalendarFeed] = useState(null);
+  const [calendarExportBusy, setCalendarExportBusy] = useState(false);
 
   useAutoDismiss(swapSuccess, setSwapSuccess);
   useAutoDismiss(scheduleSuccess, setScheduleSuccess);
@@ -93,6 +98,47 @@ const Dashboard = () => {
       setShiftTemplates(data);
     } catch (err) {
       setError(getErrorMessage(err, 'Nie udało się pobrać szablonów zmian.'));
+    }
+  };
+
+  const openCalendarExport = async () => {
+    const opening = !showCalendarExport;
+    setShowCalendarExport(opening);
+    if (!opening || calendarFeed) return;
+    try {
+      const data = await getCalendarFeedInfo();
+      setCalendarFeed(data);
+    } catch (err) {
+      setError(getErrorMessage(err, 'Nie udało się przygotować linku kalendarza.'));
+    }
+  };
+
+  const handleDownloadIcs = async (useMonth = false) => {
+    setCalendarExportBusy(true);
+    try {
+      const params = useMonth && statsMonth ? { month: statsMonth } : {};
+      await downloadWorkdaysIcs(params);
+      setScheduleSuccess(
+        useMonth
+          ? `Pobrano grafik .ics za ${statsMonth}.`
+          : 'Pobrano nadchodzące zatwierdzone zmiany (.ics).'
+      );
+      setError('');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Nie udało się pobrać pliku kalendarza.'));
+    } finally {
+      setCalendarExportBusy(false);
+    }
+  };
+
+  const copyCalendarFeedUrl = async () => {
+    if (!calendarFeed?.url) return;
+    try {
+      await navigator.clipboard.writeText(calendarFeed.url);
+      setScheduleSuccess('Skopiowano link subskrypcji kalendarza.');
+      setError('');
+    } catch {
+      setError('Nie udało się skopiować linku — zaznacz go ręcznie.');
     }
   };
 
@@ -910,7 +956,64 @@ const Dashboard = () => {
               <p className={styles.calendarLabel}>Kalendarz</p>
               <div className={styles.calendarHeaderTitle}>Deklaruj swoją dyspozycyjność</div>
             </div>
+            <button
+              type="button"
+              className={styles.calendarExportToggle}
+              onClick={openCalendarExport}
+              aria-expanded={showCalendarExport}
+            >
+              {showCalendarExport ? 'Ukryj eksport' : 'Dodaj do kalendarza'}
+            </button>
           </div>
+          {showCalendarExport ? (
+            <div className={styles.calendarExportPanel}>
+              <p className={styles.calendarExportHint}>
+                Google Calendar: Ustawienia → Importuj lub dodaj kalendarz przez URL.
+                Apple Calendar: otwórz pobrany plik .ics albo dodaj subskrypcję kalendarza.
+              </p>
+              <div className={styles.calendarExportActions}>
+                <button
+                  type="button"
+                  className={styles.calendarExportBtn}
+                  disabled={calendarExportBusy}
+                  onClick={() => handleDownloadIcs(false)}
+                >
+                  Pobierz .ics (nadchodzące)
+                </button>
+                <button
+                  type="button"
+                  className={styles.calendarExportBtnSecondary}
+                  disabled={calendarExportBusy}
+                  onClick={() => handleDownloadIcs(true)}
+                >
+                  Pobierz .ics ({statsMonth})
+                </button>
+              </div>
+              {calendarFeed?.url ? (
+                <div className={styles.calendarFeedBox}>
+                  <div className={styles.calendarFeedLabel}>Subskrypcja (auto-odświeżanie)</div>
+                  <code className={styles.calendarFeedUrl}>{calendarFeed.url}</code>
+                  <div className={styles.calendarExportActions}>
+                    <button
+                      type="button"
+                      className={styles.calendarExportBtnSecondary}
+                      onClick={copyCalendarFeedUrl}
+                    >
+                      Kopiuj link
+                    </button>
+                    {calendarFeed.webcal_url ? (
+                      <a
+                        className={styles.calendarExportBtnSecondary}
+                        href={calendarFeed.webcal_url}
+                      >
+                        Otwórz w kalendarzu
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <div className={styles.calendarWrapper}>
             <div className={styles.calendarContainer}>
               <Calendar

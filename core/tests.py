@@ -803,3 +803,90 @@ class ShiftSlotLimitTests(APITestCase):
         }, format='json')
         self.assertEqual(blocked.status_code, status.HTTP_400_BAD_REQUEST, blocked.data)
         self.assertIn('Poranna', str(blocked.data))
+
+
+class CalendarExportTests(APITestCase):
+    def setUp(self):
+        self.employee = User.objects.create_user('emp_cal', password='pass', first_name='Ola', last_name='Nowak')
+        set_profile(self.employee, hourly_rate=20)
+        self.future = date.today() + timedelta(days=3)
+        from core.models import ShiftTemplate, ShiftTemplateHours
+
+        self.template = ShiftTemplate.objects.create(name='Poranna', is_active=True, max_slots=1)
+        ShiftTemplateHours.objects.create(
+            template=self.template,
+            weekday=self.future.weekday(),
+            start_time='06:00:00',
+            end_time='14:00:00',
+        )
+        self.workday = WorkDay.objects.create(
+            employee=self.employee,
+            date=self.future,
+            start_time='06:00:00',
+            end_time='14:00:00',
+            status=WorkDay.Status.APPROVED,
+            shift_template=self.template,
+            note='Wyjdę o 13:00',
+        )
+
+    def authenticate(self, user):
+        token = self.client.post('/api/token/', {
+            'username': user.username,
+            'password': 'pass',
+        }).data['access']
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+
+    def test_export_ics_requires_auth_or_token(self):
+        response = self.client.get('/api/workdays/export.ics/')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_authenticated_export_contains_approved_event(self):
+        self.authenticate(self.employee)
+        response = self.client.get('/api/workdays/export.ics/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('text/calendar', response['Content-Type'])
+        body = response.content.decode('utf-8')
+        self.assertIn('BEGIN:VCALENDAR', body)
+        self.assertIn('SUMMARY:Zmiana Poranna', body)
+        self.assertIn('Notatka: Wyjdę o 13:00', body)
+        self.assertIn(f'UID:workday-{self.workday.id}@lighterschedule', body)
+
+    def test_export_excludes_proposed_and_past(self):
+        past = date.today() - timedelta(days=2)
+        WorkDay.objects.create(
+            employee=self.employee,
+            date=past,
+            start_time='09:00:00',
+            end_time='17:00:00',
+            status=WorkDay.Status.APPROVED,
+        )
+        WorkDay.objects.create(
+            employee=self.employee,
+            date=self.future + timedelta(days=1),
+            start_time='09:00:00',
+            end_time='17:00:00',
+            status=WorkDay.Status.PROPOSED,
+        )
+        self.authenticate(self.employee)
+        body = self.client.get('/api/workdays/export.ics/').content.decode('utf-8')
+        self.assertEqual(body.count('BEGIN:VEVENT'), 1)
+
+    def test_calendar_feed_token_works_without_auth(self):
+        self.authenticate(self.employee)
+        feed = self.client.get('/api/workdays/calendar-feed/')
+        self.assertEqual(feed.status_code, status.HTTP_200_OK)
+        token = feed.data['token']
+        self.assertTrue(feed.data['url'])
+        self.assertTrue(feed.data['webcal_url'].startswith('webcal://'))
+
+        self.client.credentials()
+        response = self.client.get('/api/workdays/export.ics/', {'token': token})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('SUMMARY:Zmiana Poranna', response.content.decode('utf-8'))
+
+    def test_month_filter(self):
+        self.authenticate(self.employee)
+        month = self.future.strftime('%Y-%m')
+        response = self.client.get('/api/workdays/export.ics/', {'month': month})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('SUMMARY:Zmiana Poranna', response.content.decode('utf-8'))

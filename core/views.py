@@ -28,6 +28,7 @@ from .serializers import (
     ShiftTemplateSerializer,
 )
 from .utils import ensure_user_profile, assert_shift_slot_available
+from .ical import build_workdays_ics, make_calendar_token, resolve_calendar_token
 
 
 @api_view(['GET'])
@@ -669,6 +670,77 @@ class WorkDayViewSet(viewsets.ModelViewSet):
                 raise PermissionDenied('Nie możesz usuwać zatwierdzonego grafiku.')
 
         instance.delete()
+
+    def _resolve_calendar_user(self, request):
+        """Authenticated user, or user id from signed ?token= for calendar feeds."""
+        if request.user and request.user.is_authenticated:
+            return request.user
+
+        user_id = resolve_calendar_token(request.query_params.get('token'))
+        if user_id is None:
+            return None
+        return User.objects.filter(pk=user_id).first()
+
+    def _approved_export_queryset(self, user, request):
+        qs = WorkDay.objects.filter(
+            employee=user,
+            status=WorkDay.Status.APPROVED,
+        ).select_related('role', 'shift_template').order_by('date', 'start_time')
+
+        month_value = request.query_params.get('month')
+        if month_value:
+            try:
+                year_str, month_str = month_value.split('-')
+                year = int(year_str)
+                month = int(month_str)
+                month_start = date(year, month, 1)
+                month_end = date(year, month, calendar.monthrange(year, month)[1])
+            except (ValueError, TypeError):
+                return WorkDay.objects.none()
+            return qs.filter(date__gte=month_start, date__lte=month_end)
+
+        return qs.filter(date__gte=timezone.localdate())
+
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='export.ics',
+        permission_classes=[AllowAny],
+    )
+    def export_ics(self, request):
+        user = self._resolve_calendar_user(request)
+        if user is None:
+            return Response(
+                {'error': 'Wymagane logowanie lub poprawny token kalendarza.'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        workdays = list(self._approved_export_queryset(user, request))
+        calendar_name = f'LighterSchedule — {user.get_full_name() or user.username}'
+        payload = build_workdays_ics(workdays, calendar_name=calendar_name)
+
+        filename = 'grafik.ics'
+        month_value = request.query_params.get('month')
+        if month_value:
+            filename = f'grafik-{month_value}.ics'
+
+        response = HttpResponse(payload, content_type='text/calendar; charset=utf-8')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Cache-Control'] = 'no-cache'
+        return response
+
+    @action(detail=False, methods=['get'], url_path='calendar-feed', permission_classes=[IsAuthenticated])
+    def calendar_feed(self, request):
+        """Return a stable subscription URL (token) for Google / Apple Calendar."""
+        token = make_calendar_token(request.user.id)
+        relative = f'/api/workdays/export.ics/?token={token}'
+        absolute = request.build_absolute_uri(relative)
+        webcal = absolute.replace('https://', 'webcal://').replace('http://', 'webcal://')
+        return Response({
+            'token': token,
+            'url': absolute,
+            'webcal_url': webcal,
+        })
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsManager])
     def approve(self, request, pk=None):

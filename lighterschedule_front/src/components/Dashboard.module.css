@@ -55,6 +55,104 @@
   align-items: center;
   gap: 14px;
   margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.calendarExportToggle {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #1e293b;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.calendarExportToggle:hover {
+  border-color: #3b82f6;
+  color: #1d4ed8;
+}
+
+.calendarExportPanel {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.calendarExportHint {
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #475569;
+}
+
+.calendarExportActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.calendarExportBtn,
+.calendarExportBtnSecondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.calendarExportBtn {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.calendarExportBtn:disabled,
+.calendarExportBtnSecondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.calendarExportBtnSecondary {
+  background: #fff;
+  color: #334155;
+  border-color: #cbd5e1;
+}
+
+.calendarFeedBox {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.calendarFeedLabel {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.calendarFeedUrl {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: #0f172a;
+  word-break: break-all;
+  white-space: pre-wrap;
 }
 
 .calendarLabel {
@@ -706,6 +804,29 @@
   background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
   border-color: #334155;
   box-shadow: 0 14px 32px rgba(0, 0, 0, 0.25);
+}
+
+:global([data-theme='dark']) .calendarExportToggle,
+:global([data-theme='dark']) .calendarExportBtnSecondary {
+  background: #0f172a;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+
+:global([data-theme='dark']) .calendarExportPanel {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+:global([data-theme='dark']) .calendarExportHint,
+:global([data-theme='dark']) .calendarFeedLabel {
+  color: #94a3b8;
+}
+
+:global([data-theme='dark']) .calendarFeedUrl {
+  background: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
 }
 
 :global([data-theme='dark']) .statCard {
