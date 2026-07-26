@@ -14,6 +14,7 @@ from core.views import (
     team_stats,
     notifications,
     payroll_report,
+    schedule_settings,
 )
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
@@ -34,6 +35,7 @@ urlpatterns = [
     path('api/stats/', team_stats, name='team_stats'),
     path('api/stats/payroll.pdf', payroll_report, name='payroll_report'),
     path('api/notifications/', notifications, name='notifications'),
+    path('api/schedule-settings/', schedule_settings, name='schedule_settings'),
     path('api/', include(router.urls)),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),

@@ -16,7 +16,7 @@ from django.db.models import Q
 from django.http import HttpResponse
 from django.utils import timezone
 
-from .models import TaskType, WorkDay, SwapRequest, EmployeeProfile, ShiftTemplate
+from .models import TaskType, WorkDay, SwapRequest, EmployeeProfile, ShiftTemplate, ScheduleSettings
 from .permissions import is_manager, IsManager
 from .serializers import (
     TaskTypeSerializer,
@@ -26,8 +26,14 @@ from .serializers import (
     UserProfileUpdateSerializer,
     ManagerUserCreateSerializer,
     ShiftTemplateSerializer,
+    ScheduleSettingsSerializer,
 )
-from .utils import ensure_user_profile, assert_shift_slot_available
+from .utils import (
+    ensure_user_profile,
+    assert_shift_slot_available,
+    declaration_deadline_passed,
+    DECLARATION_DEADLINE_MESSAGE,
+)
 from .ical import build_workdays_ics, make_calendar_token, resolve_calendar_token
 
 
@@ -85,6 +91,26 @@ def team_stats(request):
         'total_earnings': round(total_earnings, 2),
         'pending_proposals': pending_proposals,
     })
+
+
+@api_view(['GET', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def schedule_settings(request):
+    settings_obj = ScheduleSettings.load()
+
+    if request.method == 'GET':
+        return Response(ScheduleSettingsSerializer(settings_obj).data)
+
+    if not is_manager(request.user):
+        return Response(
+            {'error': 'Tylko kierownik może zmieniać termin deklaracji.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    serializer = ScheduleSettingsSerializer(settings_obj, data=request.data, partial=True)
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+    return Response(serializer.data)
 
 
 @api_view(['GET'])
@@ -621,9 +647,14 @@ class WorkDayViewSet(viewsets.ModelViewSet):
 
         return queryset
 
+    def _ensure_employee_can_declare(self, user):
+        if not is_manager(user) and declaration_deadline_passed():
+            raise PermissionDenied(DECLARATION_DEADLINE_MESSAGE)
+
     def perform_create(self, serializer):
         user = self.request.user
         ensure_user_profile(user)
+        self._ensure_employee_can_declare(user)
 
         if is_manager(user):
             employee = serializer.validated_data.get('employee', user)
@@ -645,6 +676,7 @@ class WorkDayViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
 
         if not is_manager(user):
+            self._ensure_employee_can_declare(user)
             if instance.employee != user:
                 raise PermissionDenied('Nie możesz edytować cudzego grafiku.')
             if instance.status == WorkDay.Status.APPROVED:
@@ -664,6 +696,7 @@ class WorkDayViewSet(viewsets.ModelViewSet):
         user = self.request.user
 
         if not is_manager(user):
+            self._ensure_employee_can_declare(user)
             if instance.employee != user:
                 raise PermissionDenied('Nie możesz usuwać cudzego grafiku.')
             if instance.status == WorkDay.Status.APPROVED:

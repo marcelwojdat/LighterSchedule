@@ -1,4 +1,6 @@
-from .models import EmployeeProfile, WorkDay
+from django.utils import timezone
+
+from .models import EmployeeProfile, ScheduleSettings, WorkDay
 
 
 def ensure_user_profile(user):
@@ -8,6 +10,25 @@ def ensure_user_profile(user):
 
     profile, _created = EmployeeProfile.objects.get_or_create(user=user)
     return profile
+
+
+def get_schedule_settings():
+    return ScheduleSettings.load()
+
+
+def declaration_deadline_passed(today=None):
+    """True when a deadline is set and local today is after that date."""
+    settings_obj = get_schedule_settings()
+    deadline = settings_obj.declaration_deadline
+    if deadline is None:
+        return False
+    current = today or timezone.localdate()
+    return current > deadline
+
+
+DECLARATION_DEADLINE_MESSAGE = (
+    'Termin składania deklaracji minął. Od teraz grafik może zmieniać tylko kierownik.'
+)
 
 
 def employee_display_name(user):

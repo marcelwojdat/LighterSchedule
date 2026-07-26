@@ -890,3 +890,64 @@ class CalendarExportTests(APITestCase):
         response = self.client.get('/api/workdays/export.ics/', {'month': month})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('SUMMARY:Zmiana Poranna', response.content.decode('utf-8'))
+
+
+class DeclarationDeadlineTests(APITestCase):
+    def setUp(self):
+        self.employee = User.objects.create_user('emp_deadline', password='pass')
+        self.manager = User.objects.create_user('mgr_deadline', password='pass')
+        set_profile(self.employee, hourly_rate=20)
+        set_profile(self.manager, hourly_rate=30, is_manager=True)
+        self.future = date.today() + timedelta(days=4)
+
+    def authenticate(self, user):
+        token = self.client.post('/api/token/', {
+            'username': user.username,
+            'password': 'pass',
+        }).data['access']
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+
+    def test_manager_sets_deadline(self):
+        self.authenticate(self.manager)
+        deadline = (date.today() + timedelta(days=2)).isoformat()
+        response = self.client.patch('/api/schedule-settings/', {
+            'declaration_deadline': deadline,
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data['declaration_deadline'], deadline)
+        self.assertFalse(response.data['declarations_closed'])
+
+    def test_employee_blocked_after_deadline(self):
+        from core.models import ScheduleSettings
+
+        settings_obj = ScheduleSettings.load()
+        settings_obj.declaration_deadline = date.today() - timedelta(days=1)
+        settings_obj.save()
+
+        self.authenticate(self.employee)
+        settings = self.client.get('/api/schedule-settings/')
+        self.assertTrue(settings.data['declarations_closed'])
+
+        response = self.client.post('/api/workdays/', {
+            'date': self.future.isoformat(),
+            'start_time': '09:00:00',
+            'end_time': '17:00:00',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_manager_can_edit_after_deadline(self):
+        from core.models import ScheduleSettings
+
+        settings_obj = ScheduleSettings.load()
+        settings_obj.declaration_deadline = date.today() - timedelta(days=1)
+        settings_obj.save()
+
+        self.authenticate(self.manager)
+        response = self.client.post('/api/workdays/', {
+            'date': self.future.isoformat(),
+            'employee': self.employee.id,
+            'start_time': '09:00:00',
+            'end_time': '17:00:00',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data['status'], 'approved')

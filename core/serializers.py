@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.utils import timezone
-from .models import TaskType, WorkDay, SwapRequest, ShiftTemplate, ShiftTemplateHours
+from .models import TaskType, WorkDay, SwapRequest, ShiftTemplate, ShiftTemplateHours, ScheduleSettings
 from .permissions import is_manager
 from .utils import ensure_user_profile, assert_shift_slot_available, get_shift_slots_info
 from datetime import datetime, date as date_cls
@@ -10,6 +10,21 @@ from datetime import datetime, date as date_cls
 WEEKDAY_LABELS = (
     'Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota', 'Niedziela',
 )
+
+
+class ScheduleSettingsSerializer(serializers.ModelSerializer):
+    declarations_closed = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ScheduleSettings
+        fields = ['declaration_deadline', 'declarations_closed', 'updated_at']
+        read_only_fields = ['updated_at', 'declarations_closed']
+
+    def get_declarations_closed(self, obj):
+        if obj.declaration_deadline is None:
+            return False
+        return timezone.localdate() > obj.declaration_deadline
+
 
 class UserSerializer(serializers.ModelSerializer):
     hourly_rate = serializers.SerializerMethodField()

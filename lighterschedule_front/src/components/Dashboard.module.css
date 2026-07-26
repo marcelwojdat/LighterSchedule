@@ -23,6 +23,28 @@
   color: #0f172a;
 }
 
+.deadlineBanner {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.deadlineInfo {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
 .dashboardBody {
   display: grid;
   grid-template-columns: 1fr;
@@ -804,6 +826,18 @@
   background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
   border-color: #334155;
   box-shadow: 0 14px 32px rgba(0, 0, 0, 0.25);
+}
+
+:global([data-theme='dark']) .deadlineBanner {
+  background: #431407;
+  border-color: #9a3412;
+  color: #fdba74;
+}
+
+:global([data-theme='dark']) .deadlineInfo {
+  background: #1e3a8a;
+  border-color: #1d4ed8;
+  color: #bfdbfe;
 }
 
 :global([data-theme='dark']) .calendarExportToggle,

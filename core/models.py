@@ -10,6 +10,37 @@ class EmployeeProfile(models.Model):
     def __str__(self):
         return self.user.username
 
+
+class ScheduleSettings(models.Model):
+    """Singleton (pk=1) for schedule-wide rules managed by the manager."""
+    declaration_deadline = models.DateField(
+        null=True,
+        blank=True,
+        help_text='Pracownicy mogą składać i edytować deklaracje do tego dnia włącznie. Puste = bez limitu.',
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Ustawienia grafiku'
+        verbose_name_plural = 'Ustawienia grafiku'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        pass
+
+    @classmethod
+    def load(cls):
+        obj, _created = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        if self.declaration_deadline:
+            return f'Deklaracje do {self.declaration_deadline.isoformat()}'
+        return 'Ustawienia grafiku (bez deadline)'
+
 class TaskType(models.Model):
     name = models.CharField(max_length=50, unique=True)
 

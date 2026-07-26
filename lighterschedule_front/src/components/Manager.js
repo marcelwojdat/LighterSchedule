@@ -24,6 +24,7 @@ import {
 } from '../api/shiftTemplates';
 import { downloadPayrollPdf, getTeamStats } from '../api/stats';
 import { getNotifications } from '../api/notifications';
+import { getScheduleSettings, updateScheduleSettings } from '../api/scheduleSettings';
 import { useTheme } from '../hooks/useTheme';
 import { useAutoDismiss } from '../hooks/useAutoDismiss';
 import {
@@ -135,6 +136,7 @@ const Manager = () => {
   const [notifications, setNotifications] = useState({ total: 0, items: [] });
   const [dayNote, setDayNote] = useState('');
   const [showShiftTemplates, setShowShiftTemplates] = useState(false);
+  const [declarationDeadline, setDeclarationDeadline] = useState('');
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const [showAllUsers, setShowAllUsers] = useState(false);
   const [moreOptionsUserId, setMoreOptionsUserId] = useState(null);
@@ -161,6 +163,33 @@ const Manager = () => {
       setShiftTemplates(data);
     } catch (e) {
       setError(getErrorMessage(e, 'Nie udało się pobrać szablonów zmian'));
+    }
+  };
+
+  const fetchScheduleSettings = async () => {
+    try {
+      const data = await getScheduleSettings();
+      setDeclarationDeadline(data.declaration_deadline || '');
+    } catch (e) {
+      setError(getErrorMessage(e, 'Nie udało się pobrać ustawień grafiku'));
+    }
+  };
+
+  const handleSaveDeclarationDeadline = async (e) => {
+    e.preventDefault();
+    try {
+      const data = await updateScheduleSettings({
+        declaration_deadline: declarationDeadline || null,
+      });
+      setDeclarationDeadline(data.declaration_deadline || '');
+      setSuccess(
+        data.declaration_deadline
+          ? `Termin deklaracji ustawiony na ${data.declaration_deadline}.`
+          : 'Usunięto termin deklaracji — pracownicy mogą deklarować bez limitu.'
+      );
+      setError('');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Nie udało się zapisać terminu deklaracji.'));
     }
   };
 
@@ -267,6 +296,7 @@ const Manager = () => {
       fetchMonthCoverage(),
       fetchTaskTypes(),
       fetchShiftTemplates(),
+      fetchScheduleSettings(),
       fetchNotifications(),
       employeeId ? fetchWorkdaysForEmployee(employeeId) : Promise.resolve(),
     ]);
@@ -1552,6 +1582,46 @@ const Manager = () => {
               {showShiftTemplates ? 'Ukryj szablony zmian' : 'Szablony zmian'}
             </button>
           </div>
+
+          <form className={styles.deadlineForm} onSubmit={handleSaveDeclarationDeadline}>
+            <div>
+              <label htmlFor="declaration-deadline" className={styles.deadlineLabel}>
+                Deklaruj do dnia
+              </label>
+              <p className={styles.statHint}>
+                Po tym terminie pracownicy nie mogą składać ani edytować deklaracji — tylko kierownik.
+              </p>
+            </div>
+            <div className={styles.deadlineControls}>
+              <input
+                id="declaration-deadline"
+                type="date"
+                value={declarationDeadline}
+                onChange={(e) => setDeclarationDeadline(e.target.value)}
+              />
+              <button type="submit" className={styles.btnPrimary}>
+                Zapisz termin
+              </button>
+              {declarationDeadline ? (
+                <button
+                  type="button"
+                  className={styles.btnSecondary}
+                  onClick={async () => {
+                    setDeclarationDeadline('');
+                    try {
+                      await updateScheduleSettings({ declaration_deadline: null });
+                      setSuccess('Usunięto termin deklaracji.');
+                      setError('');
+                    } catch (err) {
+                      setError(getErrorMessage(err, 'Nie udało się usunąć terminu.'));
+                    }
+                  }}
+                >
+                  Wyczyść
+                </button>
+              ) : null}
+            </div>
+          </form>
 
           {showShiftTemplates ? (
             <div className={styles.shiftTemplatesPanel}>

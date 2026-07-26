@@ -23,6 +23,7 @@ import { getUsers, getSwappableWorkdays } from '../api/users';
 import { getTaskTypes } from '../api/taskTypes';
 import { getShiftTemplates } from '../api/shiftTemplates';
 import { getNotifications } from '../api/notifications';
+import { getScheduleSettings } from '../api/scheduleSettings';
 import { useTheme } from '../hooks/useTheme';
 import { useAutoDismiss } from '../hooks/useAutoDismiss';
 import {
@@ -78,6 +79,7 @@ const Dashboard = () => {
   const [showCalendarExport, setShowCalendarExport] = useState(false);
   const [calendarFeed, setCalendarFeed] = useState(null);
   const [calendarExportBusy, setCalendarExportBusy] = useState(false);
+  const [scheduleSettings, setScheduleSettings] = useState(null);
 
   useAutoDismiss(swapSuccess, setSwapSuccess);
   useAutoDismiss(scheduleSuccess, setScheduleSuccess);
@@ -100,6 +102,20 @@ const Dashboard = () => {
       setError(getErrorMessage(err, 'Nie udało się pobrać szablonów zmian.'));
     }
   };
+
+  const fetchScheduleSettings = async () => {
+    try {
+      const data = await getScheduleSettings();
+      setScheduleSettings(data);
+    } catch {
+      setScheduleSettings(null);
+    }
+  };
+
+  const declarationsClosed = Boolean(scheduleSettings?.declarations_closed);
+  const deadlineMessage = scheduleSettings?.declaration_deadline
+    ? `Termin deklaracji minął (${scheduleSettings.declaration_deadline}). Grafik może zmieniać tylko kierownik.`
+    : 'Termin deklaracji minął. Grafik może zmieniać tylko kierownik.';
 
   const openCalendarExport = async () => {
     const opening = !showCalendarExport;
@@ -308,6 +324,11 @@ const Dashboard = () => {
   };
 
   const setChoosedHours = () => {
+    if (declarationsClosed) {
+      setError(deadlineMessage);
+      return;
+    }
+
     if (!selectedDate) {
       setError('Wybierz dzień, aby ustawić godziny.');
       return;
@@ -377,6 +398,11 @@ const Dashboard = () => {
   };
 
   const removeDateFromSelection = async (dateStr) => {
+    if (declarationsClosed) {
+      setError(deadlineMessage);
+      return;
+    }
+
     const existing = getWorkdayForDate(dateStr);
 
     if (existing?.status === 'approved') {
@@ -451,6 +477,11 @@ const Dashboard = () => {
   const monthStats = getMonthStats(statsMonth);
 
   const setSchedule = async () => {
+    if (declarationsClosed) {
+      setError(deadlineMessage);
+      return;
+    }
+
     const entries = Object.entries(selectedDates);
     if (entries.length === 0) {
       setError('Dodaj przynajmniej jedną deklarację przed wysłaniem.');
@@ -520,6 +551,7 @@ const Dashboard = () => {
     fetchColleagues();
     fetchTaskTypes();
     fetchShiftTemplates();
+    fetchScheduleSettings();
     fetchNotifications();
   }, []);
 
@@ -900,6 +932,13 @@ const Dashboard = () => {
       {error ? <div className={styles.rejectionReason}>{error}</div> : null}
       {scheduleSuccess ? <div className={styles.swapSuccess}>{scheduleSuccess}</div> : null}
       {swapSuccess ? <div className={styles.swapSuccess}>{swapSuccess}</div> : null}
+      {declarationsClosed ? (
+        <div className={styles.deadlineBanner}>{deadlineMessage}</div>
+      ) : scheduleSettings?.declaration_deadline ? (
+        <div className={styles.deadlineInfo}>
+          Deklaracje można składać do {scheduleSettings.declaration_deadline} włącznie.
+        </div>
+      ) : null}
       {notifications.items?.length ? (
         <div className={styles.notificationsBanner}>
           {notifications.items.map((item) => (
@@ -1049,7 +1088,8 @@ const Dashboard = () => {
           <input
             type="button"
             onClick={setSchedule}
-            value="Wyślij deklaracje"
+            value={declarationsClosed ? 'Termin deklaracji minął' : 'Wyślij deklaracje'}
+            disabled={declarationsClosed}
             className={`${styles.scheduleSetBtn} ${styles.saveScheduleBtn}`}
           />
         </div>
