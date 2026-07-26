@@ -966,8 +966,13 @@ const Manager = () => {
       {success ? <div className={styles.successBox}>{success}</div> : null}
       {notifications.items?.length ? (
         <div className={styles.notificationsBanner}>
-          {notifications.items.map((item) => (
-            <div key={item.type} className={styles.notificationItem}>
+          {notifications.items.map((item, index) => (
+            <div
+              key={`${item.type}-${item.shift_template_id || item.date || index}`}
+              className={`${styles.notificationItem}${
+                item.type === 'shortage' ? ` ${styles.notificationShortage}` : ''
+              }`}
+            >
               {item.message}
             </div>
           ))}

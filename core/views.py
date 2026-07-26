@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from io import BytesIO
 import calendar
 
@@ -33,6 +33,8 @@ from .utils import (
     assert_shift_slot_available,
     declaration_deadline_passed,
     DECLARATION_DEADLINE_MESSAGE,
+    find_shift_shortages,
+    format_shortage_message,
 )
 from .ical import build_workdays_ics, make_calendar_token, resolve_calendar_token
 from .schedule_copy import copy_workdays, parse_iso_date
@@ -140,7 +142,20 @@ def notifications(request):
                 'count': pending_swaps,
                 'message': f'Masz {pending_swaps} zamian do zatwierdzenia.',
             })
-        total = pending_proposals + pending_swaps
+
+        tomorrow = timezone.localdate() + timedelta(days=1)
+        shortage_needed = 0
+        for shortage in find_shift_shortages(tomorrow):
+            shortage_needed += shortage['needed']
+            items.append({
+                'type': 'shortage',
+                'count': shortage['needed'],
+                'shift_template_id': shortage['shift_template_id'],
+                'date': shortage['date'].isoformat(),
+                'message': format_shortage_message(shortage),
+            })
+
+        total = pending_proposals + pending_swaps + shortage_needed
     else:
         pending_received = SwapRequest.objects.filter(
             target_user=user,

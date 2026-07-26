@@ -38,6 +38,12 @@
   font-weight: 600;
 }
 
+.notificationShortage {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
 /* —— Stats strip —— */
 .statsBar {
   margin-top: 14px;
@@ -1444,6 +1450,12 @@
   background: #431407;
   border-color: #9a3412;
   color: #fdba74;
+}
+
+:global([data-theme='dark']) .notificationShortage {
+  background: #450a0a;
+  border-color: #7f1d1d;
+  color: #fca5a5;
 }
 
 :global([data-theme='dark']) .btnSecondary {

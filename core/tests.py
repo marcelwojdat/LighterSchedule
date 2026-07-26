@@ -360,15 +360,88 @@ class NotificationTests(APITestCase):
             status=WorkDay.Status.PROPOSED,
         )
 
-    def test_manager_sees_pending_proposal_notification(self):
+    def authenticate(self, username):
         token = self.client.post('/api/token/', {
-            'username': 'mgr_n',
+            'username': username,
             'password': 'pass',
         }).data['access']
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+
+    def test_manager_sees_pending_proposal_notification(self):
+        self.authenticate('mgr_n')
         response = self.client.get('/api/notifications/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertGreaterEqual(response.data['total'], 1)
+
+    def test_manager_sees_tomorrow_shortage_alert(self):
+        from core.models import ShiftTemplate, ShiftTemplateHours
+        from core.utils import format_shortage_message
+
+        tomorrow = date.today() + timedelta(days=1)
+        template = ShiftTemplate.objects.create(name='Wieczorna', is_active=True, max_slots=2)
+        ShiftTemplateHours.objects.create(
+            template=template,
+            weekday=tomorrow.weekday(),
+            start_time='16:00:00',
+            end_time='22:00:00',
+        )
+
+        self.authenticate('mgr_n')
+        response = self.client.get('/api/notifications/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        shortage_items = [item for item in response.data['items'] if item['type'] == 'shortage']
+        self.assertEqual(len(shortage_items), 1)
+        self.assertEqual(shortage_items[0]['count'], 2)
+        self.assertEqual(
+            shortage_items[0]['message'],
+            format_shortage_message({
+                'shift_template_name': 'Wieczorna',
+                'needed': 2,
+            }),
+        )
+        self.assertGreaterEqual(response.data['total'], 3)  # 1 proposal + 2 missing seats
+
+    def test_no_shortage_when_slots_full(self):
+        from core.models import ShiftTemplate, ShiftTemplateHours
+
+        tomorrow = date.today() + timedelta(days=1)
+        template = ShiftTemplate.objects.create(name='Poranna', is_active=True, max_slots=1)
+        ShiftTemplateHours.objects.create(
+            template=template,
+            weekday=tomorrow.weekday(),
+            start_time='06:00:00',
+            end_time='14:00:00',
+        )
+        WorkDay.objects.create(
+            employee=self.employee,
+            date=tomorrow,
+            start_time='06:00:00',
+            end_time='14:00:00',
+            status=WorkDay.Status.APPROVED,
+            shift_template=template,
+        )
+
+        self.authenticate('mgr_n')
+        response = self.client.get('/api/notifications/')
+        shortage_items = [item for item in response.data['items'] if item['type'] == 'shortage']
+        self.assertEqual(shortage_items, [])
+
+    def test_employee_does_not_see_shortage_alerts(self):
+        from core.models import ShiftTemplate, ShiftTemplateHours
+
+        tomorrow = date.today() + timedelta(days=1)
+        template = ShiftTemplate.objects.create(name='Wieczorna', is_active=True, max_slots=1)
+        ShiftTemplateHours.objects.create(
+            template=template,
+            weekday=tomorrow.weekday(),
+            start_time='16:00:00',
+            end_time='22:00:00',
+        )
+
+        self.authenticate('emp_n')
+        response = self.client.get('/api/notifications/')
+        shortage_items = [item for item in response.data['items'] if item['type'] == 'shortage']
+        self.assertEqual(shortage_items, [])
 
 
 class RegistrationTests(APITestCase):

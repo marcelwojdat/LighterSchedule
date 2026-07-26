@@ -84,3 +84,44 @@ def assert_shift_slot_available(template, work_date, exclude_workday_id=None):
     info = get_shift_slots_info(template, work_date, exclude_workday_id)
     if info and info['is_full']:
         raise ValueError(shift_slot_full_message(template))
+
+
+def find_shift_shortages(work_date):
+    """
+    Active templates scheduled that weekday with unfilled approved slots.
+    Returns list of dicts: shift_template_id/name, date, needed, filled, max_slots.
+    """
+    from .models import ShiftTemplate
+
+    if work_date is None:
+        return []
+
+    shortages = []
+    templates = ShiftTemplate.objects.filter(is_active=True).prefetch_related('hours')
+    for template in templates:
+        if template.hours_for_date(work_date) is None:
+            continue
+        info = get_shift_slots_info(template, work_date)
+        if not info or info['is_full']:
+            continue
+        needed = info['max_slots'] - info['filled']
+        if needed <= 0:
+            continue
+        shortages.append({
+            'shift_template_id': template.id,
+            'shift_template_name': template.name,
+            'date': work_date,
+            'needed': needed,
+            'filled': info['filled'],
+            'max_slots': info['max_slots'],
+        })
+    return shortages
+
+
+def format_shortage_message(shortage, *, day_label='Jutro'):
+    """Polish alert line, e.g. 'Jutro brakuje osoby na Wieczorną.'"""
+    name = shortage['shift_template_name']
+    needed = shortage['needed']
+    if needed == 1:
+        return f'{day_label} brakuje osoby na {name}.'
+    return f'{day_label} brakuje {needed} osób na {name}.'
