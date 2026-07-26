@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import Auth from './Auth';
@@ -85,6 +85,7 @@ const Dashboard = () => {
   const [scheduleSettings, setScheduleSettings] = useState(null);
   const [copyBusy, setCopyBusy] = useState(false);
   const [weekStart, setWeekStart] = useState(() => formatDateStr(getMonday()));
+  const swapsSectionRef = useRef(null);
 
   useAutoDismiss(swapSuccess, setSwapSuccess);
   useAutoDismiss(scheduleSuccess, setScheduleSuccess);
@@ -268,6 +269,27 @@ const Dashboard = () => {
       !isPastDate(day.date) &&
       !hasActiveSwapForWorkday(day.id)
   );
+
+  const startGiveAwayShift = (workday) => {
+    if (!workday || workday.status !== 'approved') return;
+    if (isPastDate(workday.date) || hasActiveSwapForWorkday(workday.id)) {
+      setError('Tej zmiany nie można teraz oddać (przeszła albo prośba już trwa).');
+      return;
+    }
+    setSwapWorkDayId(String(workday.id));
+    setSwapTargetId('');
+    setSwapTargetWorkDayId('');
+    setTargetSwappableDays([]);
+    setError('');
+    setSwapSuccess(
+      `Oddajesz zmianę ${workday.date} (${workday.start_time.slice(0, 5)}-${workday.end_time.slice(0, 5)}). Wybierz współpracownika i wyślij prośbę.`
+    );
+    setSelectedDate('');
+    setShowPastDateWarning(false);
+    requestAnimationFrame(() => {
+      swapsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
 
   const createSwapRequest = async () => {
     if (!swapWorkDayId || !swapTargetId) {
@@ -814,6 +836,10 @@ const Dashboard = () => {
     }
 
     if (existingWorkday?.status === 'approved') {
+      const canGiveAway =
+        !isPastDate(existingWorkday.date) && !hasActiveSwapForWorkday(existingWorkday.id);
+      const giveAwayPending = hasActiveSwapForWorkday(existingWorkday.id);
+
       return (
         <>
           <h2 className={styles.popupTitle}>Zatwierdzony grafik</h2>
@@ -828,7 +854,19 @@ const Dashboard = () => {
             <div className={styles.dayNoteBox}>Notatka: {existingWorkday.note}</div>
           ) : null}
           <p className={styles.popupInfo}>Ten dzień został zatwierdzony przez kierownika. Nie możesz go edytować.</p>
+          {giveAwayPending ? (
+            <p className={styles.popupInfo}>Prośba o oddanie tej zmiany jest już w toku.</p>
+          ) : null}
           <div className={styles.popupButtons}>
+            {canGiveAway ? (
+              <button
+                type="button"
+                className={`${styles.popupBtn} ${styles.giveAwayBtn}`}
+                onClick={() => startGiveAwayShift(existingWorkday)}
+              >
+                Chcę oddać zmianę
+              </button>
+            ) : null}
             <input type="button" className={`${styles.popupBtn} ${styles.popupBtnSecondary}`} onClick={cancelSelection} value="Wróć" />
           </div>
         </>
@@ -1211,15 +1249,20 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <section className={styles.swapsSection}>
+      <section className={styles.swapsSection} ref={swapsSectionRef}>
         <h3 className={styles.swapsTitle}>Zamiany zmian</h3>
         <p className={styles.swapsHint}>
           Przekazanie: współpracownik przejmuje Twoją zmianę. Dwustronna zamiana: wybierz też zmianę współpracownika — wtedy
           wymienicie się. Obie opcje wymagają akceptacji współpracownika i zatwierdzenia kierownika.
+          Szybka ścieżka: otwórz zatwierdzony dzień w kalendarzu → „Chcę oddać zmianę”.
         </p>
 
         <div className={styles.swapForm}>
-          <select value={swapWorkDayId} onChange={(e) => setSwapWorkDayId(e.target.value)}>
+          <select
+            value={swapWorkDayId}
+            onChange={(e) => setSwapWorkDayId(e.target.value)}
+            className={swapWorkDayId ? styles.swapFieldPrefill : undefined}
+          >
             <option value="">Wybierz swoją zmianę</option>
             {swappableWorkdays.map((day) => (
               <option key={day.id} value={day.id}>

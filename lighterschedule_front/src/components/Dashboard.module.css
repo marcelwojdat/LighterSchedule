@@ -496,6 +496,11 @@
   max-width: 100%;
 }
 
+.swapFieldPrefill {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
 .swapSubmitBtn {
   padding: 10px 16px;
   border-radius: 10px;
@@ -879,6 +884,17 @@
   background-color: #6c757d;
   color: white;
   border-color: #565e64;
+}
+
+.giveAwayBtn {
+  background-color: #2563eb;
+  color: #fff;
+  border-color: #1d4ed8;
+  font-weight: 600;
+}
+
+.giveAwayBtn:hover {
+  background-color: #1d4ed8;
 }
 
 :global([data-theme='dark']) .dashboardTitle,
