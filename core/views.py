@@ -12,11 +12,19 @@ from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import F, Q
 from django.http import HttpResponse
 from django.utils import timezone
 
-from .models import TaskType, WorkDay, SwapRequest, EmployeeProfile, ShiftTemplate, ScheduleSettings
+from .models import (
+    TaskType,
+    WorkDay,
+    SwapRequest,
+    EmployeeProfile,
+    ShiftTemplate,
+    ScheduleSettings,
+    RejectionReasonTemplate,
+)
 from .permissions import is_manager, IsManager
 from .serializers import (
     TaskTypeSerializer,
@@ -27,6 +35,7 @@ from .serializers import (
     ManagerUserCreateSerializer,
     ShiftTemplateSerializer,
     ScheduleSettingsSerializer,
+    RejectionReasonTemplateSerializer,
 )
 from .utils import (
     ensure_user_profile,
@@ -35,6 +44,7 @@ from .utils import (
     DECLARATION_DEADLINE_MESSAGE,
     find_shift_shortages,
     format_shortage_message,
+    remember_rejection_reason,
 )
 from .ical import build_workdays_ics, make_calendar_token, resolve_calendar_token
 from .schedule_copy import copy_workdays, parse_iso_date
@@ -586,6 +596,27 @@ class TaskTypeViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
 
+class RejectionReasonTemplateViewSet(viewsets.ModelViewSet):
+    """Quick-pick rejection notes for managers."""
+    queryset = RejectionReasonTemplate.objects.all()
+    serializer_class = RejectionReasonTemplateSerializer
+    permission_classes = [IsAuthenticated, IsManager]
+
+    def get_queryset(self):
+        qs = RejectionReasonTemplate.objects.all()
+        if self.action == 'list':
+            active_only = self.request.query_params.get('active', '1')
+            if active_only == '1':
+                qs = qs.filter(is_active=True)
+            # Recently used first, then seeded sort_order
+            return qs.order_by(
+                F('last_used_at').desc(nulls_last=True),
+                'sort_order',
+                'text',
+            )
+        return qs.order_by('sort_order', 'text')
+
+
 class ShiftTemplateViewSet(viewsets.ModelViewSet):
     queryset = ShiftTemplate.objects.all()
     serializer_class = ShiftTemplateSerializer
@@ -933,10 +964,12 @@ class WorkDayViewSet(viewsets.ModelViewSet):
             )
 
         workday.status = WorkDay.Status.REJECTED
-        workday.rejection_reason = request.data.get('rejection_reason', '')
+        workday.rejection_reason = (request.data.get('rejection_reason') or '').strip()
         workday.approved_by = None
         workday.approved_at = None
         workday.save()
+        if workday.rejection_reason:
+            remember_rejection_reason(workday.rejection_reason)
 
         return Response(WorkDaySerializer(workday).data)
 
@@ -1018,8 +1051,10 @@ class SwapRequestViewSet(
             raise PermissionDenied('Nie możesz odrzucić tej prośby.')
 
         swap.is_rejected = True
-        swap.rejection_reason = request.data.get('rejection_reason', '')
+        swap.rejection_reason = (request.data.get('rejection_reason') or '').strip()
         swap.save()
+        if is_manager(user) and swap.rejection_reason:
+            remember_rejection_reason(swap.rejection_reason)
 
         return Response(SwapRequestSerializer(swap).data)
 

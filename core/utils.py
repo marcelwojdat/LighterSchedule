@@ -125,3 +125,26 @@ def format_shortage_message(shortage, *, day_label='Jutro'):
     if needed == 1:
         return f'{day_label} brakuje osoby na {name}.'
     return f'{day_label} brakuje {needed} osób na {name}.'
+
+
+def remember_rejection_reason(text):
+    """
+    Persist a non-empty rejection note as a quick-pick template and bump last_used_at.
+    """
+    from .models import RejectionReasonTemplate
+
+    cleaned = (text or '').strip()
+    if not cleaned:
+        return None
+    if len(cleaned) > 255:
+        cleaned = cleaned[:255]
+
+    template, _created = RejectionReasonTemplate.objects.get_or_create(
+        text=cleaned,
+        defaults={'sort_order': 100, 'is_active': True},
+    )
+    if not template.is_active:
+        template.is_active = True
+    template.last_used_at = timezone.now()
+    template.save(update_fields=['is_active', 'last_used_at'])
+    return template

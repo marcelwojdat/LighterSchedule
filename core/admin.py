@@ -7,6 +7,7 @@ from .models import (
     ShiftTemplate,
     ShiftTemplateHours,
     ScheduleSettings,
+    RejectionReasonTemplate,
 )
 
 
@@ -25,6 +26,13 @@ admin.site.register(EmployeeProfile)
 admin.site.register(TaskType)
 admin.site.register(WorkDay)
 admin.site.register(SwapRequest)
+
+
+@admin.register(RejectionReasonTemplate)
+class RejectionReasonTemplateAdmin(admin.ModelAdmin):
+    list_display = ('text', 'sort_order', 'is_active', 'last_used_at')
+    list_filter = ('is_active',)
+    search_fields = ('text',)
 
 
 @admin.register(ScheduleSettings)

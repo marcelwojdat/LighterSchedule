@@ -48,6 +48,22 @@ class TaskType(models.Model):
         return self.name
 
 
+class RejectionReasonTemplate(models.Model):
+    """Reusable rejection notes for managers (quick-pick chips)."""
+    text = models.CharField(max_length=255, unique=True)
+    sort_order = models.PositiveSmallIntegerField(default=100)
+    is_active = models.BooleanField(default=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['sort_order', 'text']
+        verbose_name = 'Szablon powodu odrzucenia'
+        verbose_name_plural = 'Szablony powodów odrzucenia'
+
+    def __str__(self):
+        return self.text
+
+
 class ShiftTemplate(models.Model):
     """Named shift defined by manager (e.g. Poranna), with hours per weekday."""
     name = models.CharField(max_length=80)

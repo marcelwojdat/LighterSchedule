@@ -1,7 +1,15 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.utils import timezone
-from .models import TaskType, WorkDay, SwapRequest, ShiftTemplate, ShiftTemplateHours, ScheduleSettings
+from .models import (
+    TaskType,
+    WorkDay,
+    SwapRequest,
+    ShiftTemplate,
+    ShiftTemplateHours,
+    ScheduleSettings,
+    RejectionReasonTemplate,
+)
 from .permissions import is_manager
 from .utils import ensure_user_profile, assert_shift_slot_available, get_shift_slots_info
 from datetime import datetime, date as date_cls
@@ -104,6 +112,19 @@ class TaskTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = TaskType
         fields = '__all__'
+
+
+class RejectionReasonTemplateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RejectionReasonTemplate
+        fields = ['id', 'text', 'sort_order', 'is_active', 'last_used_at']
+        read_only_fields = ['last_used_at']
+
+    def validate_text(self, value):
+        cleaned = (value or '').strip()
+        if not cleaned:
+            raise serializers.ValidationError('Podaj treść szablonu.')
+        return cleaned
 
 
 class ShiftTemplateHoursSerializer(serializers.ModelSerializer):

@@ -26,6 +26,11 @@ import {
 import { downloadPayrollPdf, getTeamStats } from '../api/stats';
 import { getNotifications } from '../api/notifications';
 import { getScheduleSettings, updateScheduleSettings } from '../api/scheduleSettings';
+import {
+  getRejectionReasons,
+  createRejectionReason,
+  deleteRejectionReason,
+} from '../api/rejectionReasons';
 import { useTheme } from '../hooks/useTheme';
 import { useAutoDismiss } from '../hooks/useAutoDismiss';
 import {
@@ -114,6 +119,8 @@ const Manager = () => {
   const [dayNote, setDayNote] = useState('');
   const [showShiftTemplates, setShowShiftTemplates] = useState(false);
   const [declarationDeadline, setDeclarationDeadline] = useState('');
+  const [rejectionReasons, setRejectionReasons] = useState([]);
+  const [newRejectionReason, setNewRejectionReason] = useState('');
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const [showAllUsers, setShowAllUsers] = useState(false);
   const [moreOptionsUserId, setMoreOptionsUserId] = useState(null);
@@ -141,6 +148,15 @@ const Manager = () => {
       setShiftTemplates(data);
     } catch (e) {
       setError(getErrorMessage(e, 'Nie udało się pobrać szablonów zmian'));
+    }
+  };
+
+  const fetchRejectionReasons = async () => {
+    try {
+      const data = await getRejectionReasons({ active: '1' });
+      setRejectionReasons(Array.isArray(data) ? data : []);
+    } catch {
+      setRejectionReasons([]);
     }
   };
 
@@ -275,6 +291,7 @@ const Manager = () => {
       fetchTaskTypes(),
       fetchShiftTemplates(),
       fetchScheduleSettings(),
+      fetchRejectionReasons(),
       fetchNotifications(),
       employeeId ? fetchWorkdaysForEmployee(employeeId) : Promise.resolve(),
     ]);
@@ -795,6 +812,70 @@ const Manager = () => {
     }
   };
 
+  const pickRejectionReason = (text) => {
+    setShowRejectNote(true);
+    setRejectionReason(text);
+  };
+
+  const handleAddRejectionReason = async (event) => {
+    event.preventDefault();
+    const text = newRejectionReason.trim();
+    if (!text) return;
+    try {
+      await createRejectionReason({ text });
+      setNewRejectionReason('');
+      await fetchRejectionReasons();
+      setSuccess('Dodano szablon uwagi.');
+      setError('');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Nie udało się dodać szablonu.'));
+    }
+  };
+
+  const handleDeleteRejectionReason = async (reason) => {
+    if (!window.confirm(`Usunąć szablon „${reason.text}”?`)) return;
+    try {
+      await deleteRejectionReason(reason.id);
+      await fetchRejectionReasons();
+      setSuccess('Usunięto szablon uwagi.');
+      setError('');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Nie udało się usunąć szablonu.'));
+    }
+  };
+
+  const renderRejectionReasonPicker = () => (
+    <div className={styles.rejectReasonBlock}>
+      {rejectionReasons.length ? (
+        <div className={styles.reasonChips} role="list" aria-label="Szablony uwag">
+          {rejectionReasons.map((reason) => (
+            <button
+              key={reason.id}
+              type="button"
+              role="listitem"
+              className={`${styles.reasonChip}${
+                rejectionReason === reason.text ? ` ${styles.reasonChipActive}` : ''
+              }`}
+              onClick={() => pickRejectionReason(reason.text)}
+            >
+              {reason.text}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {showRejectNote ? (
+        <input
+          className={styles.rejectionInput}
+          type="text"
+          placeholder="Uwaga dla pracownika (opcjonalnie)"
+          value={rejectionReason}
+          onChange={(e) => setRejectionReason(e.target.value)}
+          maxLength={255}
+        />
+      ) : null}
+    </div>
+  );
+
   const rejectQueueItem = async (item) => {
     try {
       const reason = rejectionReason.trim();
@@ -1083,16 +1164,7 @@ const Manager = () => {
                         : ''}
                     </div>
                   ) : null}
-                  {rejectingId === item.id && showRejectNote ? (
-                    <input
-                      className={styles.rejectionInput}
-                      type="text"
-                      placeholder="Uwaga dla pracownika (opcjonalnie)"
-                      value={rejectionReason}
-                      onChange={(e) => setRejectionReason(e.target.value)}
-                      maxLength={255}
-                    />
-                  ) : null}
+                  {rejectingId === item.id ? renderRejectionReasonPicker() : null}
                   <div className={styles.queueActions}>
                     {rejectingId === item.id ? (
                       <>
@@ -1108,7 +1180,7 @@ const Manager = () => {
                             className={styles.btnLink}
                             onClick={() => setShowRejectNote(true)}
                           >
-                            Dodaj uwagę
+                            Własna uwaga
                           </button>
                         ) : null}
                       </>
@@ -1193,16 +1265,7 @@ const Manager = () => {
                       {swap.target_work_day_details.end_time?.slice(0, 5)})
                     </div>
                   ) : null}
-                  {rejectingSwapId === swap.id && showRejectNote ? (
-                    <input
-                      className={styles.rejectionInput}
-                      type="text"
-                      placeholder="Uwaga (opcjonalnie)"
-                      value={rejectionReason}
-                      onChange={(e) => setRejectionReason(e.target.value)}
-                      maxLength={255}
-                    />
-                  ) : null}
+                  {rejectingSwapId === swap.id ? renderRejectionReasonPicker() : null}
                   <div className={styles.queueActions}>
                     {rejectingSwapId === swap.id ? (
                       <>
@@ -1218,7 +1281,7 @@ const Manager = () => {
                             className={styles.btnLink}
                             onClick={() => setShowRejectNote(true)}
                           >
-                            Dodaj uwagę
+                            Własna uwaga
                           </button>
                         ) : null}
                       </>
@@ -1665,6 +1728,45 @@ const Manager = () => {
               ) : null}
             </div>
           </form>
+
+          <div className={styles.rejectionReasonsSettings}>
+            <div>
+              <h4 className={styles.rejectionReasonsTitle}>Szablony uwag przy odrzuceniu</h4>
+              <p className={styles.statHint}>
+                Szybki wybór przy odrzucaniu deklaracji i zamian. Użyte uwagi zapamiętują się automatycznie.
+              </p>
+            </div>
+            <form className={styles.deadlineControls} onSubmit={handleAddRejectionReason}>
+              <input
+                type="text"
+                maxLength={255}
+                placeholder="Np. Za dużo osób"
+                value={newRejectionReason}
+                onChange={(e) => setNewRejectionReason(e.target.value)}
+              />
+              <button type="submit" className={styles.btnPrimary} disabled={!newRejectionReason.trim()}>
+                Dodaj
+              </button>
+            </form>
+            {rejectionReasons.length ? (
+              <ul className={styles.rejectionReasonsList}>
+                {rejectionReasons.map((reason) => (
+                  <li key={reason.id}>
+                    <span>{reason.text}</span>
+                    <button
+                      type="button"
+                      className={styles.btnLink}
+                      onClick={() => handleDeleteRejectionReason(reason)}
+                    >
+                      Usuń
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className={styles.emptyQueue}>Brak szablonów — dodaj pierwszy powyżej.</p>
+            )}
+          </div>
 
           {showShiftTemplates ? (
             <div className={styles.shiftTemplatesPanel}>

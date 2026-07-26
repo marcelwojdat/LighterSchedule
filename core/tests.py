@@ -1109,3 +1109,62 @@ class CopyScheduleTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         copied = WorkDay.objects.get(employee=self.employee, date=self.target_monday)
         self.assertEqual(copied.status, WorkDay.Status.APPROVED)
+
+
+class RejectionReasonTemplateTests(APITestCase):
+    def setUp(self):
+        self.employee = User.objects.create_user('emp_rr', password='pass')
+        self.manager = User.objects.create_user('mgr_rr', password='pass')
+        set_profile(self.employee, hourly_rate=20)
+        set_profile(self.manager, hourly_rate=30, is_manager=True)
+        self.workday = WorkDay.objects.create(
+            employee=self.employee,
+            date=date.today() + timedelta(days=3),
+            start_time='09:00:00',
+            end_time='17:00:00',
+            status=WorkDay.Status.PROPOSED,
+        )
+
+    def authenticate(self, user):
+        token = self.client.post('/api/token/', {
+            'username': user.username,
+            'password': 'pass',
+        }).data['access']
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+
+    def test_seeded_reasons_listed_for_manager(self):
+        self.authenticate(self.manager)
+        response = self.client.get('/api/rejection-reasons/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        texts = {item['text'] for item in response.data}
+        self.assertIn('Za dużo osób', texts)
+        self.assertIn('Inna zmiana', texts)
+
+    def test_employee_cannot_list_reasons(self):
+        self.authenticate(self.employee)
+        response = self.client.get('/api/rejection-reasons/')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_manager_can_create_reason(self):
+        self.authenticate(self.manager)
+        response = self.client.post('/api/rejection-reasons/', {
+            'text': '  Zmiana już obsadzona  ',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data['text'], 'Zmiana już obsadzona')
+
+    def test_reject_remembers_custom_reason(self):
+        from core.models import RejectionReasonTemplate
+
+        self.authenticate(self.manager)
+        response = self.client.post(
+            f'/api/workdays/{self.workday.id}/reject/',
+            {'rejection_reason': 'Nie pasuje do grafiku'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(
+            RejectionReasonTemplate.objects.filter(text='Nie pasuje do grafiku').exists()
+        )
+        saved = RejectionReasonTemplate.objects.get(text='Nie pasuje do grafiku')
+        self.assertIsNotNone(saved.last_used_at)

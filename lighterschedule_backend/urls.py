@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from core.views import (
     TaskTypeViewSet,
     ShiftTemplateViewSet,
+    RejectionReasonTemplateViewSet,
     WorkDayViewSet,
     SwapRequestViewSet,
     UserViewSet,
@@ -23,8 +24,9 @@ router = DefaultRouter()
 router.register(r'users', UserViewSet)
 router.register(r'task-types', TaskTypeViewSet)
 router.register(r'shift-templates', ShiftTemplateViewSet)
+router.register(r'rejection-reasons', RejectionReasonTemplateViewSet)
 router.register(r'workdays', WorkDayViewSet)
-router.register(r'swaps', SwapRequestViewSet) 
+router.register(r'swaps', SwapRequestViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
