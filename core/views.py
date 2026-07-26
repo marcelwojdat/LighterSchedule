@@ -48,6 +48,13 @@ from .utils import (
 )
 from .ical import build_workdays_ics, make_calendar_token, resolve_calendar_token
 from .schedule_copy import copy_workdays, parse_iso_date
+from .email_notify import (
+    notify_workday_approved,
+    notify_workday_rejected,
+    notify_swap_created,
+    notify_swap_accepted_by_target,
+    notify_swap_manager_decision,
+)
 
 
 @api_view(['GET'])
@@ -950,6 +957,7 @@ class WorkDayViewSet(viewsets.ModelViewSet):
         workday.rejection_reason = ''
         workday.save()
         workday.refresh_from_db()
+        notify_workday_approved(workday)
 
         return Response(WorkDaySerializer(workday).data)
 
@@ -970,6 +978,7 @@ class WorkDayViewSet(viewsets.ModelViewSet):
         workday.save()
         if workday.rejection_reason:
             remember_rejection_reason(workday.rejection_reason)
+        notify_workday_rejected(workday)
 
         return Response(WorkDaySerializer(workday).data)
 
@@ -1013,7 +1022,8 @@ class SwapRequestViewSet(
     def perform_create(self, serializer):
         if is_manager(self.request.user):
             raise PermissionDenied('Kierownik nie może tworzyć próśb o zamianę.')
-        serializer.save(requested_by=self.request.user)
+        swap = serializer.save(requested_by=self.request.user)
+        notify_swap_created(swap)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def accept(self, request, pk=None):
@@ -1030,6 +1040,7 @@ class SwapRequestViewSet(
 
         swap.accepted_by_target = True
         swap.save()
+        notify_swap_accepted_by_target(swap)
 
         return Response(SwapRequestSerializer(swap).data)
 
@@ -1050,11 +1061,14 @@ class SwapRequestViewSet(
         else:
             raise PermissionDenied('Nie możesz odrzucić tej prośby.')
 
+        manager_reject = is_manager(user) and swap.accepted_by_target
         swap.is_rejected = True
         swap.rejection_reason = (request.data.get('rejection_reason') or '').strip()
         swap.save()
-        if is_manager(user) and swap.rejection_reason:
+        if manager_reject and swap.rejection_reason:
             remember_rejection_reason(swap.rejection_reason)
+        if manager_reject:
+            notify_swap_manager_decision(swap, approved=False)
 
         return Response(SwapRequestSerializer(swap).data)
 
@@ -1133,4 +1147,5 @@ class SwapRequestViewSet(
             swap.approved_by_manager = True
             swap.save()
 
+        notify_swap_manager_decision(swap, approved=True)
         return Response(SwapRequestSerializer(swap).data)

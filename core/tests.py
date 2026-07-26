@@ -1,6 +1,8 @@
 from datetime import date, timedelta
 
 from django.contrib.auth.models import User
+from django.core import mail
+from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -1168,3 +1170,94 @@ class RejectionReasonTemplateTests(APITestCase):
         )
         saved = RejectionReasonTemplate.objects.get(text='Nie pasuje do grafiku')
         self.assertIsNotNone(saved.last_used_at)
+
+
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class EmailNotificationTests(APITestCase):
+    def setUp(self):
+        self.employee = User.objects.create_user(
+            'emp_mail', password='pass', email='emp@example.com', first_name='Ewa',
+        )
+        self.other = User.objects.create_user(
+            'other_mail', password='pass', email='other@example.com', first_name='Ola',
+        )
+        self.manager = User.objects.create_user(
+            'mgr_mail', password='pass', email='mgr@example.com', first_name='Jan',
+        )
+        set_profile(self.employee, hourly_rate=20)
+        set_profile(self.other, hourly_rate=22)
+        set_profile(self.manager, hourly_rate=30, is_manager=True)
+        self.future = date.today() + timedelta(days=4)
+
+    def authenticate(self, user):
+        token = self.client.post('/api/token/', {
+            'username': user.username,
+            'password': 'pass',
+        }).data['access']
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+
+    def test_approve_sends_email_to_employee(self):
+        workday = WorkDay.objects.create(
+            employee=self.employee,
+            date=self.future,
+            start_time='09:00:00',
+            end_time='17:00:00',
+            status=WorkDay.Status.PROPOSED,
+        )
+        self.authenticate(self.manager)
+        response = self.client.post(f'/api/workdays/{workday.id}/approve/', {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['emp@example.com'])
+        self.assertIn('zatwierdzon', mail.outbox[0].subject.lower())
+
+    def test_reject_sends_email_with_reason(self):
+        workday = WorkDay.objects.create(
+            employee=self.employee,
+            date=self.future,
+            start_time='09:00:00',
+            end_time='17:00:00',
+            status=WorkDay.Status.PROPOSED,
+        )
+        self.authenticate(self.manager)
+        response = self.client.post(
+            f'/api/workdays/{workday.id}/reject/',
+            {'rejection_reason': 'Za dużo osób'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('Za dużo osób', mail.outbox[0].body)
+
+    def test_swap_create_emails_target(self):
+        workday = WorkDay.objects.create(
+            employee=self.employee,
+            date=self.future,
+            start_time='09:00:00',
+            end_time='17:00:00',
+            status=WorkDay.Status.APPROVED,
+        )
+        self.authenticate(self.employee)
+        response = self.client.post('/api/swaps/', {
+            'work_day': workday.id,
+            'target_user': self.other.id,
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['other@example.com'])
+        self.assertIn('zamian', mail.outbox[0].subject.lower())
+
+    def test_skip_when_user_has_no_email(self):
+        bare = User.objects.create_user('bare_mail', password='pass', email='')
+        set_profile(bare, hourly_rate=20)
+        workday = WorkDay.objects.create(
+            employee=bare,
+            date=self.future,
+            start_time='09:00:00',
+            end_time='17:00:00',
+            status=WorkDay.Status.PROPOSED,
+        )
+        self.authenticate(self.manager)
+        response = self.client.post(f'/api/workdays/{workday.id}/approve/', {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(len(mail.outbox), 0)
