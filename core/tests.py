@@ -1172,6 +1172,106 @@ class RejectionReasonTemplateTests(APITestCase):
         self.assertIsNotNone(saved.last_used_at)
 
 
+class BulkApproveTests(APITestCase):
+    def setUp(self):
+        self.employee = User.objects.create_user('emp_bulk', password='pass')
+        self.other = User.objects.create_user('other_bulk', password='pass')
+        self.manager = User.objects.create_user('mgr_bulk', password='pass')
+        set_profile(self.employee, hourly_rate=20)
+        set_profile(self.other, hourly_rate=22)
+        set_profile(self.manager, hourly_rate=30, is_manager=True)
+        self.d1 = date.today() + timedelta(days=3)
+        self.d2 = date.today() + timedelta(days=4)
+        self.wd1 = WorkDay.objects.create(
+            employee=self.employee,
+            date=self.d1,
+            start_time='09:00:00',
+            end_time='17:00:00',
+            status=WorkDay.Status.PROPOSED,
+        )
+        self.wd2 = WorkDay.objects.create(
+            employee=self.other,
+            date=self.d2,
+            start_time='12:00:00',
+            end_time='20:00:00',
+            status=WorkDay.Status.PROPOSED,
+        )
+
+    def authenticate(self, user):
+        token = self.client.post('/api/token/', {
+            'username': user.username,
+            'password': 'pass',
+        }).data['access']
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+
+    def test_bulk_approve_selected_ids(self):
+        self.authenticate(self.manager)
+        response = self.client.post('/api/workdays/bulk-approve/', {
+            'ids': [self.wd1.id, self.wd2.id],
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data['approved_count'], 2)
+        self.wd1.refresh_from_db()
+        self.wd2.refresh_from_db()
+        self.assertEqual(self.wd1.status, WorkDay.Status.APPROVED)
+        self.assertEqual(self.wd2.status, WorkDay.Status.APPROVED)
+
+    def test_bulk_approve_all(self):
+        self.authenticate(self.manager)
+        response = self.client.post('/api/workdays/bulk-approve/', {
+            'all': True,
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data['approved_count'], 2)
+
+    def test_bulk_approve_skips_full_slot(self):
+        from core.models import ShiftTemplate, ShiftTemplateHours
+
+        day = date.today() + timedelta(days=8)
+        template = ShiftTemplate.objects.create(name='Poranna', is_active=True, max_slots=1)
+        ShiftTemplateHours.objects.create(
+            template=template,
+            weekday=day.weekday(),
+            start_time='06:00:00',
+            end_time='14:00:00',
+        )
+        filler = User.objects.create_user('filler_bulk', password='pass')
+        set_profile(filler, hourly_rate=20)
+        WorkDay.objects.create(
+            employee=filler,
+            date=day,
+            start_time='06:00:00',
+            end_time='14:00:00',
+            status=WorkDay.Status.APPROVED,
+            shift_template=template,
+        )
+        blocked = WorkDay.objects.create(
+            employee=self.employee,
+            date=day,
+            start_time='06:00:00',
+            end_time='14:00:00',
+            status=WorkDay.Status.PROPOSED,
+            shift_template=template,
+        )
+
+        self.authenticate(self.manager)
+        response = self.client.post('/api/workdays/bulk-approve/', {
+            'ids': [blocked.id],
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data['approved_count'], 0)
+        self.assertEqual(response.data['skipped_count'], 1)
+        blocked.refresh_from_db()
+        self.assertEqual(blocked.status, WorkDay.Status.PROPOSED)
+
+    def test_employee_cannot_bulk_approve(self):
+        self.authenticate(self.employee)
+        response = self.client.post('/api/workdays/bulk-approve/', {
+            'ids': [self.wd1.id],
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
 class ScheduleHolesTests(APITestCase):
     def setUp(self):
         from core.models import ShiftTemplate, ShiftTemplateHours

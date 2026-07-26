@@ -12,6 +12,7 @@ import {
   updateWorkday,
   deleteWorkday,
   approveWorkday,
+  bulkApproveWorkdays,
   rejectWorkday,
   copyWorkdays,
 } from '../api/workdays';
@@ -129,6 +130,8 @@ const Manager = () => {
   const [copyBusy, setCopyBusy] = useState(false);
   const [holesDays, setHolesDays] = useState(7);
   const [scheduleHoles, setScheduleHoles] = useState({ count: 0, items: [] });
+  const [selectedApproveIds, setSelectedApproveIds] = useState([]);
+  const [bulkApproveBusy, setBulkApproveBusy] = useState(false);
   const { darkMode, toggleTheme } = useTheme();
   useAutoDismiss(success, setSuccess);
   useAutoDismiss(error, setError);
@@ -342,6 +345,15 @@ const Manager = () => {
   useEffect(() => {
     fetchScheduleHoles(holesDays);
   }, [holesDays]);
+
+  useEffect(() => {
+    const validIds = new Set(
+      pendingQueue
+        .filter((item) => !item.shift_slots?.is_full)
+        .map((item) => item.id)
+    );
+    setSelectedApproveIds((prev) => prev.filter((id) => validIds.has(id)));
+  }, [pendingQueue]);
 
   const openManage = (employee) => {
     setSelectedEmployee(employee);
@@ -806,6 +818,46 @@ const Manager = () => {
     setQueueEditRole('');
   };
 
+  const approvableQueueItems = pendingQueue.filter((item) => !item.shift_slots?.is_full);
+
+  const toggleApproveSelection = (itemId) => {
+    setSelectedApproveIds((prev) =>
+      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
+    );
+  };
+
+  const selectAllApprovable = () => {
+    setSelectedApproveIds(approvableQueueItems.map((item) => item.id));
+  };
+
+  const clearApproveSelection = () => setSelectedApproveIds([]);
+
+  const runBulkApprove = async (ids) => {
+    if (!ids.length) {
+      setError('Nie wybrano żadnych deklaracji do zatwierdzenia.');
+      return;
+    }
+    if (!window.confirm(`Zatwierdzić ${ids.length} deklaracji bez zmian godzin?`)) {
+      return;
+    }
+    setBulkApproveBusy(true);
+    try {
+      const result = await bulkApproveWorkdays({ ids });
+      const parts = [];
+      if (result.approved_count) parts.push(`zatwierdzono ${result.approved_count}`);
+      if (result.skipped_count) parts.push(`pominięto ${result.skipped_count}`);
+      setSuccess(parts.length ? `Masowa akceptacja: ${parts.join(', ')}.` : 'Brak zmian.');
+      setError('');
+      setSelectedApproveIds([]);
+      cancelQueueEdit();
+      await refreshData(selectedEmployee?.id);
+    } catch (e) {
+      setError(getErrorMessage(e, 'Nie udało się zatwierdzić zaznaczonych deklaracji.'));
+    } finally {
+      setBulkApproveBusy(false);
+    }
+  };
+
   const approveQueueItem = async (item, times = null) => {
     const startTime = toApiTime(times?.start_time || queueEditTimes.start);
     const endTime = toApiTime(times?.end_time || queueEditTimes.end);
@@ -1202,10 +1254,53 @@ const Manager = () => {
             <p className={styles.emptyQueue}>Brak deklaracji oczekujących na akceptację.</p>
           ) : (
             <div className={styles.queueList}>
+              {approvableQueueItems.length > 0 ? (
+                <div className={styles.bulkApproveBar}>
+                  <div className={styles.bulkApproveActions}>
+                    <button
+                      type="button"
+                      className={styles.btnLink}
+                      onClick={selectAllApprovable}
+                      disabled={bulkApproveBusy}
+                    >
+                      Zaznacz dostępne ({approvableQueueItems.length})
+                    </button>
+                    {selectedApproveIds.length ? (
+                      <button
+                        type="button"
+                        className={styles.btnLink}
+                        onClick={clearApproveSelection}
+                        disabled={bulkApproveBusy}
+                      >
+                        Odznacz
+                      </button>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.btnSuccess}
+                    disabled={bulkApproveBusy || selectedApproveIds.length === 0}
+                    onClick={() => runBulkApprove(selectedApproveIds)}
+                  >
+                    {bulkApproveBusy
+                      ? 'Zatwierdzanie…'
+                      : `Zatwierdź zaznaczone (${selectedApproveIds.length})`}
+                  </button>
+                </div>
+              ) : null}
               {pendingQueue.map((item) => (
                 <div key={item.id} className={styles.queueItem}>
                   <div className={styles.queueItemHeader}>
-                    <strong>{getEmployeeName(item)}</strong>
+                    <label className={styles.queueSelectLabel}>
+                      <input
+                        type="checkbox"
+                        checked={selectedApproveIds.includes(item.id)}
+                        disabled={Boolean(item.shift_slots?.is_full) || bulkApproveBusy}
+                        onChange={() => toggleApproveSelection(item.id)}
+                        aria-label={`Zaznacz ${getEmployeeName(item)} ${item.date}`}
+                      />
+                      <strong>{getEmployeeName(item)}</strong>
+                    </label>
                     <span>{item.date}</span>
                   </div>
                   {editingQueueId === item.id ? (

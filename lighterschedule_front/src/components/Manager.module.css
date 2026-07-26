@@ -733,6 +733,40 @@
   gap: 8px;
 }
 
+.bulkApproveBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+  border-radius: 12px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+}
+
+.bulkApproveActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.queueSelectLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  margin: 0;
+}
+
+.queueSelectLabel input {
+  width: auto;
+  margin: 0;
+  accent-color: #059669;
+}
+
 .calendarContainer {
   margin-top: 12px;
   padding: 14px;
@@ -1600,6 +1634,11 @@
 
 :global([data-theme='dark']) .templateHoursSummary {
   color: #94a3b8;
+}
+
+:global([data-theme='dark']) .bulkApproveBar {
+  background: #064e3b;
+  border-color: #047857;
 }
 
 :global([data-theme='dark']) .queueItem {

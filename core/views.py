@@ -57,6 +57,7 @@ from .email_notify import (
     notify_swap_accepted_by_target,
     notify_swap_manager_decision,
 )
+from .approval import approve_proposed_workday
 
 
 @api_view(['GET'])
@@ -922,6 +923,57 @@ class WorkDayViewSet(viewsets.ModelViewSet):
             return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(result, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], url_path='bulk-approve', permission_classes=[IsAuthenticated, IsManager])
+    def bulk_approve(self, request):
+        """
+        Approve many proposed workdays as-is.
+        Body: { "ids": [1,2,3] } or { "all": true }.
+        Full slots / non-proposed rows are skipped (not a hard 400).
+        """
+        approve_all = bool(request.data.get('all'))
+        raw_ids = request.data.get('ids')
+
+        qs = WorkDay.objects.filter(status=WorkDay.Status.PROPOSED).select_related(
+            'employee', 'shift_template', 'role',
+        )
+        if approve_all:
+            workdays = list(qs.order_by('date', 'id'))
+        elif isinstance(raw_ids, list) and raw_ids:
+            try:
+                ids = [int(value) for value in raw_ids]
+            except (TypeError, ValueError):
+                return Response(
+                    {'error': 'ids musi być listą liczb.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            workdays = list(qs.filter(pk__in=ids).order_by('date', 'id'))
+        else:
+            return Response(
+                {'error': 'Podaj ids (lista) albo all: true.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        approved = []
+        skipped = []
+        for workday in workdays:
+            try:
+                approve_proposed_workday(workday, request.user)
+                approved.append(workday.id)
+            except ValueError as exc:
+                skipped.append({
+                    'id': workday.id,
+                    'date': workday.date.isoformat(),
+                    'employee': workday.employee_id,
+                    'reason': str(exc),
+                })
+
+        return Response({
+            'approved': approved,
+            'approved_count': len(approved),
+            'skipped': skipped,
+            'skipped_count': len(skipped),
+        })
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsManager])
     def approve(self, request, pk=None):

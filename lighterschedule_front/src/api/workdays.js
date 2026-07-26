@@ -15,6 +15,9 @@ export const deleteWorkday = (id) =>
 export const approveWorkday = (id, data = {}) =>
   apiClient.post(`/workdays/${id}/approve/`, data);
 
+export const bulkApproveWorkdays = (data) =>
+  apiClient.post('/workdays/bulk-approve/', data).then((response) => response.data);
+
 export const rejectWorkday = (id, data = {}) =>
   apiClient.post(`/workdays/${id}/reject/`, data);
 
