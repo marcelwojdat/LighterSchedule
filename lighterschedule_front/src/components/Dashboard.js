@@ -34,6 +34,7 @@ import {
   resolveTemplateHours,
 } from '../utils/time';
 import { formatDateStr, getMonday, addDays, shiftMonth } from '../utils/dates';
+import { getWeekSummary, formatWeekRangeLabel } from '../utils/weekSummary';
 
 const STATUS_LABELS = {
   proposed: 'Oczekuje',
@@ -83,6 +84,7 @@ const Dashboard = () => {
   const [calendarExportBusy, setCalendarExportBusy] = useState(false);
   const [scheduleSettings, setScheduleSettings] = useState(null);
   const [copyBusy, setCopyBusy] = useState(false);
+  const [weekStart, setWeekStart] = useState(() => formatDateStr(getMonday()));
 
   useAutoDismiss(swapSuccess, setSwapSuccess);
   useAutoDismiss(scheduleSuccess, setScheduleSuccess);
@@ -522,6 +524,12 @@ const Dashboard = () => {
   };
 
   const monthStats = getMonthStats(statsMonth);
+  const weekSummary = getWeekSummary(workdays, weekStart);
+  const weekRangeLabel = formatWeekRangeLabel(weekSummary.weekStart, weekSummary.weekEnd);
+
+  const changeWeek = (offset) => {
+    setWeekStart(addDays(weekStart, offset * 7));
+  };
 
   const setSchedule = async () => {
     if (declarationsClosed) {
@@ -997,6 +1005,48 @@ const Dashboard = () => {
       ) : null}
       <div className={styles.dashboardBody}>
         <div className={styles.statsWrapper}>
+          <div className={styles.weekSummary}>
+            <div className={styles.statsHeader}>
+              <div>
+                <div className={styles.statsLabel}>Podsumowanie tygodnia</div>
+                <div className={styles.statsTitle}>{weekRangeLabel}</div>
+              </div>
+              <div className={styles.weekNav}>
+                <button type="button" className={styles.weekNavBtn} onClick={() => changeWeek(-1)}>
+                  ←
+                </button>
+                <button
+                  type="button"
+                  className={styles.weekNavBtn}
+                  onClick={() => setWeekStart(formatDateStr(getMonday()))}
+                >
+                  Ten tydzień
+                </button>
+                <button type="button" className={styles.weekNavBtn} onClick={() => changeWeek(1)}>
+                  →
+                </button>
+              </div>
+            </div>
+            <div className={styles.weekSummaryGrid}>
+              <div className={`${styles.statCard} ${styles.weekStatApproved}`}>
+                <h3>Zatwierdzone</h3>
+                <p>{weekSummary.approvedHours.toFixed(1)} h</p>
+                <small>
+                  {weekSummary.approvedDays}{' '}
+                  {weekSummary.approvedDays === 1 ? 'dzień' : 'dni'} w grafiku
+                </small>
+              </div>
+              <div className={`${styles.statCard} ${styles.weekStatPending}`}>
+                <h3>Oczekujące</h3>
+                <p>{weekSummary.pendingHours.toFixed(1)} h</p>
+                <small>
+                  {weekSummary.pendingDays}{' '}
+                  {weekSummary.pendingDays === 1 ? 'deklaracja' : 'deklaracje'} do akceptacji
+                </small>
+              </div>
+            </div>
+          </div>
+
           <div className={styles.statsHeader}>
             <div>
               <div className={styles.statsLabel}>Statystyki miesiąca</div>
