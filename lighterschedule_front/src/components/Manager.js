@@ -1,11 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
+import { Link } from 'react-router-dom';
 import Auth from './Auth';
 import UserMenu from './UserMenu';
 import styles from './Manager.module.css';
 import { getErrorMessage } from '../api/client';
 import { getUsers, createUser, updateUserProfile, deleteUser } from '../api/users';
+import { getSubscription } from '../api/subscription';
 import {
   getWorkdays,
   createWorkday,
@@ -60,6 +62,13 @@ const SWAP_STATUS_LABELS = {
 };
 
 const DAY_LABELS = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Ndz'];
+
+const SUBSCRIPTION_STATUS_LABELS = {
+  trial: 'Okres próbny',
+  active: 'Aktywna',
+  past_due: 'Zaległa płatność',
+  canceled: 'Anulowana',
+};
 
 const EMPTY_USER_FORM = {
   username: '',
@@ -132,11 +141,20 @@ const Manager = () => {
   const [scheduleHoles, setScheduleHoles] = useState({ count: 0, items: [] });
   const [selectedApproveIds, setSelectedApproveIds] = useState([]);
   const [bulkApproveBusy, setBulkApproveBusy] = useState(false);
+  const [subscription, setSubscription] = useState(null);
   const { darkMode, toggleTheme } = useTheme();
   useAutoDismiss(success, setSuccess);
   useAutoDismiss(error, setError);
 
   const weekDates = getWeekDates(weekStart);
+
+  const subscriptionNearLimit = useMemo(() => {
+    if (!subscription) return false;
+    return (
+      subscription.used_managers >= subscription.max_managers ||
+      subscription.used_employees >= subscription.max_employees
+    );
+  }, [subscription]);
 
   const resetTemplateForm = () => {
     setTemplateForm({
@@ -295,6 +313,15 @@ const Manager = () => {
     }
   };
 
+  const fetchSubscription = async () => {
+    try {
+      const data = await getSubscription();
+      setSubscription(data);
+    } catch {
+      setSubscription(null);
+    }
+  };
+
   const refreshData = async (employeeId = selectedEmployee?.id) => {
     await Promise.all([
       fetchEmployees(),
@@ -309,6 +336,7 @@ const Manager = () => {
       fetchRejectionReasons(),
       fetchScheduleHoles(),
       fetchNotifications(),
+      fetchSubscription(),
       employeeId ? fetchWorkdaysForEmployee(employeeId) : Promise.resolve(),
     ]);
   };
@@ -592,7 +620,7 @@ const Manager = () => {
       }
       setSuccess('Konto zaktualizowane.');
       setError('');
-      await fetchEmployees();
+      await Promise.all([fetchEmployees(), fetchSubscription()]);
     } catch (e) {
       setError(getErrorMessage(e, 'Nie udało się zaktualizować konta.'));
     }
@@ -624,7 +652,7 @@ const Manager = () => {
       setShowAddUserForm(false);
       setSuccess(is_manager ? 'Dodano kierownika.' : 'Dodano pracownika.');
       setError('');
-      await fetchEmployees();
+      await Promise.all([fetchEmployees(), fetchSubscription()]);
     } catch (err) {
       setError(getErrorMessage(err, 'Nie udało się dodać użytkownika.'));
     }
@@ -652,7 +680,7 @@ const Manager = () => {
       if (selectedEmployee?.id === user.id) {
         setSelectedEmployee(null);
       }
-      await fetchEmployees();
+      await Promise.all([fetchEmployees(), fetchSubscription()]);
     } catch (e) {
       setError(getErrorMessage(e, 'Nie udało się dezaktywować konta.'));
     }
@@ -678,7 +706,7 @@ const Manager = () => {
       if (selectedEmployee?.id === user.id) {
         setSelectedEmployee(null);
       }
-      await fetchEmployees();
+      await Promise.all([fetchEmployees(), fetchSubscription()]);
     } catch (e) {
       setError(getErrorMessage(e, 'Nie udało się usunąć konta.'));
     }
@@ -1483,6 +1511,97 @@ const Manager = () => {
 
       <div className={styles.managerBody}>
         <div className={styles.leftCol}>
+          {subscription ? (
+            <div className={`${styles.sectionCard} ${styles.subscriptionCard}`}>
+              <div className={styles.settingsToggleRow}>
+                <div>
+                  <h3>Plan subskrypcji</h3>
+                  <p className={styles.statHint}>
+                    {subscription.organization_name || 'Organizacja'} ·{' '}
+                    {SUBSCRIPTION_STATUS_LABELS[subscription.status] || subscription.status}
+                  </p>
+                </div>
+                <Link to="/pricing" className={styles.btnSecondary}>
+                  {subscriptionNearLimit ? 'Zmień plan' : 'Cennik'}
+                </Link>
+              </div>
+              <div className={styles.subscriptionMeta}>
+                <span className={styles.subscriptionPlanName}>{subscription.plan_name}</span>
+              </div>
+              <div className={styles.subscriptionMeters}>
+                <div className={styles.subscriptionMeter}>
+                  <div className={styles.subscriptionMeterHead}>
+                    <span>Kierownicy</span>
+                    <strong>
+                      {subscription.used_managers} / {subscription.max_managers}
+                    </strong>
+                  </div>
+                  <div
+                    className={styles.subscriptionBar}
+                    role="progressbar"
+                    aria-valuenow={subscription.used_managers}
+                    aria-valuemin={0}
+                    aria-valuemax={subscription.max_managers}
+                    aria-label="Wykorzystanie miejsc kierowników"
+                  >
+                    <span
+                      className={
+                        subscription.used_managers >= subscription.max_managers
+                          ? styles.subscriptionBarFillFull
+                          : styles.subscriptionBarFill
+                      }
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          subscription.max_managers
+                            ? (subscription.used_managers / subscription.max_managers) * 100
+                            : 0
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className={styles.subscriptionMeter}>
+                  <div className={styles.subscriptionMeterHead}>
+                    <span>Pracownicy</span>
+                    <strong>
+                      {subscription.used_employees} / {subscription.max_employees}
+                    </strong>
+                  </div>
+                  <div
+                    className={styles.subscriptionBar}
+                    role="progressbar"
+                    aria-valuenow={subscription.used_employees}
+                    aria-valuemin={0}
+                    aria-valuemax={subscription.max_employees}
+                    aria-label="Wykorzystanie miejsc pracowników"
+                  >
+                    <span
+                      className={
+                        subscription.used_employees >= subscription.max_employees
+                          ? styles.subscriptionBarFillFull
+                          : styles.subscriptionBarFill
+                      }
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          subscription.max_employees
+                            ? (subscription.used_employees / subscription.max_employees) * 100
+                            : 0
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+              {subscriptionNearLimit ? (
+                <p className={styles.subscriptionWarn}>
+                  Limit planu wyczerpany — nie dodasz nowych kont bez wyższego planu.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className={styles.sectionCard}>
             <div className={styles.settingsToggleRow}>
               <div>

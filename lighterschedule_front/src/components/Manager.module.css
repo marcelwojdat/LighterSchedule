@@ -529,6 +529,10 @@
 .btnSecondary {
   background: #e2e8f0;
   color: #0f172a;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btnSuccess {
@@ -1218,6 +1222,78 @@
   min-width: 160px;
 }
 
+.subscriptionCard {
+  margin-bottom: 14px;
+}
+
+.subscriptionMeta {
+  margin: 4px 0 12px;
+}
+
+.subscriptionPlanName {
+  display: inline-block;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.subscriptionMeters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.subscriptionMeter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.subscriptionMeterHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.subscriptionMeterHead strong {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.subscriptionBar {
+  height: 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.subscriptionBarFill,
+.subscriptionBarFillFull {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: #2563eb;
+}
+
+.subscriptionBarFillFull {
+  background: #dc2626;
+}
+
+.subscriptionWarn {
+  margin: 12px 0 0;
+  color: #b91c1c;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+@media (max-width: 640px) {
+  .subscriptionMeters {
+    grid-template-columns: 1fr;
+  }
+}
+
 .teamOverviewHeader {
   display: flex;
   flex-wrap: wrap;
@@ -1445,6 +1521,19 @@
 
 :global([data-theme='dark']) .statCard strong {
   color: #f8fafc;
+}
+
+:global([data-theme='dark']) .subscriptionPlanName,
+:global([data-theme='dark']) .subscriptionMeterHead strong {
+  color: #f8fafc;
+}
+
+:global([data-theme='dark']) .subscriptionBar {
+  background: #334155;
+}
+
+:global([data-theme='dark']) .subscriptionWarn {
+  color: #fca5a5;
 }
 
 :global([data-theme='dark']) .statLabel,
