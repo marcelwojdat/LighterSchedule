@@ -1,0 +1,246 @@
+.page {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 48px 20px 80px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 28px;
+  align-items: start;
+}
+
+.summary,
+.formSection {
+  padding: 24px;
+  border-radius: 18px;
+  border: 1px solid var(--m-line, rgba(15, 23, 42, 0.12));
+  background: var(--m-surface, #fff);
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--m-accent, #2563eb);
+}
+
+.title {
+  margin: 0 0 12px;
+  font-size: 1.7rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--m-ink, #0f172a);
+}
+
+.price {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.priceValue {
+  font-size: 2.4rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--m-ink, #0f172a);
+}
+
+.priceMeta {
+  color: var(--m-muted, #64748b);
+  font-weight: 600;
+}
+
+.priceHint {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: var(--m-muted, #94a3b8);
+}
+
+.limits {
+  list-style: none;
+  margin: 18px 0;
+  padding: 14px 0;
+  border-block: 1px solid var(--m-line, rgba(15, 23, 42, 0.1));
+  display: grid;
+  gap: 8px;
+}
+
+.limits li {
+  color: var(--m-muted, #475569);
+}
+
+.limits strong {
+  color: var(--m-ink, #0f172a);
+}
+
+.summaryNote {
+  margin: 0 0 16px;
+  color: var(--m-muted, #475569);
+  line-height: 1.5;
+  font-size: 0.95rem;
+}
+
+.changePlan {
+  color: var(--m-accent, #2563eb);
+  font-weight: 700;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.changePlan:hover {
+  text-decoration: underline;
+}
+
+.formTitle {
+  margin: 0 0 8px;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--m-ink, #0f172a);
+}
+
+.formLead {
+  margin: 0 0 18px;
+  color: var(--m-muted, #64748b);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.errorBox {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.form {
+  display: grid;
+  gap: 14px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.field span {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--m-ink, #0f172a);
+}
+
+.methods {
+  margin: 4px 0 0;
+  padding: 0;
+  border: none;
+}
+
+.methods legend {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--m-ink, #0f172a);
+  margin-bottom: 8px;
+}
+
+.methodRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.methodOption {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--m-line, rgba(15, 23, 42, 0.14));
+  background: var(--m-bg, #f8fafc);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--m-ink, #0f172a);
+}
+
+.methodOption input {
+  width: auto;
+  margin: 0;
+  accent-color: var(--m-accent, #2563eb);
+}
+
+.terms {
+  align-items: flex-start;
+  color: var(--m-muted, #475569);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.terms a {
+  color: var(--m-accent, #2563eb);
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.payBtn {
+  border: none;
+  border-radius: 12px;
+  padding: 12px 18px;
+  background: var(--m-accent, #2563eb);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.95rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.payBtn:hover:not(:disabled) {
+  background: var(--m-accent-strong, #1d4ed8);
+}
+
+.payBtn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.cancelLink {
+  color: var(--m-muted, #64748b);
+  font-weight: 600;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.cancelLink:hover {
+  color: var(--m-ink, #0f172a);
+}
+
+@media (max-width: 820px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+:global([data-theme='dark']) .errorBox {
+  background: #450a0a;
+  border-color: #7f1d1d;
+  color: #fecaca;
+}
+
+:global([data-theme='dark']) .methodOption {
+  background: #0b1220;
+}

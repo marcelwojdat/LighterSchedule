@@ -1,0 +1,90 @@
+.page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 56px 20px 80px;
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--m-accent, #2563eb);
+}
+
+.title {
+  margin: 0 0 12px;
+  font-size: clamp(1.7rem, 4vw, 2.3rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--m-ink, #0f172a);
+}
+
+.lead,
+.meta {
+  margin: 0 0 14px;
+  color: var(--m-muted, #475569);
+  line-height: 1.55;
+}
+
+.box {
+  margin: 20px 0 28px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid var(--m-line, rgba(15, 23, 42, 0.12));
+  background: var(--m-surface, #fff);
+  display: grid;
+  gap: 8px;
+  color: var(--m-muted, #475569);
+  font-size: 0.95rem;
+}
+
+.box code {
+  font-size: 0.88rem;
+  color: var(--m-ink, #0f172a);
+}
+
+.nextTitle {
+  margin: 0 0 10px;
+  font-size: 1.1rem;
+  color: var(--m-ink, #0f172a);
+}
+
+.nextList {
+  margin: 0 0 28px;
+  padding-left: 1.2rem;
+  color: var(--m-muted, #475569);
+  line-height: 1.55;
+  display: grid;
+  gap: 8px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.primary,
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 11px 16px;
+  border-radius: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  font-size: 0.92rem;
+}
+
+.primary {
+  background: var(--m-accent, #2563eb);
+  color: #fff;
+}
+
+.secondary {
+  border: 1px solid var(--m-line, rgba(15, 23, 42, 0.15));
+  color: var(--m-ink, #0f172a);
+  background: var(--m-surface, #fff);
+}

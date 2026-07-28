@@ -10,7 +10,8 @@ import Profile from './components/Profile';
 import PublicLayout from './components/marketing/PublicLayout';
 import Landing from './components/marketing/Landing';
 import Pricing from './components/marketing/Pricing';
-import CheckoutStub from './components/marketing/CheckoutStub';
+import Checkout from './components/marketing/Checkout';
+import { CheckoutSuccess, CheckoutCancel } from './components/marketing/CheckoutResult';
 import { TermsPage, PrivacyPage } from './components/marketing/LegalPages';
 
 function App() {
@@ -19,7 +20,9 @@ function App() {
       <Route element={<PublicLayout />}>
         <Route path="/" element={<Landing />} />
         <Route path="/pricing" element={<Pricing />} />
-        <Route path="/checkout" element={<CheckoutStub />} />
+        <Route path="/checkout" element={<Checkout />} />
+        <Route path="/checkout/success" element={<CheckoutSuccess />} />
+        <Route path="/checkout/cancel" element={<CheckoutCancel />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
       </Route>

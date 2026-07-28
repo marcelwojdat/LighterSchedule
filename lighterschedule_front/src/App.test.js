@@ -32,7 +32,11 @@ jest.mock('./components/marketing/Landing', () => () => (
   <h1>Grafik zmianowy, który ogarnia zespół</h1>
 ));
 jest.mock('./components/marketing/Pricing', () => () => <h1>Proste plany, jasne limity</h1>);
-jest.mock('./components/marketing/CheckoutStub', () => () => <h1>Checkout stub</h1>);
+jest.mock('./components/marketing/Checkout', () => () => <h1>Dane kupującego</h1>);
+jest.mock('./components/marketing/CheckoutResult', () => ({
+  CheckoutSuccess: () => <h1>Dziękujemy za zakup</h1>,
+  CheckoutCancel: () => <h1>Płatność nie została dokończona</h1>,
+}));
 jest.mock('./components/marketing/LegalPages', () => ({
   TermsPage: () => <h1>Regulamin</h1>,
   PrivacyPage: () => <h1>Polityka prywatności</h1>,
@@ -80,4 +84,24 @@ test('renders pricing page without login', () => {
   );
 
   expect(screen.getByRole('heading', { name: /proste plany, jasne limity/i })).toBeInTheDocument();
+});
+
+test('renders checkout with plan without login', () => {
+  render(
+    <MemoryRouter initialEntries={['/checkout?plan=basic']}>
+      <App />
+    </MemoryRouter>
+  );
+
+  expect(screen.getByRole('heading', { name: /dane kupującego/i })).toBeInTheDocument();
+});
+
+test('renders checkout success page', () => {
+  render(
+    <MemoryRouter initialEntries={['/checkout/success?plan=basic']}>
+      <App />
+    </MemoryRouter>
+  );
+
+  expect(screen.getByRole('heading', { name: /dziękujemy za zakup/i })).toBeInTheDocument();
 });
