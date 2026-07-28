@@ -9,7 +9,8 @@ import Manager from './components/Manager';
 import Profile from './components/Profile';
 import PublicLayout from './components/marketing/PublicLayout';
 import Landing from './components/marketing/Landing';
-import PricingStub from './components/marketing/PricingStub';
+import Pricing from './components/marketing/Pricing';
+import CheckoutStub from './components/marketing/CheckoutStub';
 import { TermsPage, PrivacyPage } from './components/marketing/LegalPages';
 
 function App() {
@@ -17,7 +18,8 @@ function App() {
     <Routes>
       <Route element={<PublicLayout />}>
         <Route path="/" element={<Landing />} />
-        <Route path="/pricing" element={<PricingStub />} />
+        <Route path="/pricing" element={<Pricing />} />
+        <Route path="/checkout" element={<CheckoutStub />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
       </Route>

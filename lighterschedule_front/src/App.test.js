@@ -31,7 +31,8 @@ jest.mock('./components/marketing/PublicLayout', () => {
 jest.mock('./components/marketing/Landing', () => () => (
   <h1>Grafik zmianowy, który ogarnia zespół</h1>
 ));
-jest.mock('./components/marketing/PricingStub', () => () => <h1>Plany LighterSchedule</h1>);
+jest.mock('./components/marketing/Pricing', () => () => <h1>Proste plany, jasne limity</h1>);
+jest.mock('./components/marketing/CheckoutStub', () => () => <h1>Checkout stub</h1>);
 jest.mock('./components/marketing/LegalPages', () => ({
   TermsPage: () => <h1>Regulamin</h1>,
   PrivacyPage: () => <h1>Polityka prywatności</h1>,
@@ -69,4 +70,14 @@ test('renders public landing without login', () => {
   expect(
     screen.getByRole('heading', { name: /grafik zmianowy, który ogarnia zespół/i })
   ).toBeInTheDocument();
+});
+
+test('renders pricing page without login', () => {
+  render(
+    <MemoryRouter initialEntries={['/pricing']}>
+      <App />
+    </MemoryRouter>
+  );
+
+  expect(screen.getByRole('heading', { name: /proste plany, jasne limity/i })).toBeInTheDocument();
 });
