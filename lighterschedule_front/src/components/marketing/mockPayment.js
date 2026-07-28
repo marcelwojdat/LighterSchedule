@@ -1,23 +1,39 @@
-/** Mock payment provider — replace with Stripe/Przelewy24 session later. */
+import apiClient from '../../api/client';
 
-const STORAGE_KEY = 'ls_mock_checkout_order';
-
+/** Create a backend payment session, then complete it via mock webhook. */
 export const runMockPayment = async (payload) => {
-  await new Promise((resolve) => setTimeout(resolve, 450));
+  const session = await apiClient
+    .post('/payments/session/', {
+      plan: payload.planId,
+      email: payload.email,
+      company_or_name: payload.companyOrName,
+      nip: payload.nip || '',
+      payment_method: payload.paymentMethod || '',
+    })
+    .then((response) => response.data);
 
-  const orderId = `mock_${Date.now().toString(36)}`;
+  const completed = await apiClient
+    .post('/payments/webhook/', {
+      provider: session.provider || 'mock',
+      session_id: session.session_id,
+      status: 'paid',
+    })
+    .then((response) => response.data);
+
   const record = {
-    orderId,
-    provider: 'mock',
+    orderId: completed.session_id || session.session_id,
+    provider: session.provider || 'mock',
     status: 'paid',
+    planId: payload.planId,
+    email: payload.email,
+    companyOrName: payload.companyOrName,
     createdAt: new Date().toISOString(),
-    ...payload,
   };
 
   try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(record));
+    sessionStorage.setItem('ls_mock_checkout_order', JSON.stringify(record));
   } catch {
-    // ignore quota / private mode
+    // ignore
   }
 
   return record;
@@ -25,7 +41,7 @@ export const runMockPayment = async (payload) => {
 
 export const readMockOrder = () => {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const raw = sessionStorage.getItem('ls_mock_checkout_order');
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;

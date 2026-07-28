@@ -199,3 +199,6 @@ DEFAULT_FROM_EMAIL = os.environ.get(
     'DEFAULT_FROM_EMAIL',
     'LighterSchedule <noreply@lighterschedule.local>',
 )
+
+# Payments: mock (default) or stripe (session endpoint stub until wired)
+PAYMENTS_PROVIDER = os.environ.get('PAYMENTS_PROVIDER', 'mock').strip().lower()

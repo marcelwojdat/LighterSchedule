@@ -1428,3 +1428,94 @@ class EmailNotificationTests(APITestCase):
         response = self.client.post(f'/api/workdays/{workday.id}/approve/', {}, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(mail.outbox), 0)
+
+
+class SubscriptionLimitTests(APITestCase):
+    def setUp(self):
+        from core.subscription import get_or_create_default_organization
+
+        self.manager = User.objects.create_user('mgr_sub', password='pass', email='mgr@ex.com')
+        set_profile(self.manager, hourly_rate=30, is_manager=True)
+        self.org = get_or_create_default_organization()
+        sub = self.org.subscription
+        sub.plan = 'basic'
+        sub.status = 'active'
+        sub.max_managers = 1
+        sub.max_employees = 2
+        sub.save()
+
+    def authenticate(self, user):
+        token = self.client.post('/api/token/', {
+            'username': user.username,
+            'password': 'pass',
+        }).data['access']
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+
+    def test_subscription_endpoint(self):
+        self.authenticate(self.manager)
+        response = self.client.get('/api/subscription/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['plan'], 'basic')
+        self.assertEqual(response.data['max_employees'], 2)
+        self.assertGreaterEqual(response.data['used_managers'], 1)
+
+    def test_blocks_employee_over_limit(self):
+        for i in range(2):
+            emp = User.objects.create_user(f'emp_sub_{i}', password='pass', email=f'e{i}@ex.com')
+            set_profile(emp, hourly_rate=20)
+
+        self.authenticate(self.manager)
+        response = self.client.post('/api/users/', {
+            'username': 'emp_overflow',
+            'password': 'haslo12345',
+            'first_name': 'Overflow',
+            'last_name': 'Test',
+            'email': 'overflow@ex.com',
+            'is_manager': False,
+            'hourly_rate': '20',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_blocks_second_manager_on_basic(self):
+        self.authenticate(self.manager)
+        response = self.client.post('/api/users/', {
+            'username': 'mgr_two',
+            'password': 'haslo12345',
+            'first_name': 'Second',
+            'last_name': 'Manager',
+            'email': 'mgr2@ex.com',
+            'is_manager': True,
+            'hourly_rate': '30',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class PaymentSessionTests(APITestCase):
+    def test_mock_session_and_webhook_activates_plan(self):
+        from core.models import Subscription
+        from core.subscription import get_or_create_default_organization
+
+        org = get_or_create_default_organization()
+        self.assertEqual(org.subscription.plan, 'basic')
+
+        session_resp = self.client.post('/api/payments/session/', {
+            'plan': 'extended',
+            'email': 'buyer@example.com',
+            'company_or_name': 'Firma Test',
+            'payment_method': 'blik',
+        }, format='json')
+        self.assertEqual(session_resp.status_code, status.HTTP_201_CREATED, session_resp.data)
+        self.assertEqual(session_resp.data['provider'], 'mock')
+        session_id = session_resp.data['session_id']
+
+        webhook = self.client.post('/api/payments/webhook/', {
+            'provider': 'mock',
+            'session_id': session_id,
+            'status': 'paid',
+        }, format='json')
+        self.assertEqual(webhook.status_code, status.HTTP_200_OK, webhook.data)
+
+        org.subscription.refresh_from_db()
+        self.assertEqual(org.subscription.plan, Subscription.Plan.EXTENDED)
+        self.assertEqual(org.subscription.status, Subscription.Status.ACTIVE)
+        self.assertEqual(org.subscription.max_employees, 100)

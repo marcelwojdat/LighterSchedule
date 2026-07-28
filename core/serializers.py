@@ -89,13 +89,33 @@ class ManagerUserCreateSerializer(serializers.Serializer):
         return value
 
     def create(self, validated_data):
+        from .subscription import (
+            assert_can_add_seat,
+            ensure_user_membership,
+            organization_for_user,
+            get_or_create_default_organization,
+        )
+
         is_manager_flag = validated_data.pop('is_manager', False)
         hourly_rate = validated_data.pop('hourly_rate', 0)
+
+        request = self.context.get('request')
+        if request and request.user and request.user.is_authenticated:
+            org = organization_for_user(request.user)
+        else:
+            org = get_or_create_default_organization()
+
+        try:
+            assert_can_add_seat(org, as_manager=is_manager_flag)
+        except ValueError as exc:
+            raise serializers.ValidationError(str(exc)) from exc
+
         user = User.objects.create_user(**validated_data)
         profile = ensure_user_profile(user)
         profile.is_manager = is_manager_flag
         profile.hourly_rate = hourly_rate
         profile.save()
+        ensure_user_membership(user, org)
         return user
 
     def to_representation(self, instance):

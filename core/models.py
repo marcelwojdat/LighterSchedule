@@ -178,3 +178,100 @@ class SwapRequest(models.Model):
         if self.target_work_day_id:
             return f"Zamiana {self.work_day.date} <-> {self.target_work_day.date}"
         return f"Zamiana {self.work_day.date} od {self.requested_by}"
+
+
+class Organization(models.Model):
+    """Tenant / billing account. v1 uses a single default organization."""
+    name = models.CharField(max_length=120)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class Subscription(models.Model):
+    class Plan(models.TextChoices):
+        BASIC = 'basic', 'Basic'
+        EXTENDED = 'extended', 'Extended'
+
+    class Status(models.TextChoices):
+        TRIAL = 'trial', 'Trial'
+        ACTIVE = 'active', 'Active'
+        PAST_DUE = 'past_due', 'Past due'
+        CANCELED = 'canceled', 'Canceled'
+
+    organization = models.OneToOneField(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name='subscription',
+    )
+    plan = models.CharField(max_length=20, choices=Plan.choices, default=Plan.BASIC)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.TRIAL)
+    max_managers = models.PositiveSmallIntegerField(default=1)
+    max_employees = models.PositiveSmallIntegerField(default=10)
+    external_payment_id = models.CharField(max_length=120, blank=True, default='')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.organization.name}: {self.plan} ({self.status})'
+
+    def apply_plan_limits(self):
+        from .subscription import PLAN_LIMITS
+
+        limits = PLAN_LIMITS.get(self.plan, PLAN_LIMITS['basic'])
+        self.max_managers = limits['managers']
+        self.max_employees = limits['employees']
+
+
+class OrganizationMembership(models.Model):
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name='memberships',
+    )
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='membership',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('organization', 'user')
+
+    def __str__(self):
+        return f'{self.user.username} @ {self.organization.name}'
+
+
+class PaymentSession(models.Model):
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        PAID = 'paid', 'Paid'
+        FAILED = 'failed', 'Failed'
+        CANCELED = 'canceled', 'Canceled'
+
+    session_id = models.CharField(max_length=64, unique=True)
+    provider = models.CharField(max_length=32, default='mock')
+    plan = models.CharField(max_length=20, choices=Subscription.Plan.choices)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    amount = models.DecimalField(max_digits=8, decimal_places=2)
+    currency = models.CharField(max_length=3, default='PLN')
+    email = models.EmailField()
+    company_or_name = models.CharField(max_length=120)
+    nip = models.CharField(max_length=20, blank=True, default='')
+    payment_method = models.CharField(max_length=20, blank=True, default='')
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name='payment_sessions',
+        null=True,
+        blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f'{self.session_id} ({self.plan}/{self.status})'

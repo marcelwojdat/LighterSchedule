@@ -8,6 +8,10 @@ from .models import (
     ShiftTemplateHours,
     ScheduleSettings,
     RejectionReasonTemplate,
+    Organization,
+    Subscription,
+    OrganizationMembership,
+    PaymentSession,
 )
 
 
@@ -38,3 +42,27 @@ class RejectionReasonTemplateAdmin(admin.ModelAdmin):
 @admin.register(ScheduleSettings)
 class ScheduleSettingsAdmin(admin.ModelAdmin):
     list_display = ('declaration_deadline', 'updated_at')
+
+
+@admin.register(Organization)
+class OrganizationAdmin(admin.ModelAdmin):
+    list_display = ('name', 'created_at')
+
+
+@admin.register(Subscription)
+class SubscriptionAdmin(admin.ModelAdmin):
+    list_display = ('organization', 'plan', 'status', 'max_managers', 'max_employees', 'updated_at')
+    list_filter = ('plan', 'status')
+
+
+@admin.register(OrganizationMembership)
+class OrganizationMembershipAdmin(admin.ModelAdmin):
+    list_display = ('user', 'organization', 'created_at')
+    search_fields = ('user__username', 'organization__name')
+
+
+@admin.register(PaymentSession)
+class PaymentSessionAdmin(admin.ModelAdmin):
+    list_display = ('session_id', 'plan', 'status', 'provider', 'amount', 'email', 'created_at')
+    list_filter = ('status', 'provider', 'plan')
+    search_fields = ('session_id', 'email')

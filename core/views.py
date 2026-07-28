@@ -143,6 +143,83 @@ def schedule_holes(request):
     })
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def subscription_info(request):
+    """Current organization plan, status, and seat usage."""
+    from .subscription import organization_for_user, subscription_snapshot
+
+    ensure_user_profile(request.user)
+    org = organization_for_user(request.user)
+    return Response(subscription_snapshot(org))
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def payment_session_create(request):
+    """
+    Create a payment session for a plan (mock or future Stripe).
+    Body: plan, email, company_or_name, nip?, payment_method?
+    """
+    from .payments import create_payment_session
+
+    plan = (request.data.get('plan') or '').strip().lower()
+    email = (request.data.get('email') or '').strip().lower()
+    company = (request.data.get('company_or_name') or '').strip()
+    nip = (request.data.get('nip') or '').strip()
+    method = (request.data.get('payment_method') or '').strip()
+
+    if not plan or not email or not company:
+        return Response(
+            {'error': 'Podaj plan, e-mail oraz firmę / imię.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        payload = create_payment_session(
+            plan=plan,
+            email=email,
+            company_or_name=company,
+            nip=nip,
+            payment_method=method,
+        )
+    except ValueError as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response(payload, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def payment_webhook(request):
+    """
+    Confirm payment and activate subscription.
+    Mock: { provider: 'mock', session_id, status: 'paid' }.
+    """
+    from .payments import complete_payment_session
+
+    provider = (request.data.get('provider') or '').strip().lower()
+    session_id = (request.data.get('session_id') or '').strip()
+    pay_status = (request.data.get('status') or 'paid').strip().lower()
+
+    if not session_id:
+        return Response(
+            {'error': 'Podaj session_id.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        result = complete_payment_session(
+            provider=provider or None,
+            session_id=session_id,
+            status=pay_status,
+        )
+    except ValueError as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response(result)
+
+
 @api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def schedule_settings(request):
@@ -457,6 +534,16 @@ def register_user(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
+    from .subscription import (
+        assert_can_add_seat,
+        get_or_create_default_organization,
+    )
+
+    try:
+        assert_can_add_seat(get_or_create_default_organization(), as_manager=False)
+    except ValueError as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
     user = User.objects.create_user(
         username=username,
         password=password,
@@ -583,9 +670,20 @@ class UserViewSet(
 
         profile = ensure_user_profile(user)
 
-        if has_rate:
-            profile.hourly_rate = data.get('hourly_rate')
         if has_manager:
+            becoming_manager = bool(data.get('is_manager')) and not profile.is_manager
+            if becoming_manager and user.is_active:
+                from .subscription import assert_can_add_seat, organization_for_user
+
+                try:
+                    assert_can_add_seat(
+                        organization_for_user(user),
+                        as_manager=True,
+                        exclude_user_id=user.id,
+                    )
+                except ValueError as exc:
+                    return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
             if (
                 profile.is_manager
                 and not bool(data.get('is_manager'))
@@ -596,9 +694,25 @@ class UserViewSet(
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             profile.is_manager = bool(data.get('is_manager'))
+
+        if has_rate:
+            profile.hourly_rate = data.get('hourly_rate')
         profile.save()
 
         if has_active:
+            activating = bool(data.get('is_active')) and not user.is_active
+            if activating:
+                from .subscription import assert_can_add_seat, organization_for_user
+
+                as_manager = bool(profile.is_manager)
+                try:
+                    assert_can_add_seat(
+                        organization_for_user(user),
+                        as_manager=as_manager,
+                        exclude_user_id=user.id,
+                    )
+                except ValueError as exc:
+                    return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
             user.is_active = bool(data.get('is_active'))
             user.save(update_fields=['is_active'])
 
