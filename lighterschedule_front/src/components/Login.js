@@ -78,6 +78,11 @@ const Login = () => {
             </p>
           </div>
         ) : null}
+        <div className={styles.loginFooter}>
+          <p>
+            <Link to="/">← Strona główna</Link>
+          </p>
+        </div>
       </div>
     </div>
   );

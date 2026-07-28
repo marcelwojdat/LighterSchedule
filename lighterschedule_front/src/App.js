@@ -7,12 +7,25 @@ import Register from './components/Register';
 import Dashboard from './components/Dashboard';
 import Manager from './components/Manager';
 import Profile from './components/Profile';
+import PublicLayout from './components/marketing/PublicLayout';
+import Landing from './components/marketing/Landing';
+import PricingStub from './components/marketing/PricingStub';
+import { TermsPage, PrivacyPage } from './components/marketing/LegalPages';
 
 function App() {
   return (
     <Routes>
+      <Route element={<PublicLayout />}>
+        <Route path="/" element={<Landing />} />
+        <Route path="/pricing" element={<PricingStub />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+      </Route>
+
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/app" element={<RoleRedirect />} />
+
       <Route
         path="/dashboard"
         element={
@@ -37,7 +50,6 @@ function App() {
           </ProtectedRoute>
         }
       />
-      <Route path="/" element={<RoleRedirect />} />
     </Routes>
   );
 }

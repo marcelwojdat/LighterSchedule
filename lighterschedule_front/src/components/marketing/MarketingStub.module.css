@@ -1,0 +1,62 @@
+.stub {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 64px 20px 80px;
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--m-accent, #2563eb);
+}
+
+.stub h1 {
+  margin: 0 0 14px;
+  font-size: clamp(1.8rem, 4vw, 2.4rem);
+  letter-spacing: -0.03em;
+  color: var(--m-ink, #0f172a);
+}
+
+.stub > p,
+.legalBody {
+  color: var(--m-muted, #475569);
+  line-height: 1.6;
+  font-size: 1.02rem;
+}
+
+.legalBody p {
+  margin: 0 0 12px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.primary,
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 11px 18px;
+  border-radius: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  font-size: 0.92rem;
+}
+
+.primary {
+  background: var(--m-accent, #2563eb);
+  color: #fff;
+}
+
+.secondary {
+  border: 1px solid var(--m-line, rgba(15, 23, 42, 0.15));
+  color: var(--m-ink, #0f172a);
+  background: var(--m-surface, #fff);
+}
