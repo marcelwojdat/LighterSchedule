@@ -367,10 +367,14 @@ def payroll_report(request):
     register_polish_fonts()
     styles = polish_paragraph_styles()
 
+    from .utils import format_month_year_pl
+
+    month_label = format_month_year_pl(year, month)
+
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
     story = [
-        Paragraph(f'Raport wypłat — {month_value}', styles['title']),
+        Paragraph(f'Raport wypłat — {month_label}', styles['title']),
         Spacer(1, 12),
         Paragraph(
             'Zatwierdzone dni pracy w wybranym miesiącu (łącznie ze zmianami).',

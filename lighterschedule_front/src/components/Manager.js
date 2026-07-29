@@ -4,6 +4,7 @@ import 'react-calendar/dist/Calendar.css';
 import { Link } from 'react-router-dom';
 import Auth from './Auth';
 import UserMenu from './UserMenu';
+import MonthPicker from './MonthPicker';
 import styles from './Manager.module.css';
 import { getErrorMessage } from '../api/client';
 import { getUsers, createUser, updateUserProfile, deleteUser } from '../api/users';
@@ -45,6 +46,7 @@ import {
 } from '../utils/time';
 import { getDayShiftCoverage, monthBounds } from '../utils/shiftCoverage';
 import { formatDateStr, getMonday, getWeekDates, addDays, shiftMonth } from '../utils/dates';
+import { formatMonthYearPl } from '../utils/locale';
 
 const STATUS_LABELS = {
   proposed: 'Oczekuje',
@@ -382,7 +384,7 @@ const Manager = () => {
   const handlePayrollDownload = async () => {
     try {
       await downloadPayrollPdf(statsMonth);
-      setSuccess(`Pobrano raport PDF za ${statsMonth}.`);
+      setSuccess(`Pobrano raport PDF za ${formatMonthYearPl(statsMonth)}.`);
       setError('');
     } catch (e) {
       setError(getErrorMessage(e, 'Nie udało się pobrać raportu PDF.'));
@@ -1187,12 +1189,12 @@ const Manager = () => {
             </p>
           </div>
           <div className={styles.statsBarActions}>
-            <label htmlFor="manager-stats-month">Miesiąc</label>
-            <input
+            <MonthPicker
               id="manager-stats-month"
-              type="month"
+              label="Wybierz miesiąc"
               value={statsMonth}
-              onChange={(e) => setStatsMonth(e.target.value)}
+              onChange={setStatsMonth}
+              className={styles.managerMonthPicker}
             />
             <button type="button" className={styles.btnPrimary} onClick={handlePayrollDownload}>
               Raport PDF
@@ -1957,7 +1959,7 @@ const Manager = () => {
                   {selectedEmployee.first_name} {selectedEmployee.last_name}
                 </div>
                 <div className={styles.empInfo}>
-                  <strong>Email:</strong> {selectedEmployee.email || '—'}
+                  <strong>E-mail:</strong> {selectedEmployee.email || '—'}
                 </div>
                 <div className={styles.empInfo}>
                   <strong>Stawka:</strong> {selectedEmployee.hourly_rate ?? '—'} zł/h
@@ -1965,6 +1967,7 @@ const Manager = () => {
 
                 <div className={styles.calendarContainer}>
                   <Calendar
+                    locale="pl-PL"
                     onChange={setChosenDate}
                     value={null}
                     tileClassName={getTileClassName}
@@ -2016,7 +2019,7 @@ const Manager = () => {
                     className={styles.btnSecondary}
                     disabled={copyBusy}
                     onClick={() => handleCopySchedule('month')}
-                    title={`Na miesiąc ${statsMonth}`}
+                    title={`Na miesiąc ${formatMonthYearPl(statsMonth)}`}
                   >
                     Kopiuj poprzedni miesiąc
                   </button>

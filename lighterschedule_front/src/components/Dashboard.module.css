@@ -714,19 +714,13 @@
 .statsMonthPicker {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0;
   min-width: 180px;
 }
 
 .statsMonthPicker label {
   font-size: 0.85rem;
   color: #334155;
-}
-
-.statsMonthPicker input {
-  height: 42px;
-  width: 100%;
-  border-radius: 12px;
 }
 
 .statsGrid {

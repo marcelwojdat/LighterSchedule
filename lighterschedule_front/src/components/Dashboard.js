@@ -3,6 +3,7 @@ import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import Auth from './Auth';
 import UserMenu from './UserMenu';
+import MonthPicker from './MonthPicker';
 import styles from './Dashboard.module.css';
 import { getErrorMessage } from '../api/client';
 import {
@@ -35,6 +36,7 @@ import {
 } from '../utils/time';
 import { formatDateStr, getMonday, addDays, shiftMonth } from '../utils/dates';
 import { getWeekSummary, formatWeekRangeLabel } from '../utils/weekSummary';
+import { formatMonthYearPl } from '../utils/locale';
 
 const STATUS_LABELS = {
   proposed: 'Oczekuje',
@@ -146,7 +148,7 @@ const Dashboard = () => {
       await downloadWorkdaysIcs(params);
       setScheduleSuccess(
         useMonth
-          ? `Pobrano grafik .ics za ${statsMonth}.`
+          ? `Pobrano grafik .ics za ${formatMonthYearPl(statsMonth)}.`
           : 'Pobrano nadchodzące zatwierdzone zmiany (.ics).'
       );
       setError('');
@@ -537,15 +539,13 @@ const Dashboard = () => {
     const totalEarnings = approvedWorkdays.reduce((sum, day) => sum + Number(day.earnings || 0), 0);
     const pendingCount = monthWorkdays.filter((d) => d.status === 'proposed').length;
 
-    const monthName = new Date(Number(year), Number(month) - 1).toLocaleString('pl-PL', { month: 'long' });
-
     return {
       totalHoursToDate,
       earnedToDate,
       totalDays,
       totalEarnings,
       pendingCount,
-      monthTitle: `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${year}`,
+      monthTitle: formatMonthYearPl(`${year}-${month}`),
     };
   };
 
@@ -1093,12 +1093,11 @@ const Dashboard = () => {
               <div className={styles.statsTitle}>{monthStats.monthTitle}</div>
             </div>
             <div className={styles.statsMonthPicker}>
-              <label htmlFor="stats-month">Wybierz miesiąc</label>
-              <input
+              <MonthPicker
                 id="stats-month"
-                type="month"
+                label="Wybierz miesiąc"
                 value={statsMonth}
-                onChange={(e) => setStatsMonth(e.target.value)}
+                onChange={setStatsMonth}
               />
             </div>
           </div>
@@ -1162,7 +1161,7 @@ const Dashboard = () => {
                   disabled={calendarExportBusy}
                   onClick={() => handleDownloadIcs(true)}
                 >
-                  Pobierz .ics ({statsMonth})
+                  Pobierz .ics ({formatMonthYearPl(statsMonth)})
                 </button>
               </div>
               {calendarFeed?.url ? (
@@ -1193,6 +1192,7 @@ const Dashboard = () => {
           <div className={styles.calendarWrapper}>
             <div className={styles.calendarContainer}>
               <Calendar
+                locale="pl-PL"
                 onChange={setChosenDate}
                 value={null}
                 tileClassName={getTileClassName}
@@ -1236,7 +1236,7 @@ const Dashboard = () => {
               className={styles.copyScheduleBtn}
               disabled={declarationsClosed || copyBusy}
               onClick={() => handleCopySchedule('month')}
-              title={`Na miesiąc ${statsMonth}`}
+              title={`Na miesiąc ${formatMonthYearPl(statsMonth)}`}
             >
               Kopiuj poprzedni miesiąc
             </button>

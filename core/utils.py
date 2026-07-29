@@ -60,6 +60,19 @@ DECLARATION_DEADLINE_MESSAGE = (
 )
 
 
+MONTHS_PL = (
+    'styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec',
+    'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień',
+)
+
+
+def format_month_year_pl(year, month):
+    """Return e.g. 'sierpień 2026' for PDF titles."""
+    if month < 1 or month > 12:
+        return f'{year}-{month:02d}'
+    return f'{MONTHS_PL[month - 1]} {year}'
+
+
 def employee_display_name(user):
     if user is None:
         return ''

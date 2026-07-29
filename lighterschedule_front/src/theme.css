@@ -182,7 +182,11 @@
   cursor: not-allowed;
 }
 
-/* —— Scoped auto-style for page roots / forms —— */
+/* Prefer 24h clock presentation where the browser respects lang=pl */
+.lsFields input[type='time'],
+input[type='time'] {
+  font-variant-numeric: tabular-nums;
+}
 .lsFields input:not([type='checkbox']):not([type='radio']):not([type='button']):not([type='submit']):not([type='reset']):not([type='file']):not([type='hidden']):not([type='image']):not([type='range']):not([type='color']),
 .lsFields select,
 .lsFields textarea {
