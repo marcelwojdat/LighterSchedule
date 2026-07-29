@@ -1,3 +1,5 @@
+from datetime import time
+
 from django.utils import timezone
 
 from .models import EmployeeProfile, ScheduleSettings, WorkDay
@@ -16,18 +18,45 @@ def get_schedule_settings():
     return ScheduleSettings.load()
 
 
-def declaration_deadline_passed(today=None):
-    """True when a deadline is set and local today is after that date."""
+def declaration_close_label(settings_obj=None):
+    """Human-readable weekly close rule, e.g. 'sobota 23:59'."""
+    settings_obj = settings_obj or get_schedule_settings()
+    weekday = settings_obj.declaration_close_weekday
+    if weekday is None:
+        return None
+    day_label = dict(ScheduleSettings.Weekday.choices).get(weekday, str(weekday)).lower()
+    close_time = settings_obj.declaration_close_time or time(23, 59)
+    return f'{day_label} {close_time.strftime("%H:%M")}'
+
+
+def declaration_deadline_passed(now=None):
+    """
+    True when the weekly declaration window is closed.
+
+    Rule: each week, employees may declare until declaration_close_weekday
+    at declaration_close_time (e.g. Saturday 23:59). After that moment until
+    the next Monday 00:00 the window is closed, then it opens again.
+    """
     settings_obj = get_schedule_settings()
-    deadline = settings_obj.declaration_deadline
-    if deadline is None:
+    weekday = settings_obj.declaration_close_weekday
+    if weekday is None:
         return False
-    current = today or timezone.localdate()
-    return current > deadline
+
+    close_time = settings_obj.declaration_close_time or time(23, 59)
+    current = timezone.localtime(now) if now is not None else timezone.localtime()
+    current_wd = current.weekday()
+    current_hm = current.time().replace(second=0, microsecond=0)
+    close_hm = close_time.replace(second=0, microsecond=0)
+
+    if current_wd > weekday:
+        return True
+    if current_wd < weekday:
+        return False
+    return current_hm > close_hm
 
 
 DECLARATION_DEADLINE_MESSAGE = (
-    'Termin składania deklaracji minął. Od teraz grafik może zmieniać tylko kierownik.'
+    'Okno składania deklaracji jest zamknięte. Od teraz grafik może zmieniać tylko kierownik.'
 )
 
 

@@ -11,8 +11,14 @@ from .models import (
     RejectionReasonTemplate,
 )
 from .permissions import is_manager
-from .utils import ensure_user_profile, assert_shift_slot_available, get_shift_slots_info
-from datetime import datetime, date as date_cls
+from .utils import (
+    ensure_user_profile,
+    assert_shift_slot_available,
+    get_shift_slots_info,
+    declaration_deadline_passed,
+    declaration_close_label,
+)
+from datetime import datetime, date as date_cls, time as time_cls
 
 
 WEEKDAY_LABELS = (
@@ -22,16 +28,46 @@ WEEKDAY_LABELS = (
 
 class ScheduleSettingsSerializer(serializers.ModelSerializer):
     declarations_closed = serializers.SerializerMethodField()
+    declaration_close_label = serializers.SerializerMethodField()
 
     class Meta:
         model = ScheduleSettings
-        fields = ['declaration_deadline', 'declarations_closed', 'updated_at']
-        read_only_fields = ['updated_at', 'declarations_closed']
+        fields = [
+            'declaration_close_weekday',
+            'declaration_close_time',
+            'declaration_close_label',
+            'declarations_closed',
+            'updated_at',
+        ]
+        read_only_fields = ['updated_at', 'declarations_closed', 'declaration_close_label']
 
     def get_declarations_closed(self, obj):
-        if obj.declaration_deadline is None:
-            return False
-        return timezone.localdate() > obj.declaration_deadline
+        return declaration_deadline_passed()
+
+    def get_declaration_close_label(self, obj):
+        return declaration_close_label(obj)
+
+    def validate_declaration_close_weekday(self, value):
+        if value is None:
+            return value
+        if value not in range(7):
+            raise serializers.ValidationError('Dzień tygodnia musi być liczbą 0–6.')
+        return value
+
+    def validate(self, attrs):
+        weekday = attrs.get(
+            'declaration_close_weekday',
+            getattr(self.instance, 'declaration_close_weekday', None),
+        )
+        close_time = attrs.get(
+            'declaration_close_time',
+            getattr(self.instance, 'declaration_close_time', None),
+        )
+        if 'declaration_close_weekday' in attrs and attrs['declaration_close_weekday'] is None:
+            attrs['declaration_close_time'] = None
+        elif weekday is not None and close_time is None and 'declaration_close_time' not in attrs:
+            attrs['declaration_close_time'] = time_cls(23, 59)
+        return attrs
 
 
 class UserSerializer(serializers.ModelSerializer):

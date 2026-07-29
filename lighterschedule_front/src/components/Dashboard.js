@@ -119,9 +119,13 @@ const Dashboard = () => {
   };
 
   const declarationsClosed = Boolean(scheduleSettings?.declarations_closed);
-  const deadlineMessage = scheduleSettings?.declaration_deadline
-    ? `Termin deklaracji minął (${scheduleSettings.declaration_deadline}). Grafik może zmieniać tylko kierownik.`
-    : 'Termin deklaracji minął. Grafik może zmieniać tylko kierownik.';
+  const closeLabel = scheduleSettings?.declaration_close_label;
+  const deadlineMessage = closeLabel
+    ? `Okno deklaracji jest zamknięte (termin: ${closeLabel}). Grafik może zmieniać tylko kierownik.`
+    : 'Okno deklaracji jest zamknięte. Grafik może zmieniać tylko kierownik.';
+  const deadlineOpenMessage = closeLabel
+    ? `Deklaracje można składać do ${closeLabel} włącznie (powtarza się co tydzień).`
+    : null;
 
   const openCalendarExport = async () => {
     const opening = !showCalendarExport;
@@ -1027,10 +1031,8 @@ const Dashboard = () => {
       {swapSuccess ? <div className={styles.swapSuccess}>{swapSuccess}</div> : null}
       {declarationsClosed ? (
         <div className={styles.deadlineBanner}>{deadlineMessage}</div>
-      ) : scheduleSettings?.declaration_deadline ? (
-        <div className={styles.deadlineInfo}>
-          Deklaracje można składać do {scheduleSettings.declaration_deadline} włącznie.
-        </div>
+      ) : deadlineOpenMessage ? (
+        <div className={styles.deadlineInfo}>{deadlineOpenMessage}</div>
       ) : null}
       {notifications.items?.length ? (
         <div className={styles.notificationsBanner}>

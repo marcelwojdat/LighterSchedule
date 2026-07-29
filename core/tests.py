@@ -982,39 +982,82 @@ class DeclarationDeadlineTests(APITestCase):
         }).data['access']
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
 
-    def test_manager_sets_deadline(self):
+    def test_manager_sets_weekly_deadline(self):
         self.authenticate(self.manager)
-        deadline = (date.today() + timedelta(days=2)).isoformat()
         response = self.client.patch('/api/schedule-settings/', {
-            'declaration_deadline': deadline,
+            'declaration_close_weekday': 5,
+            'declaration_close_time': '23:59:00',
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(response.data['declaration_deadline'], deadline)
-        self.assertFalse(response.data['declarations_closed'])
+        self.assertEqual(response.data['declaration_close_weekday'], 5)
+        self.assertEqual(response.data['declaration_close_time'], '23:59:00')
+        self.assertEqual(response.data['declaration_close_label'], 'sobota 23:59')
+        self.assertIn('declarations_closed', response.data)
 
-    def test_employee_blocked_after_deadline(self):
+    def test_employee_blocked_after_weekly_deadline(self):
+        from datetime import datetime, time
+        from unittest.mock import patch
+
+        from django.utils import timezone
+
         from core.models import ScheduleSettings
 
         settings_obj = ScheduleSettings.load()
-        settings_obj.declaration_deadline = date.today() - timedelta(days=1)
+        settings_obj.declaration_close_weekday = 5  # Saturday
+        settings_obj.declaration_close_time = time(23, 59)
         settings_obj.save()
 
-        self.authenticate(self.employee)
-        settings = self.client.get('/api/schedule-settings/')
-        self.assertTrue(settings.data['declarations_closed'])
+        # Sunday 12:00 — after Saturday close
+        fake_now = timezone.make_aware(datetime(2026, 7, 26, 12, 0, 0))
+        with patch('core.utils.timezone.localtime', return_value=fake_now):
+            self.authenticate(self.employee)
+            settings = self.client.get('/api/schedule-settings/')
+            self.assertTrue(settings.data['declarations_closed'])
 
-        response = self.client.post('/api/workdays/', {
-            'date': self.future.isoformat(),
-            'start_time': '09:00:00',
-            'end_time': '17:00:00',
-        }, format='json')
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+            response = self.client.post('/api/workdays/', {
+                'date': self.future.isoformat(),
+                'start_time': '09:00:00',
+                'end_time': '17:00:00',
+            }, format='json')
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_manager_can_edit_after_deadline(self):
+    def test_window_open_before_weekly_deadline(self):
+        from datetime import datetime, time
+        from unittest.mock import patch
+
+        from django.utils import timezone
+
+        from core.models import ScheduleSettings
+        from core.utils import declaration_deadline_passed
+
+        settings_obj = ScheduleSettings.load()
+        settings_obj.declaration_close_weekday = 5
+        settings_obj.declaration_close_time = time(23, 59)
+        settings_obj.save()
+
+        # Friday 10:00 — before Saturday close
+        fake_now = timezone.make_aware(datetime(2026, 7, 24, 10, 0, 0))
+        with patch('core.utils.timezone.localtime', return_value=fake_now):
+            self.assertFalse(declaration_deadline_passed())
+
+        # Saturday 23:59 — still open (inclusive until that minute)
+        fake_edge = timezone.make_aware(datetime(2026, 7, 25, 23, 59, 0))
+        with patch('core.utils.timezone.localtime', return_value=fake_edge):
+            self.assertFalse(declaration_deadline_passed())
+
+        # Sunday 00:00 — closed
+        fake_closed = timezone.make_aware(datetime(2026, 7, 26, 0, 0, 0))
+        with patch('core.utils.timezone.localtime', return_value=fake_closed):
+            self.assertTrue(declaration_deadline_passed())
+
+    def test_manager_can_edit_when_window_closed(self):
+        from datetime import time
+
         from core.models import ScheduleSettings
 
         settings_obj = ScheduleSettings.load()
-        settings_obj.declaration_deadline = date.today() - timedelta(days=1)
+        settings_obj.declaration_close_weekday = 0
+        settings_obj.declaration_close_time = time(0, 0)
         settings_obj.save()
 
         self.authenticate(self.manager)

@@ -13,10 +13,29 @@ class EmployeeProfile(models.Model):
 
 class ScheduleSettings(models.Model):
     """Singleton (pk=1) for schedule-wide rules managed by the manager."""
-    declaration_deadline = models.DateField(
+
+    class Weekday(models.IntegerChoices):
+        MONDAY = 0, 'Poniedziałek'
+        TUESDAY = 1, 'Wtorek'
+        WEDNESDAY = 2, 'Środa'
+        THURSDAY = 3, 'Czwartek'
+        FRIDAY = 4, 'Piątek'
+        SATURDAY = 5, 'Sobota'
+        SUNDAY = 6, 'Niedziela'
+
+    declaration_close_weekday = models.PositiveSmallIntegerField(
         null=True,
         blank=True,
-        help_text='Pracownicy mogą składać i edytować deklaracje do tego dnia włącznie. Puste = bez limitu.',
+        choices=Weekday.choices,
+        help_text=(
+            'Dzień tygodnia zamknięcia okna deklaracji (0=poniedziałek … 6=niedziela). '
+            'Puste = bez limitu.'
+        ),
+    )
+    declaration_close_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text='Godzina zamknięcia w wybranym dniu (np. 23:59).',
     )
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -26,6 +45,11 @@ class ScheduleSettings(models.Model):
 
     def save(self, *args, **kwargs):
         self.pk = 1
+        if self.declaration_close_weekday is None:
+            self.declaration_close_time = None
+        elif self.declaration_close_time is None:
+            from datetime import time as time_cls
+            self.declaration_close_time = time_cls(23, 59)
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
@@ -37,9 +61,15 @@ class ScheduleSettings(models.Model):
         return obj
 
     def __str__(self):
-        if self.declaration_deadline:
-            return f'Deklaracje do {self.declaration_deadline.isoformat()}'
-        return 'Ustawienia grafiku (bez deadline)'
+        if self.declaration_close_weekday is None:
+            return 'Ustawienia grafiku (bez deadline)'
+        label = dict(self.Weekday.choices).get(
+            self.declaration_close_weekday,
+            str(self.declaration_close_weekday),
+        )
+        close_time = self.declaration_close_time
+        time_label = close_time.strftime('%H:%M') if close_time else '23:59'
+        return f'Deklaracje do {label.lower()} {time_label}'
 
 class TaskType(models.Model):
     name = models.CharField(max_length=50, unique=True)

@@ -41,7 +41,11 @@ class RejectionReasonTemplateAdmin(admin.ModelAdmin):
 
 @admin.register(ScheduleSettings)
 class ScheduleSettingsAdmin(admin.ModelAdmin):
-    list_display = ('declaration_deadline', 'updated_at')
+    list_display = (
+        'declaration_close_weekday',
+        'declaration_close_time',
+        'updated_at',
+    )
 
 
 @admin.register(Organization)

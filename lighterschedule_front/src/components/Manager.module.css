@@ -1223,7 +1223,9 @@
   align-items: center;
 }
 
-.deadlineControls input[type='date'] {
+.deadlineControls input[type='date'],
+.deadlineControls input[type='time'],
+.deadlineControls select {
   min-width: 160px;
 }
 

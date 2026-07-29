@@ -130,7 +130,8 @@ const Manager = () => {
   const [notifications, setNotifications] = useState({ total: 0, items: [] });
   const [dayNote, setDayNote] = useState('');
   const [showShiftTemplates, setShowShiftTemplates] = useState(false);
-  const [declarationDeadline, setDeclarationDeadline] = useState('');
+  const [declarationCloseWeekday, setDeclarationCloseWeekday] = useState('');
+  const [declarationCloseTime, setDeclarationCloseTime] = useState('23:59');
   const [rejectionReasons, setRejectionReasons] = useState([]);
   const [newRejectionReason, setNewRejectionReason] = useState('');
   const [showAddUserForm, setShowAddUserForm] = useState(false);
@@ -212,7 +213,14 @@ const Manager = () => {
   const fetchScheduleSettings = async () => {
     try {
       const data = await getScheduleSettings();
-      setDeclarationDeadline(data.declaration_deadline || '');
+      setDeclarationCloseWeekday(
+        data.declaration_close_weekday === null || data.declaration_close_weekday === undefined
+          ? ''
+          : String(data.declaration_close_weekday)
+      );
+      setDeclarationCloseTime(
+        data.declaration_close_time ? String(data.declaration_close_time).slice(0, 5) : '23:59'
+      );
     } catch (e) {
       setError(getErrorMessage(e, 'Nie udało się pobrać ustawień grafiku'));
     }
@@ -221,13 +229,23 @@ const Manager = () => {
   const handleSaveDeclarationDeadline = async (e) => {
     e.preventDefault();
     try {
+      const weekday =
+        declarationCloseWeekday === '' ? null : Number(declarationCloseWeekday);
       const data = await updateScheduleSettings({
-        declaration_deadline: declarationDeadline || null,
+        declaration_close_weekday: weekday,
+        declaration_close_time: weekday === null ? null : `${declarationCloseTime || '23:59'}:00`,
       });
-      setDeclarationDeadline(data.declaration_deadline || '');
+      setDeclarationCloseWeekday(
+        data.declaration_close_weekday === null || data.declaration_close_weekday === undefined
+          ? ''
+          : String(data.declaration_close_weekday)
+      );
+      setDeclarationCloseTime(
+        data.declaration_close_time ? String(data.declaration_close_time).slice(0, 5) : '23:59'
+      );
       setSuccess(
-        data.declaration_deadline
-          ? `Termin deklaracji ustawiony na ${data.declaration_deadline}.`
+        data.declaration_close_label
+          ? `Okno deklaracji zamyka się w: ${data.declaration_close_label} (co tydzień).`
           : 'Usunięto termin deklaracji — pracownicy mogą deklarować bez limitu.'
       );
       setError('');
@@ -1223,6 +1241,105 @@ const Manager = () => {
         </div>
       </section>
 
+      <section className={styles.teamOverviewSection}>
+        <div className={styles.teamOverviewHeader}>
+          <div>
+            <h3>Widok zbiorczy zespołu</h3>
+            <p className={styles.teamOverviewHint}>Zatwierdzone zmiany — tydzień od {weekDates[0]} do {weekDates[6]}</p>
+          </div>
+          <div className={styles.weekNav}>
+            <button type="button" className={styles.btnSecondary} onClick={() => changeWeek(-1)}>
+              Poprzedni tydzień
+            </button>
+            <button type="button" className={styles.btnSecondary} onClick={() => setWeekStart(formatDateStr(getMonday()))}>
+              Bieżący tydzień
+            </button>
+            <button type="button" className={styles.btnSecondary} onClick={() => changeWeek(1)}>
+              Następny tydzień
+            </button>
+          </div>
+        </div>
+        {renderCoverageLegend()}
+        <div className={styles.teamTableWrap}>
+          <table className={styles.teamTable}>
+            <thead>
+              <tr>
+                <th>Pracownik</th>
+                {weekDates.map((dateStr, index) => {
+                  const coverage = getCoverageForDate(dateStr, teamWorkdays);
+                  const summary = coverageSlotSummary(coverage);
+                  return (
+                    <th
+                      key={dateStr}
+                      className={`${styles.teamDayHeader} ${coverageClass(
+                        coverage.status,
+                        styles.teamDayHeaderClosed,
+                        styles.teamDayHeaderOpen,
+                        styles.teamDayHeaderNone
+                      )}`}
+                      title={coverage.tooltip || undefined}
+                    >
+                      <div>{DAY_LABELS[index]}</div>
+                      <small>{dateStr.slice(5)}</small>
+                      {summary ? <div className={styles.teamDayHeaderMeta}>{summary}</div> : null}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {employees.map((employee) => (
+                <tr key={employee.id}>
+                  <th className={styles.teamEmployeeCell}>{getEmployeeDisplayName(employee)}</th>
+                  {weekDates.map((dateStr) => {
+                    const shifts = getShiftsForCell(employee.id, dateStr);
+                    const coverage = getCoverageForDate(dateStr, teamWorkdays);
+                    return (
+                      <td
+                        key={`${employee.id}-${dateStr}`}
+                        className={`${styles.teamDayCell} ${coverageClass(
+                          coverage.status,
+                          styles.teamDayCellClosed,
+                          styles.teamDayCellOpen,
+                          styles.teamDayCellNone
+                        )}`}
+                        title={coverage.tooltip || undefined}
+                      >
+                        {shifts.length === 0 ? (
+                          <span className={styles.teamEmptyCell}>—</span>
+                        ) : (
+                          shifts.map((shift) => {
+                            const slot = coverage.slots.find(
+                              (item) => Number(item.id) === Number(shift.shift_template)
+                            );
+                            const incomplete = slot && !slot.isFull;
+                            return (
+                              <div
+                                key={shift.id}
+                                className={`${styles.teamShift} ${incomplete ? styles.teamShiftIncomplete : ''}`}
+                              >
+                                <div>
+                                  {shift.start_time.slice(0, 5)}-{shift.end_time.slice(0, 5)}
+                                </div>
+                                {shift.shift_template_name ? (
+                                  <small>{shift.shift_template_name}</small>
+                                ) : null}
+                                {shift.role_name ? <small>{shift.role_name}</small> : null}
+                                {incomplete ? <span className={styles.teamShiftDot} aria-hidden="true" /> : null}
+                              </div>
+                            );
+                          })
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <section className={styles.holesSection}>
         <div className={styles.sectionCard}>
           <div className={styles.sectionHeader}>
@@ -2037,31 +2154,53 @@ const Manager = () => {
 
           <form className={styles.deadlineForm} onSubmit={handleSaveDeclarationDeadline}>
             <div>
-              <label htmlFor="declaration-deadline" className={styles.deadlineLabel}>
-                Deklaruj do dnia
+              <label htmlFor="declaration-close-weekday" className={styles.deadlineLabel}>
+                Zamknięcie deklaracji (co tydzień)
               </label>
               <p className={styles.statHint}>
-                Po tym terminie pracownicy nie mogą składać ani edytować deklaracji — tylko kierownik.
+                Po wybranym dniu i godzinie pracownicy nie składają deklaracji do kolejnego
+                poniedziałku — tylko kierownik może zmieniać grafik.
               </p>
             </div>
             <div className={styles.deadlineControls}>
+              <select
+                id="declaration-close-weekday"
+                value={declarationCloseWeekday}
+                onChange={(e) => setDeclarationCloseWeekday(e.target.value)}
+                aria-label="Dzień tygodnia zamknięcia"
+              >
+                <option value="">Bez limitu</option>
+                <option value="0">Poniedziałek</option>
+                <option value="1">Wtorek</option>
+                <option value="2">Środa</option>
+                <option value="3">Czwartek</option>
+                <option value="4">Piątek</option>
+                <option value="5">Sobota</option>
+                <option value="6">Niedziela</option>
+              </select>
               <input
-                id="declaration-deadline"
-                type="date"
-                value={declarationDeadline}
-                onChange={(e) => setDeclarationDeadline(e.target.value)}
+                id="declaration-close-time"
+                type="time"
+                value={declarationCloseTime}
+                onChange={(e) => setDeclarationCloseTime(e.target.value || '23:59')}
+                disabled={declarationCloseWeekday === ''}
+                aria-label="Godzina zamknięcia"
               />
               <button type="submit" className={styles.btnPrimary}>
                 Zapisz termin
               </button>
-              {declarationDeadline ? (
+              {declarationCloseWeekday !== '' ? (
                 <button
                   type="button"
                   className={styles.btnSecondary}
                   onClick={async () => {
-                    setDeclarationDeadline('');
+                    setDeclarationCloseWeekday('');
+                    setDeclarationCloseTime('23:59');
                     try {
-                      await updateScheduleSettings({ declaration_deadline: null });
+                      await updateScheduleSettings({
+                        declaration_close_weekday: null,
+                        declaration_close_time: null,
+                      });
                       setSuccess('Usunięto termin deklaracji.');
                       setError('');
                     } catch (err) {
@@ -2247,104 +2386,7 @@ const Manager = () => {
         </div>
       </section>
 
-      <section className={styles.teamOverviewSection}>
-        <div className={styles.teamOverviewHeader}>
-          <div>
-            <h3>Widok zbiorczy zespołu</h3>
-            <p className={styles.teamOverviewHint}>Zatwierdzone zmiany — tydzień od {weekDates[0]} do {weekDates[6]}</p>
-          </div>
-          <div className={styles.weekNav}>
-            <button type="button" className={styles.btnSecondary} onClick={() => changeWeek(-1)}>
-              Poprzedni tydzień
-            </button>
-            <button type="button" className={styles.btnSecondary} onClick={() => setWeekStart(formatDateStr(getMonday()))}>
-              Bieżący tydzień
-            </button>
-            <button type="button" className={styles.btnSecondary} onClick={() => changeWeek(1)}>
-              Następny tydzień
-            </button>
-          </div>
-        </div>
-        {renderCoverageLegend()}
-        <div className={styles.teamTableWrap}>
-          <table className={styles.teamTable}>
-            <thead>
-              <tr>
-                <th>Pracownik</th>
-                {weekDates.map((dateStr, index) => {
-                  const coverage = getCoverageForDate(dateStr, teamWorkdays);
-                  const summary = coverageSlotSummary(coverage);
-                  return (
-                    <th
-                      key={dateStr}
-                      className={`${styles.teamDayHeader} ${coverageClass(
-                        coverage.status,
-                        styles.teamDayHeaderClosed,
-                        styles.teamDayHeaderOpen,
-                        styles.teamDayHeaderNone
-                      )}`}
-                      title={coverage.tooltip || undefined}
-                    >
-                      <div>{DAY_LABELS[index]}</div>
-                      <small>{dateStr.slice(5)}</small>
-                      {summary ? <div className={styles.teamDayHeaderMeta}>{summary}</div> : null}
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {employees.map((employee) => (
-                <tr key={employee.id}>
-                  <th className={styles.teamEmployeeCell}>{getEmployeeDisplayName(employee)}</th>
-                  {weekDates.map((dateStr) => {
-                    const shifts = getShiftsForCell(employee.id, dateStr);
-                    const coverage = getCoverageForDate(dateStr, teamWorkdays);
-                    return (
-                      <td
-                        key={`${employee.id}-${dateStr}`}
-                        className={`${styles.teamDayCell} ${coverageClass(
-                          coverage.status,
-                          styles.teamDayCellClosed,
-                          styles.teamDayCellOpen,
-                          styles.teamDayCellNone
-                        )}`}
-                        title={coverage.tooltip || undefined}
-                      >
-                        {shifts.length === 0 ? (
-                          <span className={styles.teamEmptyCell}>—</span>
-                        ) : (
-                          shifts.map((shift) => {
-                            const slot = coverage.slots.find(
-                              (item) => Number(item.id) === Number(shift.shift_template)
-                            );
-                            const incomplete = slot && !slot.isFull;
-                            return (
-                              <div
-                                key={shift.id}
-                                className={`${styles.teamShift} ${incomplete ? styles.teamShiftIncomplete : ''}`}
-                              >
-                                <div>
-                                  {shift.start_time.slice(0, 5)}-{shift.end_time.slice(0, 5)}
-                                </div>
-                                {shift.shift_template_name ? (
-                                  <small>{shift.shift_template_name}</small>
-                                ) : null}
-                                {shift.role_name ? <small>{shift.role_name}</small> : null}
-                                {incomplete ? <span className={styles.teamShiftDot} aria-hidden="true" /> : null}
-                              </div>
-                            );
-                          })
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      
     </div>
   );
 };
