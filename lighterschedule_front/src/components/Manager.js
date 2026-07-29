@@ -1210,7 +1210,7 @@ const Manager = () => {
         <div className={styles.sectionCard}>
           <div className={styles.sectionHeader}>
             <div>
-              <h3>Dziury w grafiku</h3>
+              <h3>Braki w grafiku</h3>
               <p className={styles.statHint}>
                 Wolne miejsca na aktywnych zmianach
                 {scheduleHoles.date_from && scheduleHoles.date_to
