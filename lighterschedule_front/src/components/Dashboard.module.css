@@ -62,13 +62,16 @@
 .calendarPanel {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 12px;
   background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 22px;
   padding: 18px;
   box-shadow: 0 14px 32px rgba(15, 23, 42, 0.07);
-  max-height: 68vh;
+  /* Allow full month (5–6 weeks) — do not clip the last row */
+  max-height: none;
+  overflow: visible;
 }
 
 .calendarHeader {
@@ -76,8 +79,9 @@
   justify-content: space-between;
   align-items: center;
   gap: 14px;
-  margin-bottom: 14px;
+  margin-bottom: 2px;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .calendarExportToggle {
@@ -199,7 +203,8 @@
   width: 100%;
   margin: 0;
   padding: 0;
-  min-height: 0;
+  flex: 0 0 auto;
+  overflow: visible;
 }
 
 .calendarContainer {
@@ -210,23 +215,36 @@
   border-radius: 20px;
   background: #f8fafc;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  overflow: hidden;
-  min-height: 0; 
+  overflow: visible;
+  height: auto;
 }
 
 .calendarContainer :global(.react-calendar) {
-  width: 100% !important;  margin: 0 auto;
+  width: 100% !important;
+  margin: 0 auto;
   border: none !important;
   background: transparent !important;
-  box-shadow: none !important;  border-radius: 18px !important;}
+  box-shadow: none !important;
+  border-radius: 18px !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+
+.calendarContainer :global(.react-calendar__viewContainer),
+.calendarContainer :global(.react-calendar__month-view),
+.calendarContainer :global(.react-calendar__month-view__days) {
+  height: auto !important;
+  overflow: visible !important;
+}
 
 .calendarContainer :global(.react-calendar__navigation) {
   display: flex !important;
   justify-content: center !important;
   align-items: center !important;
-  /* margin-bottom: 4px !important; */
   padding-bottom: 0 !important;
-  height: 30px;
+  min-height: 36px;
+  height: auto;
+  flex-shrink: 0;
 }
 
 .calendarContainer :global(.react-calendar__navigation__label) {
@@ -313,6 +331,7 @@
   padding-top: 14px;
   margin: 14px 0;
   border-top: 1px solid rgba(15, 23, 42, 0.08);
+  flex-shrink: 0;
 }
 
 .legendItem {
@@ -750,6 +769,7 @@
   gap: 8px;
   justify-content: center;
   margin: 12px 0 4px;
+  flex-shrink: 0;
 }
 
 .copyScheduleBtn {
@@ -938,15 +958,52 @@
 
 :global([data-theme='dark']) .calendarExportToggle,
 :global([data-theme='dark']) .calendarExportBtnSecondary,
-:global([data-theme='dark']) .copyScheduleBtn {
+:global([data-theme='dark']) .copyScheduleBtn,
+:global([data-theme='dark']) .scheduleSetBtn,
+:global([data-theme='dark']) .weekNavBtn,
+:global([data-theme='dark']) .popupBtnSecondary {
   background: #0f172a;
-  border-color: #475569;
-  color: #e2e8f0;
+  border-color: #64748b;
+  color: #f1f5f9;
+}
+
+:global([data-theme='dark']) .calendarExportToggle:hover,
+:global([data-theme='dark']) .calendarExportBtnSecondary:hover,
+:global([data-theme='dark']) .copyScheduleBtn:hover:not(:disabled),
+:global([data-theme='dark']) .weekNavBtn:hover,
+:global([data-theme='dark']) .popupBtnSecondary:hover {
+  background: #1e293b;
+  border-color: #94a3b8;
+  color: #fff;
+}
+
+:global([data-theme='dark']) .scheduleSetBtn:hover,
+:global([data-theme='dark']) .saveScheduleBtn:hover {
+  background: #1e3a8a;
+  border-color: #3b82f6;
+  color: #fff;
+}
+
+:global([data-theme='dark']) .saveScheduleBtn {
+  background: #1d4ed8;
+  border-color: #3b82f6;
+  color: #fff;
+}
+
+:global([data-theme='dark']) .popupBtn {
+  background: #1e293b;
+  border-color: #64748b;
+  color: #f1f5f9;
+}
+
+:global([data-theme='dark']) .popupBtn:hover {
+  background: #334155;
+  border-color: #94a3b8;
 }
 
 :global([data-theme='dark']) .calendarExportPanel {
   background: #0f172a;
-  border-color: #334155;
+  border-color: #475569;
 }
 
 :global([data-theme='dark']) .calendarExportHint,
@@ -956,13 +1013,13 @@
 
 :global([data-theme='dark']) .calendarFeedUrl {
   background: #1e293b;
-  border-color: #334155;
+  border-color: #475569;
   color: #e2e8f0;
 }
 
 :global([data-theme='dark']) .statCard {
   background: #1e293b;
-  border-color: #334155;
+  border-color: #475569;
   color: #e2e8f0;
 }
 
@@ -972,13 +1029,7 @@
 }
 
 :global([data-theme='dark']) .weekSummary {
-  border-bottom-color: #334155;
-}
-
-:global([data-theme='dark']) .weekNavBtn {
-  background: #0f172a;
-  border-color: #475569;
-  color: #e2e8f0;
+  border-bottom-color: #475569;
 }
 
 :global([data-theme='dark']) .weekStatApproved p {
@@ -991,6 +1042,7 @@
 
 :global([data-theme='dark']) .popupBox {
   color: #e2e8f0;
+  border-color: #475569;
 }
 
 :global([data-theme='dark']) .dayNoteBox {
@@ -1005,29 +1057,105 @@
   color: #fdba74;
 }
 
-:global([data-theme='dark']) .swapListItem {
+:global([data-theme='dark']) .swapListCard {
   background: #0f172a;
-  border-color: #334155;
+  border-color: #475569;
   color: #e2e8f0;
 }
 
+:global([data-theme='dark']) .swapListCard h4 {
+  color: #f1f5f9;
+}
+
+:global([data-theme='dark']) .swapListItem {
+  background: #1e293b;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+
+:global([data-theme='dark']) .swapListItem:hover {
+  border-color: #64748b;
+  background: #243447;
+}
+
+:global([data-theme='dark']) .swapStatusTag {
+  background: #0c4a6e;
+  color: #bae6fd;
+}
+
+:global([data-theme='dark']) .swapRejectBtn {
+  background: #450a0a;
+  color: #fecaca;
+  border: 1px solid #7f1d1d;
+}
+
+:global([data-theme='dark']) .swapRejectBtn:hover {
+  background: #7f1d1d;
+  color: #fff;
+}
+
+:global([data-theme='dark']) .swapAcceptBtn:hover {
+  filter: brightness(1.08);
+}
+
+:global([data-theme='dark']) .swapForm select,
+:global([data-theme='dark']) .roleSelect,
+:global([data-theme='dark']) .noteInput,
+:global([data-theme='dark']) .popupField input,
+:global([data-theme='dark']) .popupField select {
+  background: #0f172a;
+  border-color: #64748b;
+  color: #f1f5f9;
+}
+
+:global([data-theme='dark']) .swapForm select:hover,
+:global([data-theme='dark']) .roleSelect:hover,
+:global([data-theme='dark']) .noteInput:hover {
+  border-color: #94a3b8;
+}
+
+:global([data-theme='dark']) .swapForm select:focus,
+:global([data-theme='dark']) .roleSelect:focus,
+:global([data-theme='dark']) .noteInput:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 1px;
+  border-color: #3b82f6;
+}
+
 :global([data-theme='dark']) .statusLegend {
-  border-top-color: #334155;
+  border-top-color: #475569;
 }
 
 :global([data-theme='dark']) .calendarContainer {
   background: #0f172a;
-  border-color: #334155;
+  border-color: #475569;
 }
 
 :global([data-theme='dark']) .calendarContainer :global(.react-calendar__navigation button) {
-  color: #e2e8f0;
+  color: #f1f5f9;
+}
+
+:global([data-theme='dark']) .calendarContainer :global(.react-calendar__navigation button:enabled:hover),
+:global([data-theme='dark']) .calendarContainer :global(.react-calendar__navigation button:enabled:focus) {
+  background: #1e293b;
+  color: #fff;
 }
 
 :global([data-theme='dark']) .calendarContainer :global(.react-calendar__tile) {
   background: #1e293b;
-  border-color: #334155 !important;
+  border-color: #475569 !important;
   color: #e2e8f0;
+}
+
+:global([data-theme='dark']) .calendarContainer :global(.react-calendar__tile:hover) {
+  background: #334155 !important;
+  border-color: #94a3b8 !important;
+}
+
+:global([data-theme='dark']) .calendarContainer :global(.react-calendar__tile--now) {
+  background: #1e3a8a !important;
+  color: #e2e8f0 !important;
+  border-color: #60a5fa !important;
 }
 
 :global([data-theme='dark']) .swapSuccess {

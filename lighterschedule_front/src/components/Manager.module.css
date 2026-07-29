@@ -738,7 +738,8 @@
   background: #f8fafc;
   border-radius: 20px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  overflow: hidden;
+  overflow: visible;
+  height: auto;
 }
 
 .calendarContainer :global(.react-calendar) {
@@ -748,6 +749,8 @@
   background: transparent !important;
   box-shadow: none !important;
   border-radius: 18px !important;
+  height: auto !important;
+  overflow: visible !important;
 }
 
 .calendarContainer :global(.react-calendar__navigation) {
