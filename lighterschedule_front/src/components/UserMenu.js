@@ -57,17 +57,17 @@ const UserMenu = ({ user, isManager, darkMode, onToggleTheme, onLogout, notifica
           </div>
         </div>
 
-        <Link to="/dashboard" className={styles.menuLink} onClick={closeMenu}>
-          <LayoutDashboard size={16} className={styles.linkIcon} />
-          Panel pracownika
-        </Link>
-
         {isManager ? (
           <Link to="/manager" className={styles.menuLink} onClick={closeMenu}>
             <Shield size={16} className={styles.linkIcon} />
             Panel kierownika
           </Link>
-        ) : null}
+        ) : (
+          <Link to="/dashboard" className={styles.menuLink} onClick={closeMenu}>
+            <LayoutDashboard size={16} className={styles.linkIcon} />
+            Panel pracownika
+          </Link>
+        )}
 
         <Link to="/profile" className={styles.menuLink} onClick={closeMenu}>
           <Settings2 size={16} className={styles.linkIcon} />
