@@ -1,9 +1,9 @@
 :root {
   --field-bg: #ffffff;
   --field-bg-disabled: #f1f5f9;
-  --field-border: #cbd5e1;
+  --field-border: #94a3b8;
   --field-text: #0f172a;
-  --field-placeholder: #94a3b8;
+  --field-placeholder: #64748b;
   --field-radius: 10px;
   --field-padding-y: 8px;
   --field-padding-x: 11px;
@@ -12,8 +12,11 @@
   --field-focus-ring: rgba(59, 130, 246, 0.28);
   --checkbox-size: 1.1rem;
   --checkbox-accent: #2563eb;
-  --checkbox-border: #94a3b8;
+  --checkbox-border: #64748b;
   --checkbox-check: #ffffff;
+  --panel-border: #cbd5e1;
+  --panel-border-strong: #94a3b8;
+  --panel-border-soft: rgba(15, 23, 42, 0.16);
 }
 
 [data-theme='dark'] {
@@ -61,7 +64,7 @@
 .fieldInput:hover:not(:disabled):not(:focus),
 .fieldSelect:hover:not(:disabled):not(:focus),
 .fieldTextarea:hover:not(:disabled):not(:focus) {
-  border-color: #94a3b8;
+  border-color: #64748b;
 }
 
 [data-theme='dark'] .fieldInput:hover:not(:disabled):not(:focus),

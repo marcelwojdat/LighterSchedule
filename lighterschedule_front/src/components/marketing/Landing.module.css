@@ -155,7 +155,7 @@
 
 .sectionAlt {
   background: color-mix(in srgb, var(--m-surface, #fff) 70%, var(--m-bg, #f8fafc));
-  border-block: 1px solid var(--m-line, rgba(15, 23, 42, 0.08));
+  border-block: 1px solid var(--m-line, rgba(15, 23, 42, 0.16));
 }
 
 .sectionInner {

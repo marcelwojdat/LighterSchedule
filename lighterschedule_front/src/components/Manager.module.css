@@ -50,7 +50,7 @@
   padding: 14px 16px;
   background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
   border-radius: 18px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.16);
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
 }
 
@@ -101,7 +101,7 @@
   padding: 12px 14px;
   border-radius: 14px;
   background: #fff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #cbd5e1;
   min-height: 72px;
 }
 
@@ -247,7 +247,7 @@
   padding: 14px 16px;
   background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
   border-radius: 18px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.16);
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
   margin-bottom: 12px;
 }
@@ -292,7 +292,7 @@
   overflow: visible;
   margin-top: 10px;
   border-radius: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #cbd5e1;
 }
 
 .empTable {
@@ -415,7 +415,7 @@
   gap: 4px;
   margin-top: 2px;
   padding-top: 6px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid #cbd5e1;
 }
 
 .usersExpandBtn {
@@ -456,7 +456,7 @@
   align-items: flex-start;
   padding: 12px;
   border-radius: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #cbd5e1;
   background: #fff;
 }
 
@@ -479,7 +479,7 @@
   gap: 10px;
   margin: 12px 0 14px;
   padding-top: 12px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid #cbd5e1;
 }
 
 .userCreateForm > input:not([type='checkbox']),
@@ -737,7 +737,7 @@
   padding: 14px;
   background: #f8fafc;
   border-radius: 20px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.16);
   overflow: visible;
   height: auto;
 }
@@ -786,7 +786,7 @@
   max-width: calc(100% / 7 - 4px) !important;
   margin: 2px !important;
   min-height: 72px;
-  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  border: 1px solid rgba(15, 23, 42, 0.16) !important;
   border-radius: 14px !important;
   background: #ffffff;
   display: flex;
@@ -870,7 +870,7 @@
   gap: 10px 14px;
   padding-top: 12px;
   margin: 10px 0 4px;
-  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  border-top: 1px solid rgba(15, 23, 42, 0.16);
 }
 
 .coverageLegend {
@@ -881,7 +881,7 @@
   padding: 10px 12px;
   border-radius: 12px;
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #cbd5e1;
 }
 
 .legendItem {
@@ -1052,7 +1052,7 @@
   padding: 10px 12px;
   border-radius: 10px;
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #cbd5e1;
   font-size: 0.9rem;
 }
 
@@ -1123,7 +1123,7 @@
   padding: 14px 16px;
   background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
   border-radius: 18px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.16);
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
 }
 
@@ -1155,13 +1155,13 @@
 .shiftTemplatesPanel {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid #cbd5e1;
 }
 
 .deadlineForm {
   margin-top: 14px;
   padding-top: 14px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid #cbd5e1;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1200,7 +1200,7 @@
 .subscriptionBody {
   margin-top: 14px;
   padding-top: 14px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid #cbd5e1;
 }
 
 .subscriptionHeaderRow {
@@ -1308,7 +1308,7 @@
 .teamTableWrap {
   overflow-x: auto;
   border-radius: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #cbd5e1;
 }
 
 .teamTable {
@@ -1319,7 +1319,7 @@
 
 .teamTable th,
 .teamTable td {
-  border: 1px solid #e2e8f0;
+  border: 1px solid #cbd5e1;
   padding: 8px;
   text-align: center;
   vertical-align: top;
