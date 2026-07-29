@@ -81,6 +81,7 @@ const EMPTY_USER_FORM = {
 };
 
 const USERS_PREVIEW_COUNT = 5;
+const HOLES_PREVIEW_COUNT = 5;
 
 const Manager = () => {
   const [employees, setEmployees] = useState([]);
@@ -139,6 +140,7 @@ const Manager = () => {
   const [copyBusy, setCopyBusy] = useState(false);
   const [holesDays, setHolesDays] = useState(7);
   const [scheduleHoles, setScheduleHoles] = useState({ count: 0, items: [] });
+  const [showAllHoles, setShowAllHoles] = useState(false);
   const [selectedApproveIds, setSelectedApproveIds] = useState([]);
   const [bulkApproveBusy, setBulkApproveBusy] = useState(false);
   const [subscription, setSubscription] = useState(null);
@@ -155,6 +157,19 @@ const Manager = () => {
       subscription.used_employees >= subscription.max_employees
     );
   }, [subscription]);
+
+  const sortedHoles = useMemo(() => {
+    const items = scheduleHoles.items || [];
+    return [...items].sort((a, b) => {
+      const byDate = String(a.date).localeCompare(String(b.date));
+      if (byDate !== 0) return byDate;
+      return String(a.start_time || '').localeCompare(String(b.start_time || ''));
+    });
+  }, [scheduleHoles.items]);
+
+  const visibleHoles = showAllHoles
+    ? sortedHoles
+    : sortedHoles.slice(0, HOLES_PREVIEW_COUNT);
 
   const resetTemplateForm = () => {
     setTemplateForm({
@@ -371,6 +386,7 @@ const Manager = () => {
   }, [coverageMonth.year, coverageMonth.month]);
 
   useEffect(() => {
+    setShowAllHoles(false);
     fetchScheduleHoles(holesDays);
   }, [holesDays]);
 
@@ -1238,36 +1254,50 @@ const Manager = () => {
               <span className={styles.queueBadge}>{scheduleHoles.count ?? 0}</span>
             </div>
           </div>
-          {!scheduleHoles.items?.length ? (
+          {!sortedHoles.length ? (
             <p className={styles.emptyQueue}>Brak dziur — wszystkie zaplanowane zmiany są obsadzone.</p>
           ) : (
-            <ul className={styles.holesList}>
-              {scheduleHoles.items.map((hole) => (
-                <li
-                  key={`${hole.date}-${hole.shift_template_id}`}
-                  className={styles.holesItem}
+            <>
+              <ul className={styles.holesList}>
+                {visibleHoles.map((hole) => (
+                  <li
+                    key={`${hole.date}-${hole.shift_template_id}`}
+                    className={styles.holesItem}
+                  >
+                    <div className={styles.holesItemMain}>
+                      <strong>{hole.date}</strong>
+                      <span className={styles.holesShiftName}>{hole.shift_template_name}</span>
+                      <span className={styles.holesHours}>
+                        {hole.start_time?.slice(0, 5)} – {hole.end_time?.slice(0, 5)}
+                      </span>
+                    </div>
+                    <div className={styles.holesItemMeta}>
+                      <span className={styles.holesNeeded}>
+                        brakuje {hole.needed} / {hole.max_slots}
+                      </span>
+                      <small>
+                        Obsada: {hole.filled}
+                        {hole.holders?.length
+                          ? ` · ${hole.holders.map((h) => h.name).join(', ')}`
+                          : ' · nikt'}
+                      </small>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              {sortedHoles.length > HOLES_PREVIEW_COUNT ? (
+                <button
+                  type="button"
+                  className={`${styles.btnSecondary} ${styles.holesExpandBtn}`}
+                  onClick={() => setShowAllHoles((prev) => !prev)}
+                  aria-expanded={showAllHoles}
                 >
-                  <div className={styles.holesItemMain}>
-                    <strong>{hole.date}</strong>
-                    <span className={styles.holesShiftName}>{hole.shift_template_name}</span>
-                    <span className={styles.holesHours}>
-                      {hole.start_time?.slice(0, 5)} – {hole.end_time?.slice(0, 5)}
-                    </span>
-                  </div>
-                  <div className={styles.holesItemMeta}>
-                    <span className={styles.holesNeeded}>
-                      brakuje {hole.needed} / {hole.max_slots}
-                    </span>
-                    <small>
-                      Obsada: {hole.filled}
-                      {hole.holders?.length
-                        ? ` · ${hole.holders.map((h) => h.name).join(', ')}`
-                        : ' · nikt'}
-                    </small>
-                  </div>
-                </li>
-              ))}
-            </ul>
+                  {showAllHoles
+                    ? 'Zwiń'
+                    : `Pokaż więcej (${sortedHoles.length - HOLES_PREVIEW_COUNT})`}
+                </button>
+              ) : null}
+            </>
           )}
         </div>
       </section>

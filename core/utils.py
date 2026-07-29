@@ -134,6 +134,13 @@ def find_shortages_in_range(start_date, days):
     for offset in range(span):
         work_date = start_date + timedelta(days=offset)
         items.extend(find_shift_shortages(work_date))
+    items.sort(
+        key=lambda row: (
+            row['date'],
+            row.get('start_time') or '',
+            row.get('shift_template_name') or '',
+        )
+    )
     return items
 
 

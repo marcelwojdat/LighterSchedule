@@ -159,6 +159,11 @@
   gap: 8px;
 }
 
+.holesExpandBtn {
+  margin-top: 12px;
+  width: 100%;
+}
+
 .holesItem {
   display: flex;
   flex-wrap: wrap;

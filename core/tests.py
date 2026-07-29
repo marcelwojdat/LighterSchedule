@@ -1310,6 +1310,8 @@ class ScheduleHolesTests(APITestCase):
         self.assertEqual(first['shift_template_name'], 'Wieczorna')
         self.assertEqual(first['needed'], 2)
         self.assertEqual(first['filled'], 0)
+        dates = [item['date'] for item in response.data['items']]
+        self.assertEqual(dates, sorted(dates))
 
     def test_filled_slot_reduces_needed(self):
         WorkDay.objects.create(
