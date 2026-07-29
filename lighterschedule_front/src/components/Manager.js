@@ -144,6 +144,7 @@ const Manager = () => {
   const [selectedApproveIds, setSelectedApproveIds] = useState([]);
   const [bulkApproveBusy, setBulkApproveBusy] = useState(false);
   const [subscription, setSubscription] = useState(null);
+  const [showSubscription, setShowSubscription] = useState(false);
   const { darkMode, toggleTheme } = useTheme();
   useAutoDismiss(success, setSuccess);
   useAutoDismiss(error, setError);
@@ -1541,97 +1542,6 @@ const Manager = () => {
 
       <div className={styles.managerBody}>
         <div className={styles.leftCol}>
-          {subscription ? (
-            <div className={`${styles.sectionCard} ${styles.subscriptionCard}`}>
-              <div className={styles.settingsToggleRow}>
-                <div>
-                  <h3>Plan subskrypcji</h3>
-                  <p className={styles.statHint}>
-                    {subscription.organization_name || 'Organizacja'} ·{' '}
-                    {SUBSCRIPTION_STATUS_LABELS[subscription.status] || subscription.status}
-                  </p>
-                </div>
-                <Link to="/pricing" className={styles.btnSecondary}>
-                  {subscriptionNearLimit ? 'Zmień plan' : 'Cennik'}
-                </Link>
-              </div>
-              <div className={styles.subscriptionMeta}>
-                <span className={styles.subscriptionPlanName}>{subscription.plan_name}</span>
-              </div>
-              <div className={styles.subscriptionMeters}>
-                <div className={styles.subscriptionMeter}>
-                  <div className={styles.subscriptionMeterHead}>
-                    <span>Kierownicy</span>
-                    <strong>
-                      {subscription.used_managers} / {subscription.max_managers}
-                    </strong>
-                  </div>
-                  <div
-                    className={styles.subscriptionBar}
-                    role="progressbar"
-                    aria-valuenow={subscription.used_managers}
-                    aria-valuemin={0}
-                    aria-valuemax={subscription.max_managers}
-                    aria-label="Wykorzystanie miejsc kierowników"
-                  >
-                    <span
-                      className={
-                        subscription.used_managers >= subscription.max_managers
-                          ? styles.subscriptionBarFillFull
-                          : styles.subscriptionBarFill
-                      }
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          subscription.max_managers
-                            ? (subscription.used_managers / subscription.max_managers) * 100
-                            : 0
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-                <div className={styles.subscriptionMeter}>
-                  <div className={styles.subscriptionMeterHead}>
-                    <span>Pracownicy</span>
-                    <strong>
-                      {subscription.used_employees} / {subscription.max_employees}
-                    </strong>
-                  </div>
-                  <div
-                    className={styles.subscriptionBar}
-                    role="progressbar"
-                    aria-valuenow={subscription.used_employees}
-                    aria-valuemin={0}
-                    aria-valuemax={subscription.max_employees}
-                    aria-label="Wykorzystanie miejsc pracowników"
-                  >
-                    <span
-                      className={
-                        subscription.used_employees >= subscription.max_employees
-                          ? styles.subscriptionBarFillFull
-                          : styles.subscriptionBarFill
-                      }
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          subscription.max_employees
-                            ? (subscription.used_employees / subscription.max_employees) * 100
-                            : 0
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-              {subscriptionNearLimit ? (
-                <p className={styles.subscriptionWarn}>
-                  Limit planu wyczerpany — nie dodasz nowych kont bez wyższego planu.
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-
           <div className={styles.sectionCard}>
             <div className={styles.settingsToggleRow}>
               <div>
@@ -1838,6 +1748,115 @@ const Manager = () => {
               </button>
             ) : null}
           </div>
+
+          {subscription ? (
+            <div className={`${styles.sectionCard} ${styles.subscriptionCard}`}>
+              <div className={styles.settingsToggleRow}>
+                <div>
+                  <h3>Plan subskrypcji</h3>
+                  <p className={styles.statHint}>
+                    Limity miejsc planu — rozwiń, by zobaczyć wykorzystanie.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className={styles.btnSecondary}
+                  onClick={() => setShowSubscription((prev) => !prev)}
+                  aria-expanded={showSubscription}
+                >
+                  {showSubscription ? 'Zwiń plan' : 'Plan subskrypcji'}
+                </button>
+              </div>
+
+              {showSubscription ? (
+                <div className={styles.subscriptionBody}>
+                  <div className={styles.subscriptionHeaderRow}>
+                    <div>
+                      <span className={styles.subscriptionPlanName}>{subscription.plan_name}</span>
+                      <p className={styles.statHint}>
+                        {subscription.organization_name || 'Organizacja'} ·{' '}
+                        {SUBSCRIPTION_STATUS_LABELS[subscription.status] || subscription.status}
+                      </p>
+                    </div>
+                    <Link to="/pricing" className={styles.btnSecondary}>
+                      {subscriptionNearLimit ? 'Zmień plan' : 'Cennik'}
+                    </Link>
+                  </div>
+                  <div className={styles.subscriptionMeters}>
+                    <div className={styles.subscriptionMeter}>
+                      <div className={styles.subscriptionMeterHead}>
+                        <span>Kierownicy</span>
+                        <strong>
+                          {subscription.used_managers} / {subscription.max_managers}
+                        </strong>
+                      </div>
+                      <div
+                        className={styles.subscriptionBar}
+                        role="progressbar"
+                        aria-valuenow={subscription.used_managers}
+                        aria-valuemin={0}
+                        aria-valuemax={subscription.max_managers}
+                        aria-label="Wykorzystanie miejsc kierowników"
+                      >
+                        <span
+                          className={
+                            subscription.used_managers >= subscription.max_managers
+                              ? styles.subscriptionBarFillFull
+                              : styles.subscriptionBarFill
+                          }
+                          style={{
+                            width: `${Math.min(
+                              100,
+                              subscription.max_managers
+                                ? (subscription.used_managers / subscription.max_managers) * 100
+                                : 0
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className={styles.subscriptionMeter}>
+                      <div className={styles.subscriptionMeterHead}>
+                        <span>Pracownicy</span>
+                        <strong>
+                          {subscription.used_employees} / {subscription.max_employees}
+                        </strong>
+                      </div>
+                      <div
+                        className={styles.subscriptionBar}
+                        role="progressbar"
+                        aria-valuenow={subscription.used_employees}
+                        aria-valuemin={0}
+                        aria-valuemax={subscription.max_employees}
+                        aria-label="Wykorzystanie miejsc pracowników"
+                      >
+                        <span
+                          className={
+                            subscription.used_employees >= subscription.max_employees
+                              ? styles.subscriptionBarFillFull
+                              : styles.subscriptionBarFill
+                          }
+                          style={{
+                            width: `${Math.min(
+                              100,
+                              subscription.max_employees
+                                ? (subscription.used_employees / subscription.max_employees) * 100
+                                : 0
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  {subscriptionNearLimit ? (
+                    <p className={styles.subscriptionWarn}>
+                      Limit planu wyczerpany — nie dodasz nowych kont bez wyższego planu.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         <div className={styles.rightCol}>

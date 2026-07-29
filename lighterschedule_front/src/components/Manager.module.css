@@ -1228,6 +1228,26 @@
 }
 
 .subscriptionCard {
+  margin-top: 20px;
+}
+
+.leftCol > .subscriptionCard {
+  flex: 0 0 auto;
+  margin-top: 20px;
+}
+
+.subscriptionBody {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.subscriptionHeaderRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
   margin-bottom: 14px;
 }
 
@@ -1531,6 +1551,10 @@
 :global([data-theme='dark']) .subscriptionPlanName,
 :global([data-theme='dark']) .subscriptionMeterHead strong {
   color: #f8fafc;
+}
+
+:global([data-theme='dark']) .subscriptionBody {
+  border-top-color: #334155;
 }
 
 :global([data-theme='dark']) .subscriptionBar {
