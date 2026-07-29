@@ -6,7 +6,7 @@ from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from core.models import EmployeeProfile, TaskType, WorkDay, SwapRequest
+from core.models import EmployeeProfile, TaskType, WorkDay, SwapRequest, ShiftTemplate, ShiftTemplateHours
 
 
 def set_profile(user, hourly_rate=0, is_manager=False):
@@ -1339,6 +1339,80 @@ class ScheduleHolesTests(APITestCase):
         response = self.client.get('/api/schedule-holes/', {'days': 99})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['days'], 14)
+
+
+class PayrollPdfTests(APITestCase):
+    def setUp(self):
+        self.employee = User.objects.create_user(
+            'emp_pdf',
+            password='pass',
+            first_name='Łukasz',
+            last_name='Żółć',
+        )
+        self.manager = User.objects.create_user('mgr_pdf', password='pass')
+        set_profile(self.employee, hourly_rate=25)
+        set_profile(self.manager, hourly_rate=30, is_manager=True)
+
+        self.month = date.today().replace(day=10)
+        self.template = ShiftTemplate.objects.create(
+            name='Wieczorna — późna',
+            is_active=True,
+            max_slots=2,
+        )
+        ShiftTemplateHours.objects.create(
+            template=self.template,
+            weekday=self.month.weekday(),
+            start_time='16:00:00',
+            end_time='22:00:00',
+        )
+        WorkDay.objects.create(
+            employee=self.employee,
+            date=self.month,
+            start_time='16:00:00',
+            end_time='22:00:00',
+            status=WorkDay.Status.APPROVED,
+            rate_at_time=25,
+            shift_template=self.template,
+        )
+
+    def authenticate(self, user):
+        token = self.client.post('/api/token/', {
+            'username': user.username,
+            'password': 'pass',
+        }).data['access']
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+
+    def test_polish_fonts_registered(self):
+        from core.pdf_fonts import FONT_BOLD, FONT_REGULAR, register_polish_fonts
+        from reportlab.pdfbase import pdfmetrics
+
+        regular, bold = register_polish_fonts()
+        self.assertEqual(regular, FONT_REGULAR)
+        self.assertEqual(bold, FONT_BOLD)
+        self.assertIn(FONT_REGULAR, pdfmetrics.getRegisteredFontNames())
+        self.assertIn(FONT_BOLD, pdfmetrics.getRegisteredFontNames())
+
+    def test_payroll_pdf_embeds_dejavu_and_polish_content(self):
+        import tempfile
+        from pathlib import Path
+
+        self.authenticate(self.manager)
+        month_value = f'{self.month.year}-{self.month.month:02d}'
+        response = self.client.get('/api/stats/payroll.pdf', {'month': month_value})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content[:200])
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        pdf_bytes = response.content
+        self.assertTrue(pdf_bytes.startswith(b'%PDF'))
+        self.assertIn(b'DejaVu', pdf_bytes)
+
+        # Smoke: write outside the browser and reopen as a file
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / f'wyplaty-{month_value}.pdf'
+            path.write_bytes(pdf_bytes)
+            self.assertGreater(path.stat().st_size, 1000)
+            reopened = path.read_bytes()
+            self.assertEqual(reopened[:4], b'%PDF')
+            self.assertIn(b'DejaVu', reopened)
 
 
 @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')

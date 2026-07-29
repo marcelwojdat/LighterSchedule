@@ -335,7 +335,7 @@ def payroll_report(request):
         status=WorkDay.Status.APPROVED,
         date__gte=month_start,
         date__lte=month_end,
-    ).select_related('employee', 'employee__profile')
+    ).select_related('employee', 'employee__profile', 'shift_template')
 
     per_employee = {}
     for workday in workdays:
@@ -345,6 +345,7 @@ def payroll_report(request):
             'days': 0,
             'hours': 0.0,
             'earnings': 0.0,
+            'shifts': set(),
         })
         hours = (
             datetime.combine(workday.date, workday.end_time)
@@ -354,28 +355,38 @@ def payroll_report(request):
         entry['hours'] += hours
         if workday.rate_at_time:
             entry['earnings'] += hours * float(workday.rate_at_time)
+        if workday.shift_template_id:
+            entry['shifts'].add(workday.shift_template.name)
 
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
-    from reportlab.lib.styles import getSampleStyleSheet
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    from .pdf_fonts import FONT_BOLD, FONT_REGULAR, polish_paragraph_styles, register_polish_fonts
+
+    register_polish_fonts()
+    styles = polish_paragraph_styles()
 
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
-    styles = getSampleStyleSheet()
     story = [
-        Paragraph(f'Raport wypłat — {month_value}', styles['Title']),
+        Paragraph(f'Raport wypłat — {month_value}', styles['title']),
         Spacer(1, 12),
-        Paragraph('Zatwierdzone dni pracy w wybranym miesiącu.', styles['Normal']),
+        Paragraph(
+            'Zatwierdzone dni pracy w wybranym miesiącu (łącznie ze zmianami).',
+            styles['normal'],
+        ),
         Spacer(1, 16),
     ]
 
-    table_data = [['Pracownik', 'Dni', 'Godziny', 'Wypłata (zł)']]
+    table_data = [['Pracownik', 'Zmiany', 'Dni', 'Godziny', 'Wypłata (zł)']]
     total_hours = 0.0
     total_earnings = 0.0
     for entry in sorted(per_employee.values(), key=lambda item: item['name'].lower()):
+        shifts_label = ', '.join(sorted(entry['shifts'])) if entry['shifts'] else '—'
         table_data.append([
             entry['name'],
+            shifts_label,
             str(entry['days']),
             f"{entry['hours']:.2f}",
             f"{entry['earnings']:.2f}",
@@ -383,16 +394,19 @@ def payroll_report(request):
         total_hours += entry['hours']
         total_earnings += entry['earnings']
 
-    table_data.append(['RAZEM', '', f'{total_hours:.2f}', f'{total_earnings:.2f}'])
-    table = Table(table_data, colWidths=[220, 60, 80, 100])
+    table_data.append(['RAZEM', '', '', f'{total_hours:.2f}', f'{total_earnings:.2f}'])
+    table = Table(table_data, colWidths=[140, 120, 45, 70, 90])
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e293b')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (0, 0), (-1, 0), FONT_BOLD),
+        ('FONTNAME', (0, 1), (-1, -2), FONT_REGULAR),
+        ('FONTNAME', (0, -1), (-1, -1), FONT_BOLD),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
         ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.whitesmoke, colors.Color(0.95, 0.96, 0.98)]),
-        ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+        ('ALIGN', (2, 0), (-1, -1), 'RIGHT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('LEFTPADDING', (0, 0), (-1, -1), 8),
         ('RIGHTPADDING', (0, 0), (-1, -1), 8),
         ('TOPPADDING', (0, 0), (-1, -1), 6),
@@ -401,7 +415,7 @@ def payroll_report(request):
     story.append(table)
     doc.build(story)
 
-    filename = f'wypłaty-{month_value}.pdf'
+    filename = f'wyplaty-{month_value}.pdf'
     response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response
