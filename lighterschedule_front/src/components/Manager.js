@@ -31,8 +31,6 @@ import { getNotifications } from '../api/notifications';
 import { getScheduleSettings, updateScheduleSettings } from '../api/scheduleSettings';
 import {
   getRejectionReasons,
-  createRejectionReason,
-  deleteRejectionReason,
 } from '../api/rejectionReasons';
 import { getScheduleHoles } from '../api/scheduleHoles';
 import { useTheme } from '../hooks/useTheme';
@@ -133,7 +131,6 @@ const Manager = () => {
   const [declarationCloseWeekday, setDeclarationCloseWeekday] = useState('');
   const [declarationCloseTime, setDeclarationCloseTime] = useState('23:59');
   const [rejectionReasons, setRejectionReasons] = useState([]);
-  const [newRejectionReason, setNewRejectionReason] = useState('');
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const [showAllUsers, setShowAllUsers] = useState(false);
   const [moreOptionsUserId, setMoreOptionsUserId] = useState(null);
@@ -949,62 +946,51 @@ const Manager = () => {
     setRejectionReason(text);
   };
 
-  const handleAddRejectionReason = async (event) => {
-    event.preventDefault();
-    const text = newRejectionReason.trim();
-    if (!text) return;
-    try {
-      await createRejectionReason({ text });
-      setNewRejectionReason('');
-      await fetchRejectionReasons();
-      setSuccess('Dodano szablon uwagi.');
-      setError('');
-    } catch (err) {
-      setError(getErrorMessage(err, 'Nie udało się dodać szablonu.'));
-    }
-  };
-
-  const handleDeleteRejectionReason = async (reason) => {
-    if (!window.confirm(`Usunąć szablon „${reason.text}”?`)) return;
-    try {
-      await deleteRejectionReason(reason.id);
-      await fetchRejectionReasons();
-      setSuccess('Usunięto szablon uwagi.');
-      setError('');
-    } catch (err) {
-      setError(getErrorMessage(err, 'Nie udało się usunąć szablonu.'));
-    }
-  };
-
   const renderRejectionReasonPicker = () => (
     <div className={styles.rejectReasonBlock}>
       {rejectionReasons.length ? (
-        <div className={styles.reasonChips} role="list" aria-label="Szablony uwag">
-          {rejectionReasons.map((reason) => (
-            <button
-              key={reason.id}
-              type="button"
-              role="listitem"
-              className={`${styles.reasonChip}${
-                rejectionReason === reason.text ? ` ${styles.reasonChipActive}` : ''
-              }`}
-              onClick={() => pickRejectionReason(reason.text)}
-            >
-              {reason.text}
-            </button>
-          ))}
-        </div>
+        <label className={styles.rejectReasonSelectLabel}>
+          Gotowy powód
+          <select
+            className={styles.rejectReasonSelect}
+            value={rejectionReasons.some((r) => r.text === rejectionReason) ? rejectionReason : ''}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value) {
+                pickRejectionReason(value);
+              } else {
+                setRejectionReason('');
+              }
+            }}
+            aria-label="Gotowy powód odrzucenia"
+          >
+            <option value="">Wybierz (opcjonalnie)</option>
+            {rejectionReasons.map((reason) => (
+              <option key={reason.id} value={reason.text}>
+                {reason.text}
+              </option>
+            ))}
+          </select>
+        </label>
       ) : null}
       {showRejectNote ? (
         <input
           className={styles.rejectionInput}
           type="text"
-          placeholder="Uwaga dla pracownika (opcjonalnie)"
+          placeholder="Własna uwaga dla pracownika (opcjonalnie)"
           value={rejectionReason}
           onChange={(e) => setRejectionReason(e.target.value)}
           maxLength={255}
         />
-      ) : null}
+      ) : (
+        <button
+          type="button"
+          className={styles.btnLink}
+          onClick={() => setShowRejectNote(true)}
+        >
+          Dodaj uwagę
+        </button>
+      )}
     </div>
   );
 
@@ -1528,15 +1514,6 @@ const Manager = () => {
                         <button className={styles.btnSecondary} onClick={cancelQueueEdit}>
                           Anuluj
                         </button>
-                        {!showRejectNote ? (
-                          <button
-                            type="button"
-                            className={styles.btnLink}
-                            onClick={() => setShowRejectNote(true)}
-                          >
-                            Własna uwaga
-                          </button>
-                        ) : null}
                       </>
                     ) : editingQueueId === item.id ? (
                       <>
@@ -1629,15 +1606,6 @@ const Manager = () => {
                         <button className={styles.btnSecondary} onClick={cancelQueueEdit}>
                           Anuluj
                         </button>
-                        {!showRejectNote ? (
-                          <button
-                            type="button"
-                            className={styles.btnLink}
-                            onClick={() => setShowRejectNote(true)}
-                          >
-                            Własna uwaga
-                          </button>
-                        ) : null}
                       </>
                     ) : (
                       <>
@@ -2213,45 +2181,6 @@ const Manager = () => {
               ) : null}
             </div>
           </form>
-
-          <div className={styles.rejectionReasonsSettings}>
-            <div>
-              <h4 className={styles.rejectionReasonsTitle}>Szablony uwag przy odrzuceniu</h4>
-              <p className={styles.statHint}>
-                Szybki wybór przy odrzucaniu deklaracji i zamian. Użyte uwagi zapamiętują się automatycznie.
-              </p>
-            </div>
-            <form className={styles.deadlineControls} onSubmit={handleAddRejectionReason}>
-              <input
-                type="text"
-                maxLength={255}
-                placeholder="Np. Za dużo osób"
-                value={newRejectionReason}
-                onChange={(e) => setNewRejectionReason(e.target.value)}
-              />
-              <button type="submit" className={styles.btnPrimary} disabled={!newRejectionReason.trim()}>
-                Dodaj
-              </button>
-            </form>
-            {rejectionReasons.length ? (
-              <ul className={styles.rejectionReasonsList}>
-                {rejectionReasons.map((reason) => (
-                  <li key={reason.id}>
-                    <span>{reason.text}</span>
-                    <button
-                      type="button"
-                      className={styles.btnLink}
-                      onClick={() => handleDeleteRejectionReason(reason)}
-                    >
-                      Usuń
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className={styles.emptyQueue}>Brak szablonów — dodaj pierwszy powyżej.</p>
-            )}
-          </div>
 
           {showShiftTemplates ? (
             <div className={styles.shiftTemplatesPanel}>

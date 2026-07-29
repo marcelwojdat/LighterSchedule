@@ -651,73 +651,29 @@
 
 .rejectReasonBlock {
   margin: 8px 0 4px;
-}
-
-.reasonChips {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 6px;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.reasonChip {
-  padding: 5px 10px;
-  border-radius: 8px;
-  border: 1px solid #fecaca;
-  background: #fff;
-  color: #7f1d1d;
-  font-size: 0.78rem;
+.rejectReasonSelectLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
   font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  color: #64748b;
 }
 
-.reasonChip:hover {
-  background: #fef2f2;
-  border-color: #f87171;
-}
-
-.reasonChipActive {
-  background: #fee2e2;
-  border-color: #ef4444;
-  color: #991b1b;
-}
-
-.rejectionReasonsSettings {
-  margin-top: 18px;
-  padding-top: 16px;
-  border-top: 1px solid #e2e8f0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.rejectionReasonsTitle {
-  margin: 0 0 4px;
-  font-size: 0.95rem;
-  color: #0f172a;
-}
-
-.rejectionReasonsList {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.rejectionReasonsList li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+.rejectReasonSelect {
+  width: 100%;
+  min-height: 38px;
   padding: 8px 10px;
   border-radius: 10px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  font-size: 0.88rem;
-  color: #334155;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  font-size: 0.9rem;
 }
 
 .btnLink {
@@ -1582,31 +1538,14 @@
   border-color: #f87171;
 }
 
-:global([data-theme='dark']) .reasonChip {
-  background: #1e293b;
-  border-color: #7f1d1d;
-  color: #fecaca;
+:global([data-theme='dark']) .rejectReasonSelectLabel {
+  color: #94a3b8;
 }
 
-:global([data-theme='dark']) .reasonChip:hover,
-:global([data-theme='dark']) .reasonChipActive {
-  background: #450a0a;
-  border-color: #ef4444;
-  color: #fecaca;
-}
-
-:global([data-theme='dark']) .rejectionReasonsSettings {
-  border-top-color: #334155;
-}
-
-:global([data-theme='dark']) .rejectionReasonsTitle {
-  color: #e2e8f0;
-}
-
-:global([data-theme='dark']) .rejectionReasonsList li {
+:global([data-theme='dark']) .rejectReasonSelect {
   background: #0f172a;
-  border-color: #334155;
-  color: #cbd5e1;
+  border-color: #475569;
+  color: #e2e8f0;
 }
 
 :global([data-theme='dark']) .tableWrap,
