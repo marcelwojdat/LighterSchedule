@@ -2,11 +2,12 @@ from datetime import date, timedelta
 
 from django.contrib.auth.models import User
 from django.core import mail
-from django.test import override_settings
+from django.test import SimpleTestCase, override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from core.models import EmployeeProfile, TaskType, WorkDay, SwapRequest, ShiftTemplate, ShiftTemplateHours
+from core.utils import format_shortage_message, shortage_day_label
 
 
 def set_profile(user, hourly_rate=0, is_manager=False):
@@ -15,6 +16,45 @@ def set_profile(user, hourly_rate=0, is_manager=False):
     profile.is_manager = is_manager
     profile.save()
     return profile
+
+
+class ShortageMessageTests(SimpleTestCase):
+    def test_format_single_and_plural(self):
+        self.assertEqual(
+            format_shortage_message({'shift_template_name': 'Wieczorna', 'needed': 1}),
+            'Jutro brakuje osoby na zmianę: wieczorna.',
+        )
+        self.assertEqual(
+            format_shortage_message({'shift_template_name': 'Poranna', 'needed': 3}),
+            'Jutro brakuje 3 osób na zmianę: poranna.',
+        )
+
+    def test_day_labels_relative_and_weekday(self):
+        today = date(2026, 7, 13)  # Monday
+        self.assertEqual(shortage_day_label(today + timedelta(days=1), today=today), 'Jutro')
+        self.assertEqual(shortage_day_label(today + timedelta(days=2), today=today), 'Pojutrze')
+        self.assertEqual(shortage_day_label(today + timedelta(days=3), today=today), 'W czwartek')
+        # Next Tuesday (not jutro/pojutrze) → We wtorek
+        self.assertEqual(
+            shortage_day_label(date(2026, 7, 21), today=today),
+            'We wtorek',
+        )
+        # Wednesday further out
+        self.assertEqual(
+            shortage_day_label(date(2026, 7, 22), today=today),
+            'W środę',
+        )
+        self.assertEqual(
+            format_shortage_message(
+                {
+                    'shift_template_name': 'Wieczorna',
+                    'needed': 1,
+                    'date': date(2026, 7, 16),  # Thursday (+3)
+                },
+                today=today,
+            ),
+            'W czwartek brakuje osoby na zmianę: wieczorna.',
+        )
 
 
 class WorkDayWorkflowTests(APITestCase):
@@ -377,7 +417,6 @@ class NotificationTests(APITestCase):
 
     def test_manager_sees_tomorrow_shortage_alert(self):
         from core.models import ShiftTemplate, ShiftTemplateHours
-        from core.utils import format_shortage_message
 
         tomorrow = date.today() + timedelta(days=1)
         template = ShiftTemplate.objects.create(name='Wieczorna', is_active=True, max_slots=2)
@@ -396,10 +435,7 @@ class NotificationTests(APITestCase):
         self.assertEqual(shortage_items[0]['count'], 2)
         self.assertEqual(
             shortage_items[0]['message'],
-            format_shortage_message({
-                'shift_template_name': 'Wieczorna',
-                'needed': 2,
-            }),
+            'Jutro brakuje 2 osób na zmianę: wieczorna.',
         )
         self.assertGreaterEqual(response.data['total'], 3)  # 1 proposal + 2 missing seats
 

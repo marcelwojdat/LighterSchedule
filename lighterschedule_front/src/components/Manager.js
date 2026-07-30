@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import { Link } from 'react-router-dom';
@@ -36,6 +36,8 @@ import {
 import { getScheduleHoles } from '../api/scheduleHoles';
 import { useTheme } from '../hooks/useTheme';
 import { useAutoDismiss } from '../hooks/useAutoDismiss';
+import { useDismissibleList } from '../hooks/useDismissibleList';
+import ToastStack from './ToastStack';
 import {
   buildWorkdayPayload,
   toApiTime,
@@ -148,6 +150,17 @@ const Manager = () => {
   const { darkMode, toggleTheme } = useTheme();
   useAutoDismiss(success, setSuccess, 7000);
   useAutoDismiss(error, setError, 7000);
+
+  const notificationKey = useCallback(
+    (item, index) =>
+      `${item.type}|${item.shift_template_id || ''}|${item.date || ''}|${item.message || ''}|${index}`,
+    [],
+  );
+  const { visible: visibleNotices, dismiss: dismissNotice } = useDismissibleList(
+    notifications.items,
+    notificationKey,
+    7000,
+  );
 
   const weekDates = getWeekDates(weekStart);
 
@@ -1163,26 +1176,18 @@ const Manager = () => {
         ) : null}
       </div>
 
-      {error || success ? (
-        <div className="toastStack" role="status" aria-live="polite">
-          {error ? <div className="toast toastError">{error}</div> : null}
-          {success ? <div className="toast toastSuccess">{success}</div> : null}
-        </div>
-      ) : null}
-      {notifications.items?.length ? (
-        <div className={styles.notificationsBanner}>
-          {notifications.items.map((item, index) => (
-            <div
-              key={`${item.type}-${item.shift_template_id || item.date || index}`}
-              className={`${styles.notificationItem}${
-                item.type === 'shortage' ? ` ${styles.notificationShortage}` : ''
-              }`}
-            >
-              {item.message}
-            </div>
-          ))}
-        </div>
-      ) : null}
+      <ToastStack
+        items={[
+          ...visibleNotices.map(({ entry, key }) => ({
+            key: `notice-${key}`,
+            message: entry.message,
+            variant: entry.type === 'shortage' ? 'error' : 'warning',
+            onClose: () => dismissNotice(key),
+          })),
+          { key: 'error', message: error, variant: 'error', onClose: () => setError('') },
+          { key: 'success', message: success, variant: 'success', onClose: () => setSuccess('') },
+        ]}
+      />
 
       <section className={styles.statsBar}>
         <div className={styles.statsBarHeader}>

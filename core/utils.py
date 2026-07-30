@@ -204,13 +204,50 @@ def serialize_shortage(shortage):
     }
 
 
-def format_shortage_message(shortage, *, day_label='Jutro'):
-    """Polish alert line, e.g. 'Jutro brakuje osoby na Wieczorną.'"""
-    name = shortage['shift_template_name']
-    needed = shortage['needed']
+# Accusative weekday labels for “W/We …” shortage alerts.
+_SHORTAGE_WEEKDAY_LABELS = {
+    0: ('W', 'poniedziałek'),
+    1: ('We', 'wtorek'),
+    2: ('W', 'środę'),
+    3: ('W', 'czwartek'),
+    4: ('W', 'piątek'),
+    5: ('W', 'sobotę'),
+    6: ('W', 'niedzielę'),
+}
+
+
+def shortage_day_label(work_date, *, today=None):
+    """Relative Polish day label: Jutro / Pojutrze / W poniedziałek / …"""
+    if work_date is None:
+        return 'Jutro'
+    today = today or timezone.localdate()
+    delta = (work_date - today).days
+    if delta == 1:
+        return 'Jutro'
+    if delta == 2:
+        return 'Pojutrze'
+    prefix, name = _SHORTAGE_WEEKDAY_LABELS.get(
+        work_date.weekday(),
+        ('W', 'tym dniu'),
+    )
+    return f'{prefix} {name}'
+
+
+def format_shortage_message(shortage, *, day_label=None, today=None):
+    """
+    Polish alert line, e.g. 'Jutro brakuje osoby na zmianę: wieczorna.'
+    Shift name is lowercased for a consistent UI tone.
+    """
+    if day_label is None:
+        day_label = shortage_day_label(shortage.get('date'), today=today)
+
+    raw_name = (shortage.get('shift_template_name') or '').strip()
+    name = raw_name.lower()
+    needed = int(shortage.get('needed') or 0)
+
     if needed == 1:
-        return f'{day_label} brakuje osoby na {name}.'
-    return f'{day_label} brakuje {needed} osób na {name}.'
+        return f'{day_label} brakuje osoby na zmianę: {name}.'
+    return f'{day_label} brakuje {needed} osób na zmianę: {name}.'
 
 
 def remember_rejection_reason(text):

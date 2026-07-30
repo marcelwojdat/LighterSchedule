@@ -36,6 +36,9 @@
   --toast-error-bg: #fdf6f6;
   --toast-error-border: #e8b4b4;
   --toast-error-text: #9f2d2d;
+  --toast-warning-bg: #fff8ed;
+  --toast-warning-border: #e8c9a0;
+  --toast-warning-text: #9a3412;
 }
 
 [data-theme='dark'] {
@@ -69,6 +72,9 @@
   --toast-error-bg: #2a1a1a;
   --toast-error-border: #6b3535;
   --toast-error-text: #f0b4b4;
+  --toast-warning-bg: #2a1f14;
+  --toast-warning-border: #7a5330;
+  --toast-warning-text: #fdba74;
 }
 
 [data-theme='dark'] body {
@@ -76,29 +82,67 @@
   color: #e2e8f0;
 }
 
-/* —— Viewport toasts (success / error) —— */
+/* —— Viewport toasts (success / error / warning) —— */
 .toastStack {
   position: fixed;
-  top: 12px;
+  top: max(12px, env(safe-area-inset-top, 0px));
   left: 50%;
   transform: translateX(-50%);
-  z-index: 10000;
+  z-index: 2147483000;
   display: flex;
   flex-direction: column;
   gap: 8px;
   width: min(520px, calc(100vw - 24px));
+  margin: 0;
+  padding: 0;
   pointer-events: none;
 }
 
 .toast {
   pointer-events: auto;
-  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 8px 8px 16px;
   border-radius: 12px;
   font-size: 0.92rem;
   font-weight: 600;
   line-height: 1.4;
   border: 1px solid transparent;
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
+}
+
+.toastMessage {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 4px 0;
+}
+
+.toastClose {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font-size: 1.35rem;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.72;
+}
+
+.toastClose:hover,
+.toastClose:focus-visible {
+  opacity: 1;
+  outline: none;
+  background: rgba(15, 23, 42, 0.06);
 }
 
 .toastSuccess {
@@ -113,8 +157,19 @@
   border-color: var(--toast-error-border);
 }
 
+.toastWarning {
+  background: var(--toast-warning-bg);
+  color: var(--toast-warning-text);
+  border-color: var(--toast-warning-border);
+}
+
 [data-theme='dark'] .toast {
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme='dark'] .toastClose:hover,
+[data-theme='dark'] .toastClose:focus-visible {
+  background: rgba(248, 250, 252, 0.08);
 }
 
 /* —— Shared field primitives —— */

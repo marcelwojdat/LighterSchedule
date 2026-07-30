@@ -7,6 +7,7 @@ import { getErrorMessage } from '../api/client';
 import { getCurrentUser, updateCurrentUser, changePassword } from '../api/users';
 import { useTheme } from '../hooks/useTheme';
 import { useAutoDismiss } from '../hooks/useAutoDismiss';
+import ToastStack from './ToastStack';
 
 const Profile = () => {
   const { darkMode, toggleTheme } = useTheme();
@@ -124,12 +125,12 @@ const Profile = () => {
         </Link>
       </div>
 
-      {error || success ? (
-        <div className="toastStack" role="status" aria-live="polite">
-          {error ? <div className="toast toastError">{error}</div> : null}
-          {success ? <div className="toast toastSuccess">{success}</div> : null}
-        </div>
-      ) : null}
+      <ToastStack
+        items={[
+          { key: 'error', message: error, variant: 'error', onClose: () => setError('') },
+          { key: 'success', message: success, variant: 'success', onClose: () => setSuccess('') },
+        ]}
+      />
 
       <div className={styles.grid}>
         <section className={styles.card}>

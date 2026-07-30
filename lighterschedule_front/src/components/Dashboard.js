@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import Auth from './Auth';
@@ -28,6 +28,8 @@ import { getNotifications } from '../api/notifications';
 import { getScheduleSettings } from '../api/scheduleSettings';
 import { useTheme } from '../hooks/useTheme';
 import { useAutoDismiss } from '../hooks/useAutoDismiss';
+import { useDismissibleList } from '../hooks/useDismissibleList';
+import ToastStack from './ToastStack';
 import {
   buildWorkdayPayload,
   toApiTime,
@@ -92,6 +94,17 @@ const Dashboard = () => {
   useAutoDismiss(swapSuccess, setSwapSuccess, 7000);
   useAutoDismiss(scheduleSuccess, setScheduleSuccess, 7000);
   useAutoDismiss(error, setError, 7000);
+
+  const notificationKey = useCallback(
+    (item, index) =>
+      `${item.type}|${item.shift_template_id || ''}|${item.date || ''}|${item.message || ''}|${index}`,
+    [],
+  );
+  const { visible: visibleNotices, dismiss: dismissNotice } = useDismissibleList(
+    notifications.items,
+    notificationKey,
+    7000,
+  );
 
   const fetchTaskTypes = async () => {
     try {
@@ -1026,26 +1039,33 @@ const Dashboard = () => {
           />
         ) : null}
       </div>
-      {error || scheduleSuccess || swapSuccess ? (
-        <div className="toastStack" role="status" aria-live="polite">
-          {error ? <div className="toast toastError">{error}</div> : null}
-          {scheduleSuccess ? <div className="toast toastSuccess">{scheduleSuccess}</div> : null}
-          {swapSuccess ? <div className="toast toastSuccess">{swapSuccess}</div> : null}
-        </div>
-      ) : null}
+      <ToastStack
+        items={[
+          ...visibleNotices.map(({ entry, key }) => ({
+            key: `notice-${key}`,
+            message: entry.message,
+            variant: entry.type === 'shortage' ? 'error' : 'warning',
+            onClose: () => dismissNotice(key),
+          })),
+          { key: 'error', message: error, variant: 'error', onClose: () => setError('') },
+          {
+            key: 'scheduleSuccess',
+            message: scheduleSuccess,
+            variant: 'success',
+            onClose: () => setScheduleSuccess(''),
+          },
+          {
+            key: 'swapSuccess',
+            message: swapSuccess,
+            variant: 'success',
+            onClose: () => setSwapSuccess(''),
+          },
+        ]}
+      />
       {declarationsClosed ? (
         <div className={styles.deadlineBanner}>{deadlineMessage}</div>
       ) : deadlineOpenMessage ? (
         <div className={styles.deadlineInfo}>{deadlineOpenMessage}</div>
-      ) : null}
-      {notifications.items?.length ? (
-        <div className={styles.notificationsBanner}>
-          {notifications.items.map((item) => (
-            <div key={item.type} className={styles.notificationItem}>
-              {item.message}
-            </div>
-          ))}
-        </div>
       ) : null}
       <div className={styles.dashboardBody}>
         <div className={styles.statsWrapper}>
