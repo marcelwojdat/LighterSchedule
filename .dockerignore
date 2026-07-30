@@ -1,0 +1,14 @@
+.git
+.gitignore
+.env
+.venv
+venv
+**/node_modules
+**/build
+**/__pycache__
+*.pyc
+.staticfiles
+staticfiles
+lighterschedule_front/build
+*.md
+.cursor
