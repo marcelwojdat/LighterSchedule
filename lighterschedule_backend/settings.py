@@ -200,5 +200,8 @@ DEFAULT_FROM_EMAIL = os.environ.get(
     'LighterSchedule <noreply@lighterschedule.local>',
 )
 
-# Payments: mock (default) or stripe (session endpoint stub until wired)
+# Payments: mock (default) or stripe (Checkout + webhook)
 PAYMENTS_PROVIDER = os.environ.get('PAYMENTS_PROVIDER', 'mock').strip().lower()
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000').rstrip('/')
+STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '').strip()
+STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '').strip()

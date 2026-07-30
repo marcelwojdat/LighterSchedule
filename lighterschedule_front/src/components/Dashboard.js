@@ -89,9 +89,9 @@ const Dashboard = () => {
   const [weekStart, setWeekStart] = useState(() => formatDateStr(getMonday()));
   const swapsSectionRef = useRef(null);
 
-  useAutoDismiss(swapSuccess, setSwapSuccess);
-  useAutoDismiss(scheduleSuccess, setScheduleSuccess);
-  useAutoDismiss(error, setError);
+  useAutoDismiss(swapSuccess, setSwapSuccess, 7000);
+  useAutoDismiss(scheduleSuccess, setScheduleSuccess, 7000);
+  useAutoDismiss(error, setError, 7000);
 
   const fetchTaskTypes = async () => {
     try {
@@ -1026,9 +1026,13 @@ const Dashboard = () => {
           />
         ) : null}
       </div>
-      {error ? <div className={styles.rejectionReason}>{error}</div> : null}
-      {scheduleSuccess ? <div className={styles.swapSuccess}>{scheduleSuccess}</div> : null}
-      {swapSuccess ? <div className={styles.swapSuccess}>{swapSuccess}</div> : null}
+      {error || scheduleSuccess || swapSuccess ? (
+        <div className="toastStack" role="status" aria-live="polite">
+          {error ? <div className="toast toastError">{error}</div> : null}
+          {scheduleSuccess ? <div className="toast toastSuccess">{scheduleSuccess}</div> : null}
+          {swapSuccess ? <div className="toast toastSuccess">{swapSuccess}</div> : null}
+        </div>
+      ) : null}
       {declarationsClosed ? (
         <div className={styles.deadlineBanner}>{deadlineMessage}</div>
       ) : deadlineOpenMessage ? (

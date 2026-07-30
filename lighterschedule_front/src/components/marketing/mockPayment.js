@@ -1,7 +1,11 @@
 import apiClient from '../../api/client';
 
-/** Create a backend payment session, then complete it via mock webhook. */
-export const runMockPayment = async (payload) => {
+/**
+ * Start checkout: create payment session.
+ * - Stripe: returns checkout_url → caller should redirect.
+ * - Mock: completes via webhook and stores a local order record.
+ */
+export const runCheckoutPayment = async (payload) => {
   const session = await apiClient
     .post('/payments/session/', {
       plan: payload.planId,
@@ -11,6 +15,16 @@ export const runMockPayment = async (payload) => {
       payment_method: payload.paymentMethod || '',
     })
     .then((response) => response.data);
+
+  if (session.checkout_url) {
+    return {
+      redirecting: true,
+      provider: session.provider || 'stripe',
+      orderId: session.session_id,
+      checkoutUrl: session.checkout_url,
+      planId: payload.planId,
+    };
+  }
 
   const completed = await apiClient
     .post('/payments/webhook/', {
@@ -36,8 +50,11 @@ export const runMockPayment = async (payload) => {
     // ignore
   }
 
-  return record;
+  return { redirecting: false, ...record };
 };
+
+/** @deprecated Use runCheckoutPayment */
+export const runMockPayment = runCheckoutPayment;
 
 export const readMockOrder = () => {
   try {

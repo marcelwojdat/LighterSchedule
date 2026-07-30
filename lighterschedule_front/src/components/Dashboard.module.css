@@ -304,23 +304,26 @@
 }
 
 .calendarContainer :global(.custom-approved-day) {
-  background: #059669 !important;
-  color: white !important;
-  box-shadow: 0 8px 18px rgba(5, 150, 105, 0.28);
+  background: var(--status-ok-bg) !important;
+  color: var(--status-ok-text) !important;
+  border-color: var(--status-ok-border) !important;
+  box-shadow: none;
 }
 
 .calendarContainer :global(.custom-approved-note-day) {
-  background: #0d9488 !important;
-  color: white !important;
-  box-shadow: 0 8px 18px rgba(13, 148, 136, 0.32);
+  background: var(--status-ok-bg) !important;
+  color: var(--status-ok-text) !important;
+  border-color: var(--status-ok-border) !important;
+  box-shadow: none;
   outline: 2px solid #fbbf24;
   outline-offset: -3px;
 }
 
 .calendarContainer :global(.custom-rejected-day) {
-  background: #dc2626 !important;
-  color: white !important;
-  box-shadow: 0 8px 18px rgba(220, 38, 38, 0.28);
+  background: var(--status-bad-bg) !important;
+  color: var(--status-bad-text) !important;
+  border-color: var(--status-bad-border) !important;
+  box-shadow: none;
 }
 
 .statusLegend {
@@ -354,7 +357,7 @@
 }
 
 .legendApproved {
-  background: #059669;
+  background: var(--status-ok-accent);
 }
 
 .legendApprovedNote {
@@ -363,7 +366,7 @@
 }
 
 .legendRejected {
-  background: #dc2626;
+  background: var(--status-bad-accent);
 }
 
 .legendSelected {
@@ -402,13 +405,15 @@
 }
 
 .statusApproved {
-  background: #d1fae5;
-  color: #065f46;
+  background: var(--status-ok-badge-bg);
+  color: var(--status-ok-text);
+  border: 1px solid var(--status-ok-border);
 }
 
 .statusRejected {
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--status-bad-badge-bg);
+  color: var(--status-bad-text);
+  border: 1px solid var(--status-bad-border);
 }
 
 .popupInfo {
@@ -421,8 +426,9 @@
   margin: 10px 0 0;
   padding: 10px 12px;
   border-radius: 10px;
-  background: #fef2f2;
-  color: #991b1b;
+  background: var(--status-bad-bg);
+  color: var(--status-bad-text);
+  border: 1px solid var(--status-bad-border);
   font-size: 0.9rem;
 }
 
@@ -460,8 +466,9 @@
   margin-top: 12px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: #d1fae5;
-  color: #065f46;
+  background: var(--status-ok-badge-bg);
+  color: var(--status-ok-text);
+  border: 1px solid var(--status-ok-border);
   font-size: 0.9rem;
 }
 
@@ -1153,8 +1160,9 @@
 }
 
 :global([data-theme='dark']) .swapSuccess {
-  background: #064e3b;
-  color: #a7f3d0;
+  background: var(--status-ok-badge-bg);
+  color: var(--status-ok-text);
+  border-color: var(--status-ok-border);
 }
 
 @media (max-width: 640px) {

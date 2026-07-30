@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { getPlan } from './plans';
-import { runMockPayment } from './mockPayment';
+import { runCheckoutPayment } from './mockPayment';
 import styles from './Checkout.module.css';
 
 const PAYMENT_METHODS = [
@@ -54,16 +54,27 @@ const Checkout = () => {
 
     setBusy(true);
     try {
-      const result = await runMockPayment({
+      const result = await runCheckoutPayment({
         planId: plan.id,
         companyOrName: form.companyOrName.trim(),
         email: form.email.trim().toLowerCase(),
         nip: form.nip.trim(),
         paymentMethod: form.paymentMethod,
       });
+      if (result.redirecting && result.checkoutUrl) {
+        window.location.assign(result.checkoutUrl);
+        return;
+      }
       navigate(`/checkout/success?plan=${plan.id}&order=${result.orderId}`);
     } catch (err) {
-      navigate(`/checkout/cancel?plan=${plan.id}&reason=mock_error`);
+      const message =
+        err?.response?.data?.error ||
+        err?.message ||
+        'Nie udało się rozpocząć płatności.';
+      setError(message);
+      if (!err?.response?.data?.error) {
+        navigate(`/checkout/cancel?plan=${plan.id}&reason=payment_error`);
+      }
     } finally {
       setBusy(false);
     }
@@ -105,7 +116,8 @@ const Checkout = () => {
             Dane kupującego
           </h2>
           <p className={styles.formLead}>
-            To mock płatności — nic nie zostanie pobrane. Po „Zapłać” zobaczysz stronę sukcesu.
+            Po „Zapłać” przejdziesz do bezpiecznej płatności (mock lokalnie albo Stripe na
+            produkcji).
           </p>
 
           {error ? <div className={styles.errorBox}>{error}</div> : null}

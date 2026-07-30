@@ -25,8 +25,8 @@ const Profile = () => {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
 
-  useAutoDismiss(success, setSuccess);
-  useAutoDismiss(error, setError);
+  useAutoDismiss(success, setSuccess, 7000);
+  useAutoDismiss(error, setError, 7000);
 
   const loadUser = async () => {
     try {
@@ -124,8 +124,12 @@ const Profile = () => {
         </Link>
       </div>
 
-      {error ? <div className={styles.errorBox}>{error}</div> : null}
-      {success ? <div className={styles.successBox}>{success}</div> : null}
+      {error || success ? (
+        <div className="toastStack" role="status" aria-live="polite">
+          {error ? <div className="toast toastError">{error}</div> : null}
+          {success ? <div className="toast toastSuccess">{success}</div> : null}
+        </div>
+      ) : null}
 
       <div className={styles.grid}>
         <section className={styles.card}>

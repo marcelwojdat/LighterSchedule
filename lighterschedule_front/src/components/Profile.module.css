@@ -111,16 +111,18 @@
   margin-bottom: 14px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--status-bad-bg);
+  color: var(--status-bad-text);
+  border: 1px solid var(--status-bad-border);
 }
 
 .successBox {
   margin-bottom: 14px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: #d1fae5;
-  color: #065f46;
+  background: var(--status-ok-bg);
+  color: var(--status-ok-text);
+  border: 1px solid var(--status-ok-border);
 }
 
 :global([data-theme='dark']) .pageTitle,

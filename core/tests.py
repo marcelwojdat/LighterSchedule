@@ -1638,3 +1638,81 @@ class PaymentSessionTests(APITestCase):
         self.assertEqual(org.subscription.plan, Subscription.Plan.EXTENDED)
         self.assertEqual(org.subscription.status, Subscription.Status.ACTIVE)
         self.assertEqual(org.subscription.max_employees, 100)
+
+    @override_settings(
+        PAYMENTS_PROVIDER='stripe',
+        STRIPE_SECRET_KEY='sk_test_dummy',
+        FRONTEND_URL='http://localhost:3000',
+    )
+    def test_stripe_session_returns_checkout_url(self):
+        from unittest.mock import MagicMock, patch
+
+        fake_checkout = MagicMock()
+        fake_checkout.id = 'cs_test_abc123'
+        fake_checkout.url = 'https://checkout.stripe.com/c/pay/cs_test_abc123'
+
+        with patch('stripe.checkout.Session.create', return_value=fake_checkout) as create_mock:
+            response = self.client.post('/api/payments/session/', {
+                'plan': 'basic',
+                'email': 'stripe@example.com',
+                'company_or_name': 'Stripe Buyer',
+            }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data['provider'], 'stripe')
+        self.assertEqual(response.data['session_id'], 'cs_test_abc123')
+        self.assertEqual(
+            response.data['checkout_url'],
+            'https://checkout.stripe.com/c/pay/cs_test_abc123',
+        )
+        create_mock.assert_called_once()
+        call_kwargs = create_mock.call_args.kwargs
+        self.assertEqual(call_kwargs['mode'], 'payment')
+        self.assertEqual(call_kwargs['customer_email'], 'stripe@example.com')
+
+    @override_settings(
+        PAYMENTS_PROVIDER='stripe',
+        STRIPE_SECRET_KEY='sk_test_dummy',
+        STRIPE_WEBHOOK_SECRET='whsec_test',
+    )
+    def test_stripe_webhook_activates_subscription(self):
+        from unittest.mock import patch
+
+        from core.models import PaymentSession, Subscription
+        from core.subscription import get_or_create_default_organization
+
+        org = get_or_create_default_organization()
+        PaymentSession.objects.create(
+            session_id='cs_test_paid_1',
+            provider='stripe',
+            plan='extended',
+            status=PaymentSession.Status.PENDING,
+            amount='149.00',
+            currency='PLN',
+            email='paid@example.com',
+            company_or_name='Paid Co',
+            organization=org,
+        )
+
+        event = {
+            'type': 'checkout.session.completed',
+            'data': {
+                'object': {
+                    'id': 'cs_test_paid_1',
+                    'payment_status': 'paid',
+                },
+            },
+        }
+
+        with patch('stripe.Webhook.construct_event', return_value=event):
+            response = self.client.post(
+                '/api/payments/webhook/',
+                data=b'{"id":"evt_test"}',
+                content_type='application/json',
+                HTTP_STRIPE_SIGNATURE='t=1,v1=fake',
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        org.subscription.refresh_from_db()
+        self.assertEqual(org.subscription.plan, Subscription.Plan.EXTENDED)
+        self.assertEqual(org.subscription.status, Subscription.Status.ACTIVE)

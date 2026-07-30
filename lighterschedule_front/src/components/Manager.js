@@ -146,8 +146,8 @@ const Manager = () => {
   const [subscription, setSubscription] = useState(null);
   const [showSubscription, setShowSubscription] = useState(false);
   const { darkMode, toggleTheme } = useTheme();
-  useAutoDismiss(success, setSuccess);
-  useAutoDismiss(error, setError);
+  useAutoDismiss(success, setSuccess, 7000);
+  useAutoDismiss(error, setError, 7000);
 
   const weekDates = getWeekDates(weekStart);
 
@@ -1163,8 +1163,12 @@ const Manager = () => {
         ) : null}
       </div>
 
-      {error ? <div className={styles.errorBox}>{error}</div> : null}
-      {success ? <div className={styles.successBox}>{success}</div> : null}
+      {error || success ? (
+        <div className="toastStack" role="status" aria-live="polite">
+          {error ? <div className="toast toastError">{error}</div> : null}
+          {success ? <div className="toast toastSuccess">{success}</div> : null}
+        </div>
+      ) : null}
       {notifications.items?.length ? (
         <div className={styles.notificationsBanner}>
           {notifications.items.map((item, index) => (
@@ -2208,11 +2212,12 @@ const Manager = () => {
                   Aktywna (widoczna dla pracowników)
                 </label>
                 <label className={styles.maxSlotsRow}>
-                  <span>Max. osób na zmianę</span>
+                  <span className={styles.maxSlotsLabel}>Max. osób na zmianę</span>
                   <input
                     type="number"
                     min={1}
                     step={1}
+                    className={styles.maxSlotsInput}
                     value={templateForm.max_slots}
                     onChange={(e) =>
                       setTemplateForm((prev) => ({ ...prev, max_slots: e.target.value }))

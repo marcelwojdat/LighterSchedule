@@ -45,6 +45,15 @@ CSRF_TRUSTED_ORIGINS=https://twoja-domena.pl,https://www.twoja-domena.pl
 
 ALLOW_PUBLIC_REGISTRATION=False
 REGISTRATION_INVITE_CODE=
+
+# Płatności (Stripe Checkout)
+PAYMENTS_PROVIDER=stripe
+FRONTEND_URL=https://twoja-domena.pl
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+# W Stripe Dashboard → Webhooks:
+# URL: https://twoja-domena.pl/api/payments/webhook/
+# Event: checkout.session.completed (oraz opcjonalnie expired / async_payment_failed)
 ```
 
 ### 2b. systemd — Gunicorn

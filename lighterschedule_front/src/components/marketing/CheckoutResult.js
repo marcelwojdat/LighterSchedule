@@ -8,14 +8,18 @@ export const CheckoutSuccess = () => {
   const [params] = useSearchParams();
   const plan = useMemo(() => getPlan(params.get('plan')), [params]);
   const order = readMockOrder();
-  const orderId = params.get('order') || order?.orderId;
+  const orderId =
+    params.get('order') || params.get('session_id') || order?.orderId;
+  const isStripeReturn = Boolean(params.get('session_id'));
 
   return (
     <div className={styles.page}>
       <p className={styles.eyebrow}>Sukces</p>
       <h1 className={styles.title}>Dziękujemy za zakup</h1>
       <p className={styles.lead}>
-        To była płatność testowa (mock). Nic nie zostało pobrane z karty ani konta.
+        {isStripeReturn
+          ? 'Płatność została przyjęta. Subskrypcja aktywuje się po potwierdzeniu z bramki (zwykle w kilka sekund).'
+          : 'To była płatność testowa (mock). Nic nie zostało pobrane z karty ani konta.'}
       </p>
 
       <div className={styles.box}>
@@ -68,8 +72,8 @@ export const CheckoutCancel = () => {
       <p className={styles.eyebrow}>Anulowano</p>
       <h1 className={styles.title}>Płatność nie została dokończona</h1>
       <p className={styles.lead}>
-        {reason === 'mock_error'
-          ? 'Wystąpił błąd testowej płatności. Możesz spróbować ponownie.'
+        {reason === 'mock_error' || reason === 'payment_error'
+          ? 'Wystąpił błąd płatności. Możesz spróbować ponownie.'
           : 'Anulowałeś proces albo wróciłeś z bramki płatności bez potwierdzenia.'}
       </p>
       {plan ? (

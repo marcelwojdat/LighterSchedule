@@ -158,7 +158,7 @@ def subscription_info(request):
 @permission_classes([AllowAny])
 def payment_session_create(request):
     """
-    Create a payment session for a plan (mock or future Stripe).
+    Create a payment session for a plan (mock or Stripe Checkout).
     Body: plan, email, company_or_name, nip?, payment_method?
     """
     from .payments import create_payment_session
@@ -194,9 +194,22 @@ def payment_session_create(request):
 def payment_webhook(request):
     """
     Confirm payment and activate subscription.
-    Mock: { provider: 'mock', session_id, status: 'paid' }.
+
+    Mock JSON: { provider: 'mock', session_id, status: 'paid' }.
+    Stripe: raw body + Stripe-Signature header (checkout.session.completed).
     """
-    from .payments import complete_payment_session
+    from .payments import complete_payment_session, handle_stripe_webhook
+
+    stripe_sig = request.META.get('HTTP_STRIPE_SIGNATURE', '').strip()
+    if stripe_sig:
+        try:
+            result = handle_stripe_webhook(
+                payload=request.body,
+                signature=stripe_sig,
+            )
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result)
 
     provider = (request.data.get('provider') or '').strip().lower()
     session_id = (request.data.get('session_id') or '').strip()
