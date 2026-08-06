@@ -68,7 +68,7 @@ const Landing = () => (
     <section className={styles.hero} aria-labelledby="hero-brand">
       <div className={styles.heroInner}>
         <p id="hero-brand" className={styles.brand}>
-          LighterSchedule
+          ProstyGrafik
         </p>
         <h1 className={styles.heroTitle}>Grafik zmianowy, który ogarnia zespół</h1>
         <p className={styles.heroLead}>
@@ -177,7 +177,7 @@ const Landing = () => (
     <section id="porownanie" className={styles.section}>
       <div className={styles.sectionInner}>
         <p className={styles.eyebrow}>Dlaczego warto</p>
-        <h2 className={styles.sectionTitle}>Excel i chaos vs LighterSchedule</h2>
+        <h2 className={styles.sectionTitle}>Excel i chaos vs ProstyGrafik</h2>
         <div className={styles.compare}>
           <div className={styles.compareCol}>
             <h3>Bez systemu</h3>
@@ -189,7 +189,7 @@ const Landing = () => (
             </ul>
           </div>
           <div className={`${styles.compareCol} ${styles.compareAccent}`}>
-            <h3>Z LighterSchedule</h3>
+            <h3>Z ProstyGrafik</h3>
             <ul>
               <li>Jedna wspólna prawda o grafiku</li>
               <li>Zamiany z akceptacją kierownika</li>

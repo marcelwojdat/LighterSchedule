@@ -18,10 +18,10 @@ const LegalPage = ({ title, children }) => (
 export const TermsPage = () => (
   <LegalPage title="Regulamin">
     <p>
-      Szkic regulaminu korzystania z LighterSchedule. Pełna treść prawna pojawi się przed
+      Szkic regulaminu korzystania z ProstyGrafik. Pełna treść prawna pojawi się przed
       uruchomieniem sprzedaży.
     </p>
-    <p>W razie pytań: kontakt@lighterschedule.pl</p>
+    <p>W razie pytań: kontakt@prostygrafik.pl</p>
   </LegalPage>
 );
 
@@ -31,6 +31,6 @@ export const PrivacyPage = () => (
       Szkic informacji o przetwarzaniu danych (RODO). Finalna wersja będzie dostępna przed
       startem płatności online.
     </p>
-    <p>Kontakt w sprawie danych: kontakt@lighterschedule.pl</p>
+    <p>Kontakt w sprawie danych: kontakt@prostygrafik.pl</p>
   </LegalPage>
 );

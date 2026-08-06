@@ -34,7 +34,7 @@ def send_notification_email(to_user, subject, body):
     if not email:
         return False
 
-    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', None) or 'noreply@lighterschedule.local'
+    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', None) or 'noreply@prostygrafik.pl'
     try:
         send_mail(
             subject=subject,
@@ -62,7 +62,7 @@ def notify_workday_approved(workday):
     body = (
         f'Cześć {name},\n\n'
         f'Twoja deklaracja na {workday.date} ({_fmt_hours(workday)}) została zatwierdzona.\n\n'
-        f'— LighterSchedule\n'
+        f'— ProstyGrafik\n'
     )
     return send_notification_email(workday.employee, subject, body)
 
@@ -77,7 +77,7 @@ def notify_workday_rejected(workday):
         f'Twoja deklaracja na {workday.date} ({_fmt_hours(workday)}) została odrzucona.'
         f'{reason_line}\n'
         f'Możesz złożyć nową deklarację w aplikacji.\n\n'
-        f'— LighterSchedule\n'
+        f'— ProstyGrafik\n'
     )
     return send_notification_email(workday.employee, subject, body)
 
@@ -93,7 +93,7 @@ def notify_swap_created(swap):
         f'Cześć {employee_display_name(target)},\n\n'
         f'{requester} prosi Cię o {kind} na {day.date} ({_fmt_hours(day)}).\n'
         f'Zaakceptuj lub odrzuć prośbę w aplikacji.\n\n'
-        f'— LighterSchedule\n'
+        f'— ProstyGrafik\n'
     )
     return send_notification_email(target, subject, body)
 
@@ -110,7 +110,7 @@ def notify_swap_accepted_by_target(swap):
         f'Cześć {requester_name},\n\n'
         f'{target_name} zaakceptował(a) prośbę o zamianę na {day.date} ({_fmt_hours(day)}).\n'
         f'Czeka teraz na zatwierdzenie przez kierownika.\n\n'
-        f'— LighterSchedule\n'
+        f'— ProstyGrafik\n'
     )
     if send_notification_email(swap.requested_by, subject_req, body_req):
         sent += 1
@@ -119,7 +119,7 @@ def notify_swap_accepted_by_target(swap):
     body_mgr = (
         f'Zamiana między {requester_name} a {target_name} na {day.date} '
         f'({_fmt_hours(day)}) czeka na zatwierdzenie.\n\n'
-        f'— LighterSchedule\n'
+        f'— ProstyGrafik\n'
     )
     for manager in active_managers():
         if send_notification_email(manager, subject_mgr, body_mgr):
@@ -140,7 +140,7 @@ def notify_swap_manager_decision(swap, *, approved):
             f'Cześć {employee_display_name(user)},\n\n'
             f'Zamiana na {day.date} ({_fmt_hours(day)}) została {status_pl} przez kierownika.'
             f'{reason_line}\n'
-            f'— LighterSchedule\n'
+            f'— ProstyGrafik\n'
         )
         if send_notification_email(user, subject, body):
             sent += 1

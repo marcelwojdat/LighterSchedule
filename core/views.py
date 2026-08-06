@@ -387,7 +387,7 @@ def payroll_report(request):
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
     story = [
-        Paragraph(f'Raport wypłat — {month_label}', styles['title']),
+        Paragraph(f'ProstyGrafik — raport wypłat — {month_label}', styles['title']),
         Spacer(1, 12),
         Paragraph(
             'Zatwierdzone dni pracy w wybranym miesiącu (łącznie ze zmianami).',
@@ -978,7 +978,7 @@ class WorkDayViewSet(viewsets.ModelViewSet):
             )
 
         workdays = list(self._approved_export_queryset(user, request))
-        calendar_name = f'LighterSchedule — {user.get_full_name() or user.username}'
+        calendar_name = f'ProstyGrafik — {user.get_full_name() or user.username}'
         payload = build_workdays_ics(workdays, calendar_name=calendar_name)
 
         filename = 'grafik.ics'

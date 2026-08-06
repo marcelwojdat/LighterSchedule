@@ -19,9 +19,9 @@ const PublicLayout = () => {
       </a>
       <header className={styles.header}>
         <div className={styles.headerInner}>
-          <Link to="/" className={styles.logo} aria-label="LighterSchedule — strona główna">
+          <Link to="/" className={styles.logo} aria-label="ProstyGrafik — strona główna">
             <span className={styles.logoMark}>LS</span>
-            <span className={styles.logoText}>LighterSchedule</span>
+            <span className={styles.logoText}>ProstyGrafik</span>
           </Link>
 
           <button
@@ -75,7 +75,7 @@ const PublicLayout = () => {
       <footer className={styles.footer}>
         <div className={styles.footerInner}>
           <div className={styles.footerBrand}>
-            <div className={styles.logoText}>LighterSchedule</div>
+            <div className={styles.logoText}>ProstyGrafik</div>
             <p>Grafik zmianowy bez Excela i chaosu w wiadomościach.</p>
           </div>
           <div className={styles.footerLinks}>
@@ -83,10 +83,10 @@ const PublicLayout = () => {
             <Link to="/login">Logowanie</Link>
             <Link to="/terms">Regulamin</Link>
             <Link to="/privacy">Prywatność</Link>
-            <a href="mailto:kontakt@lighterschedule.pl">Kontakt</a>
+            <a href="mailto:kontakt@prostygrafik.pl">Kontakt</a>
           </div>
           <p className={styles.copyright}>
-            © {new Date().getFullYear()} LighterSchedule. Wszelkie prawa zastrzeżone.
+            © {new Date().getFullYear()} ProstyGrafik. Wszelkie prawa zastrzeżone.
           </p>
         </div>
       </footer>

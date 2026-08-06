@@ -60,13 +60,13 @@ def workday_description(workday):
     return _ics_escape('\n'.join(parts))
 
 
-def build_workdays_ics(workdays, calendar_name='LighterSchedule'):
+def build_workdays_ics(workdays, calendar_name='ProstyGrafik'):
     """Return iCalendar document as a string (CRLF line endings)."""
     now = timezone.now()
     lines = [
         'BEGIN:VCALENDAR',
         'VERSION:2.0',
-        'PRODID:-//LighterSchedule//PL',
+        'PRODID:-//ProstyGrafik//PL',
         'CALSCALE:GREGORIAN',
         'METHOD:PUBLISH',
         f'X-WR-CALNAME:{_ics_escape(calendar_name)}',
@@ -78,7 +78,7 @@ def build_workdays_ics(workdays, calendar_name='LighterSchedule'):
         end_dt = datetime.combine(workday.date, workday.end_time)
         summary = _ics_escape(workday_summary(workday))
         description = workday_description(workday)
-        uid = f'workday-{workday.id}@lighterschedule'
+        uid = f'workday-{workday.id}@prostygrafik.pl'
 
         lines.extend([
             'BEGIN:VEVENT',

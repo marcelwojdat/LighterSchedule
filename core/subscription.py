@@ -24,7 +24,7 @@ PLAN_LIMITS = {
 def get_or_create_default_organization():
     org, _created = Organization.objects.get_or_create(
         pk=1,
-        defaults={'name': 'LighterSchedule'},
+        defaults={'name': 'ProstyGrafik'},
     )
     Subscription.objects.get_or_create(
         organization=org,

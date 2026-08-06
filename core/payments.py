@@ -122,7 +122,7 @@ def _create_stripe_session(*, plan, plan_name, email, company_or_name, nip, paym
                     'currency': 'pln',
                     'unit_amount': unit_amount,
                     'product_data': {
-                        'name': f'LighterSchedule {plan_name}',
+                        'name': f'ProstyGrafik {plan_name}',
                         'description': 'Abonament miesięczny',
                     },
                 },

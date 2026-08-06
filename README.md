@@ -1,4 +1,4 @@
-# LighterSchedule
+# ProstyGrafik
 
 Aplikacja do deklaracji dyspozycyjności i zatwierdzania grafiku pracy (perspektywa pracownika i kierownika).
 
@@ -151,10 +151,10 @@ npm test -- --watchAll=false
 ## Struktura
 
 ```
-LighterSchedule/
+# (katalog na dysku może nadal nazywać się LighterSchedule)
 ├── core/                      # modele, API, testy
-├── lighterschedule_backend/   # settings, urls
-├── lighterschedule_front/     # React
+├── lighterschedule_backend/   # settings, urls — nazwa pakietu bez zmian
+├── lighterschedule_front/     # React — nazwa pakietu bez zmian
 ├── requirements.txt
 ├── manage.py
 ├── DEPLOY.md                  # checklista deployu produkcyjnego

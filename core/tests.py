@@ -960,7 +960,7 @@ class CalendarExportTests(APITestCase):
         self.assertIn('BEGIN:VCALENDAR', body)
         self.assertIn('SUMMARY:Zmiana Poranna', body)
         self.assertIn('Notatka: Wyjdę o 13:00', body)
-        self.assertIn(f'UID:workday-{self.workday.id}@lighterschedule', body)
+        self.assertIn(f'UID:workday-{self.workday.id}@prostygrafik.pl', body)
 
     def test_export_excludes_proposed_and_past(self):
         past = date.today() - timedelta(days=2)

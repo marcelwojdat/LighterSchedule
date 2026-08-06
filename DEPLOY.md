@@ -1,4 +1,4 @@
-# Deploy produkcyjny — LighterSchedule
+# Deploy produkcyjny — ProstyGrafik
 
 Checklist uruchomienia poza lokalnym środowiskiem deweloperskim.
 
@@ -62,7 +62,7 @@ Plik `/etc/systemd/system/lighterschedule.service`:
 
 ```ini
 [Unit]
-Description=LighterSchedule Gunicorn
+Description=ProstyGrafik Gunicorn
 After=network.target postgresql.service
 
 [Service]
