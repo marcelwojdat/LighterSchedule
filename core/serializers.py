@@ -9,6 +9,8 @@ from .models import (
     ShiftTemplateHours,
     ScheduleSettings,
     RejectionReasonTemplate,
+    Organization,
+    EmployeeProfile
 )
 from .permissions import is_manager
 from .utils import (
@@ -571,3 +573,18 @@ class SwapRequestSerializer(serializers.ModelSerializer):
                 })
 
         return attrs
+
+class OrganizationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Organization
+        fields = '__all__'
+
+class EmployeeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmployeeProfile
+        fields = '__all__'
+
+    def to_representation(self, instance):
+        if self.context.get('request').user != instance.user:
+            raise serializers.ValidationError("Nie masz dostępu do tego profilu pracownika.")
+        return super().to_representation(instance)

@@ -8,6 +8,8 @@ from core.views import (
     WorkDayViewSet,
     SwapRequestViewSet,
     UserViewSet,
+    OrganizationViewSet,
+    EmployeeViewSet,
     register_user,
     registration_status,
     current_user,
@@ -31,6 +33,8 @@ router.register(r'shift-templates', ShiftTemplateViewSet)
 router.register(r'rejection-reasons', RejectionReasonTemplateViewSet)
 router.register(r'workdays', WorkDayViewSet)
 router.register(r'swaps', SwapRequestViewSet)
+router.register(r'organizations', OrganizationViewSet)
+router.register(r'employees', EmployeeViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),

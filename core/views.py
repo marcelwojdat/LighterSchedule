@@ -15,6 +15,10 @@ from django.db import transaction
 from django.db.models import F, Q
 from django.http import HttpResponse
 from django.utils import timezone
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from .models import Organization, EmployeeProfile
+from .forms import OrganizationForm, EmployeeForm
 
 from .models import (
     TaskType,
@@ -24,9 +28,11 @@ from .models import (
     ShiftTemplate,
     ScheduleSettings,
     RejectionReasonTemplate,
+    Organization,
 )
 from .permissions import is_manager, IsManager
 from .serializers import (
+    EmployeeSerializer,
     TaskTypeSerializer,
     WorkDaySerializer,
     SwapRequestSerializer,
@@ -36,6 +42,7 @@ from .serializers import (
     ShiftTemplateSerializer,
     ScheduleSettingsSerializer,
     RejectionReasonTemplateSerializer,
+    OrganizationSerializer
 )
 from .utils import (
     ensure_user_profile,
@@ -1375,3 +1382,47 @@ class SwapRequestViewSet(
 
         notify_swap_manager_decision(swap, approved=True)
         return Response(SwapRequestSerializer(swap).data)
+
+class OrganizationViewSet(viewsets.ModelViewSet):
+    queryset = Organization.objects.all()
+    serializer_class = OrganizationSerializer
+    permission_classes = [IsAuthenticated]
+
+class EmployeeViewSet(viewsets.ModelViewSet):
+    queryset = EmployeeProfile.objects.all()
+    serializer_class = EmployeeSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return EmployeeProfile.objects.all()
+        return EmployeeProfile.objects.filter(user=user)
+@login_required
+def create_organization(request):
+    if request.method == 'POST':
+        form = OrganizationForm(request.POST)
+        if form.is_valid():
+            organization = form.save(commit=False)
+            organization.owners.add(request.user)
+            organization.save()
+            return redirect('organization_list')
+    else:
+        form = OrganizationForm()
+    return render(request, 'create_organization.html', {'form': form})
+
+@login_required
+def add_employee(request, organization_id):
+    organization = Organization.objects.get(id=organization_id)
+    if request.user not in organization.owners.all():
+        return redirect('home')
+    if request.method == 'POST':
+        form = EmployeeForm(request.POST)
+        if form.is_valid():
+            employee = form.save(commit=False)
+            employee.organization = organization
+            employee.save()
+            return redirect('organization_detail', organization_id=organization_id)
+    else:
+        form = EmployeeForm()
+    return render(request, 'add_employee.html', {'form': form, 'organization': organization})

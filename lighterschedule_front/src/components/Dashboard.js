@@ -1,9 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import Auth from './Auth';
 import UserMenu from './UserMenu';
-import MonthPicker from './MonthPicker';
 import styles from './Dashboard.module.css';
 import { getErrorMessage } from '../api/client';
 import {
@@ -11,9 +10,6 @@ import {
   createWorkday,
   updateWorkday,
   deleteWorkday,
-  downloadWorkdaysIcs,
-  getCalendarFeedInfo,
-  copyWorkdays,
 } from '../api/workdays';
 import {
   getSwaps,
@@ -23,22 +19,9 @@ import {
 } from '../api/swaps';
 import { getUsers, getSwappableWorkdays } from '../api/users';
 import { getTaskTypes } from '../api/taskTypes';
-import { getShiftTemplates } from '../api/shiftTemplates';
 import { getNotifications } from '../api/notifications';
-import { getScheduleSettings } from '../api/scheduleSettings';
 import { useTheme } from '../hooks/useTheme';
-import { useAutoDismiss } from '../hooks/useAutoDismiss';
-import { useDismissibleList } from '../hooks/useDismissibleList';
-import ToastStack from './ToastStack';
-import {
-  buildWorkdayPayload,
-  toApiTime,
-  toDisplayTime,
-  resolveTemplateHours,
-} from '../utils/time';
-import { formatDateStr, getMonday, addDays, shiftMonth } from '../utils/dates';
-import { getWeekSummary, formatWeekRangeLabel } from '../utils/weekSummary';
-import { formatMonthYearPl } from '../utils/locale';
+import { buildWorkdayPayload, toApiTime } from '../utils/time';
 
 const STATUS_LABELS = {
   proposed: 'Oczekuje',
@@ -78,33 +61,6 @@ const Dashboard = () => {
   const [notifications, setNotifications] = useState({ total: 0, items: [] });
   const [taskTypes, setTaskTypes] = useState([]);
   const [selectedRoleId, setSelectedRoleId] = useState('');
-  const [dayNote, setDayNote] = useState('');
-  const [shiftTemplates, setShiftTemplates] = useState([]);
-  const [dayTemplates, setDayTemplates] = useState(null);
-  const [selectedShiftId, setSelectedShiftId] = useState('');
-  const [scheduleSuccess, setScheduleSuccess] = useState('');
-  const [showCalendarExport, setShowCalendarExport] = useState(false);
-  const [calendarFeed, setCalendarFeed] = useState(null);
-  const [calendarExportBusy, setCalendarExportBusy] = useState(false);
-  const [scheduleSettings, setScheduleSettings] = useState(null);
-  const [copyBusy, setCopyBusy] = useState(false);
-  const [weekStart, setWeekStart] = useState(() => formatDateStr(getMonday()));
-  const swapsSectionRef = useRef(null);
-
-  useAutoDismiss(swapSuccess, setSwapSuccess, 7000);
-  useAutoDismiss(scheduleSuccess, setScheduleSuccess, 7000);
-  useAutoDismiss(error, setError, 7000);
-
-  const notificationKey = useCallback(
-    (item, index) =>
-      `${item.type}|${item.shift_template_id || ''}|${item.date || ''}|${item.message || ''}|${index}`,
-    [],
-  );
-  const { visible: visibleNotices, dismiss: dismissNotice } = useDismissibleList(
-    notifications.items,
-    notificationKey,
-    7000,
-  );
 
   const fetchTaskTypes = async () => {
     try {
@@ -112,118 +68,6 @@ const Dashboard = () => {
       setTaskTypes(data);
     } catch (err) {
       setError(getErrorMessage(err, 'Nie udało się pobrać stanowisk.'));
-    }
-  };
-
-  const fetchShiftTemplates = async () => {
-    try {
-      const data = await getShiftTemplates({ active: '1' });
-      setShiftTemplates(data);
-    } catch (err) {
-      setError(getErrorMessage(err, 'Nie udało się pobrać szablonów zmian.'));
-    }
-  };
-
-  const fetchScheduleSettings = async () => {
-    try {
-      const data = await getScheduleSettings();
-      setScheduleSettings(data);
-    } catch {
-      setScheduleSettings(null);
-    }
-  };
-
-  const declarationsClosed = Boolean(scheduleSettings?.declarations_closed);
-  const closeLabel = scheduleSettings?.declaration_close_label;
-  const deadlineMessage = closeLabel
-    ? `Okno deklaracji jest zamknięte (termin: ${closeLabel}). Grafik może zmieniać tylko kierownik.`
-    : 'Okno deklaracji jest zamknięte. Grafik może zmieniać tylko kierownik.';
-  const deadlineOpenMessage = closeLabel
-    ? `Deklaracje można składać do ${closeLabel} włącznie (powtarza się co tydzień).`
-    : null;
-
-  const openCalendarExport = async () => {
-    const opening = !showCalendarExport;
-    setShowCalendarExport(opening);
-    if (!opening || calendarFeed) return;
-    try {
-      const data = await getCalendarFeedInfo();
-      setCalendarFeed(data);
-    } catch (err) {
-      setError(getErrorMessage(err, 'Nie udało się przygotować linku kalendarza.'));
-    }
-  };
-
-  const handleDownloadIcs = async (useMonth = false) => {
-    setCalendarExportBusy(true);
-    try {
-      const params = useMonth && statsMonth ? { month: statsMonth } : {};
-      await downloadWorkdaysIcs(params);
-      setScheduleSuccess(
-        useMonth
-          ? `Pobrano grafik .ics za ${formatMonthYearPl(statsMonth)}.`
-          : 'Pobrano nadchodzące zatwierdzone zmiany (.ics).'
-      );
-      setError('');
-    } catch (err) {
-      setError(getErrorMessage(err, 'Nie udało się pobrać pliku kalendarza.'));
-    } finally {
-      setCalendarExportBusy(false);
-    }
-  };
-
-  const handleCopySchedule = async (mode) => {
-    if (declarationsClosed) {
-      setError(deadlineMessage);
-      return;
-    }
-    const thisMonday = formatDateStr(getMonday());
-    const targetStart = mode === 'week' ? thisMonday : `${statsMonth}-01`;
-    const sourceStart = mode === 'week' ? addDays(thisMonday, -7) : shiftMonth(targetStart, -1);
-    const periodLabel = mode === 'week' ? 'tygodnia' : 'miesiąca';
-
-    if (
-      !window.confirm(
-        `Skopiować grafik z poprzedniego ${periodLabel} na bieżący? Istniejące dni zostaną pominięte.`
-      )
-    ) {
-      return;
-    }
-
-    setCopyBusy(true);
-    try {
-      const result = await copyWorkdays({
-        mode,
-        source_start: sourceStart,
-        target_start: targetStart,
-        on_conflict: 'skip',
-      });
-      await fetchWorkdays();
-      const parts = [];
-      if (result.created_count) parts.push(`dodano ${result.created_count}`);
-      if (result.skipped_count) parts.push(`pominięto ${result.skipped_count}`);
-      if (result.updated_count) parts.push(`zaktualizowano ${result.updated_count}`);
-      setScheduleSuccess(
-        parts.length
-          ? `Skopiowano poprzedni ${mode === 'week' ? 'tydzień' : 'miesiąc'}: ${parts.join(', ')}.`
-          : `Brak dni do skopiowania z poprzedniego ${periodLabel}.`
-      );
-      setError('');
-    } catch (err) {
-      setError(getErrorMessage(err, 'Nie udało się skopiować grafiku.'));
-    } finally {
-      setCopyBusy(false);
-    }
-  };
-
-  const copyCalendarFeedUrl = async () => {
-    if (!calendarFeed?.url) return;
-    try {
-      await navigator.clipboard.writeText(calendarFeed.url);
-      setScheduleSuccess('Skopiowano link subskrypcji kalendarza.');
-      setError('');
-    } catch {
-      setError('Nie udało się skopiować linku — zaznacz go ręcznie.');
     }
   };
 
@@ -269,14 +113,6 @@ const Dashboard = () => {
     }
   };
 
-  const isPastDate = (dateStr) => {
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const selectedDateObj = new Date(year, month - 1, day);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return selectedDateObj < today;
-  };
-
   const isActiveSwap = (swap) => !swap.is_rejected && !swap.approved_by_manager;
 
   const hasActiveSwapForWorkday = (workdayId) =>
@@ -288,27 +124,6 @@ const Dashboard = () => {
       !isPastDate(day.date) &&
       !hasActiveSwapForWorkday(day.id)
   );
-
-  const startGiveAwayShift = (workday) => {
-    if (!workday || workday.status !== 'approved') return;
-    if (isPastDate(workday.date) || hasActiveSwapForWorkday(workday.id)) {
-      setError('Tej zmiany nie można teraz oddać (przeszła albo prośba już trwa).');
-      return;
-    }
-    setSwapWorkDayId(String(workday.id));
-    setSwapTargetId('');
-    setSwapTargetWorkDayId('');
-    setTargetSwappableDays([]);
-    setError('');
-    setSwapSuccess(
-      `Oddajesz zmianę ${workday.date} (${workday.start_time.slice(0, 5)}-${workday.end_time.slice(0, 5)}). Wybierz współpracownika i wyślij prośbę.`
-    );
-    setSelectedDate('');
-    setShowPastDateWarning(false);
-    requestAnimationFrame(() => {
-      swapsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-  };
 
   const createSwapRequest = async () => {
     if (!swapWorkDayId || !swapTargetId) {
@@ -375,6 +190,14 @@ const Dashboard = () => {
     }
   };
 
+  const isPastDate = (dateStr) => {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const selectedDateObj = new Date(year, month - 1, day);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return selectedDateObj < today;
+  };
+
   const getWorkdayForDate = (dateStr) => workdays.find((d) => d.date === dateStr);
 
   const isEditableStatus = (status) => status === 'proposed' || status === 'rejected';
@@ -396,29 +219,18 @@ const Dashboard = () => {
       setTimeFrom(pending.start_time.slice(0, 5));
       setTimeTo(pending.end_time.slice(0, 5));
       setSelectedRoleId(pending.role ? String(pending.role) : '');
-      setDayNote(pending.note || '');
-      setSelectedShiftId(pending.shift_template ? String(pending.shift_template) : '');
     } else if (existing) {
       setTimeFrom(existing.start_time.slice(0, 5));
       setTimeTo(existing.end_time.slice(0, 5));
       setSelectedRoleId(existing.role ? String(existing.role) : '');
-      setDayNote(existing.note || '');
-      setSelectedShiftId(existing.shift_template ? String(existing.shift_template) : '');
     } else {
       setTimeFrom('12:00');
       setTimeTo('20:00');
       setSelectedRoleId('');
-      setDayNote('');
-      setSelectedShiftId('');
     }
   };
 
   const setChoosedHours = () => {
-    if (declarationsClosed) {
-      setError(deadlineMessage);
-      return;
-    }
-
     if (!selectedDate) {
       setError('Wybierz dzień, aby ustawić godziny.');
       return;
@@ -435,47 +247,12 @@ const Dashboard = () => {
       return;
     }
 
-    const templatesForDay = shiftTemplates.filter((t) => resolveTemplateHours(t, selectedDate));
-
-    if (shiftTemplates.length > 0) {
-      if (templatesForDay.length === 0) {
-        setError('Brak zdefiniowanych zmian na ten dzień tygodnia.');
-        return;
-      }
-      if (!selectedShiftId) {
-        setError('Wybierz zmianę zdefiniowaną przez kierownika.');
-        return;
-      }
-    }
-
-    let start = toApiTime(timeFrom);
-    let end = toApiTime(timeTo);
-    if (selectedShiftId) {
-      const template =
-        (Array.isArray(dayTemplates) ? dayTemplates : shiftTemplates).find(
-          (t) => String(t.id) === String(selectedShiftId)
-        );
-      if (template?.is_full) {
-        setError(`Zmiana ${template.name} jest już obsadzona (brak miejsc).`);
-        return;
-      }
-      const hours = resolveTemplateHours(template, selectedDate);
-      if (!hours) {
-        setError('Ta zmiana nie jest dostępna w wybranym dniu.');
-        return;
-      }
-      start = toApiTime(hours.start_time);
-      end = toApiTime(hours.end_time);
-    }
-
     const newSelectedDates = {
       ...selectedDates,
       [selectedDate]: {
-        start_time: start,
-        end_time: end,
+        start_time: toApiTime(timeFrom),
+        end_time: toApiTime(timeTo),
         role: selectedRoleId ? Number(selectedRoleId) : null,
-        note: dayNote.trim(),
-        shift_template: selectedShiftId ? Number(selectedShiftId) : null,
       },
     };
 
@@ -488,11 +265,6 @@ const Dashboard = () => {
   };
 
   const removeDateFromSelection = async (dateStr) => {
-    if (declarationsClosed) {
-      setError(deadlineMessage);
-      return;
-    }
-
     const existing = getWorkdayForDate(dateStr);
 
     if (existing?.status === 'approved') {
@@ -552,30 +324,21 @@ const Dashboard = () => {
     const totalEarnings = approvedWorkdays.reduce((sum, day) => sum + Number(day.earnings || 0), 0);
     const pendingCount = monthWorkdays.filter((d) => d.status === 'proposed').length;
 
+    const monthName = new Date(Number(year), Number(month) - 1).toLocaleString('pl-PL', { month: 'long' });
+
     return {
       totalHoursToDate,
       earnedToDate,
       totalDays,
       totalEarnings,
       pendingCount,
-      monthTitle: formatMonthYearPl(`${year}-${month}`),
+      monthTitle: `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${year}`,
     };
   };
 
   const monthStats = getMonthStats(statsMonth);
-  const weekSummary = getWeekSummary(workdays, weekStart);
-  const weekRangeLabel = formatWeekRangeLabel(weekSummary.weekStart, weekSummary.weekEnd);
-
-  const changeWeek = (offset) => {
-    setWeekStart(addDays(weekStart, offset * 7));
-  };
 
   const setSchedule = async () => {
-    if (declarationsClosed) {
-      setError(deadlineMessage);
-      return;
-    }
-
     const entries = Object.entries(selectedDates);
     if (entries.length === 0) {
       setError('Dodaj przynajmniej jedną deklarację przed wysłaniem.');
@@ -591,8 +354,6 @@ const Dashboard = () => {
             start_time: times.start_time,
             end_time: times.end_time,
             role: times.role,
-            note: times.note || '',
-            shift_template: times.shift_template,
           });
 
           if (existing?.status === 'approved') {
@@ -614,7 +375,6 @@ const Dashboard = () => {
         setSelectedDates({});
         await fetchWorkdays();
         setError('');
-        setScheduleSuccess('Deklaracje zostały wysłane.');
       } else {
         const failed = responses.filter((r) => !r.ok).map((r) => r.date);
         setError(`Nie udało się zapisać deklaracji dla: ${failed.join(', ')}`);
@@ -644,31 +404,8 @@ const Dashboard = () => {
     fetchSwaps();
     fetchColleagues();
     fetchTaskTypes();
-    fetchShiftTemplates();
-    fetchScheduleSettings();
     fetchNotifications();
   }, []);
-
-  useEffect(() => {
-    if (!selectedDate) {
-      setDayTemplates(null);
-      return undefined;
-    }
-
-    let cancelled = false;
-    setDayTemplates(null);
-    getShiftTemplates({ active: '1', date: selectedDate })
-      .then((data) => {
-        if (!cancelled) setDayTemplates(data);
-      })
-      .catch(() => {
-        if (!cancelled) setDayTemplates([]);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedDate]);
 
   const getTileClassName = ({ date: tileDate, view }) => {
     if (view !== 'month') return null;
@@ -683,9 +420,7 @@ const Dashboard = () => {
     const saved = getWorkdayForDate(dateStr);
     if (!saved) return null;
 
-    if (saved.status === 'approved') {
-      return saved.note?.trim() ? 'custom-approved-note-day' : 'custom-approved-day';
-    }
+    if (saved.status === 'approved') return 'custom-approved-day';
     if (saved.status === 'rejected') return 'custom-rejected-day';
     return 'custom-proposed-day';
   };
@@ -706,7 +441,6 @@ const Dashboard = () => {
             {pending.start_time.slice(0, 5)} - {pending.end_time.slice(0, 5)}
           </div>
           <div className={styles.tileStatus}>Do wysłania</div>
-          {pending.note?.trim() ? <div className={styles.tileStatus}>nota</div> : null}
         </div>
       );
     }
@@ -719,11 +453,7 @@ const Dashboard = () => {
             {saved.start_time.slice(0, 5)} - {saved.end_time.slice(0, 5)}
           </div>
           {saved.role_name ? <div className={styles.tileStatus}>{saved.role_name}</div> : null}
-          {saved.shift_template_name ? (
-            <div className={styles.tileStatus}>{saved.shift_template_name}</div>
-          ) : null}
           <div className={styles.tileStatus}>{STATUS_LABELS[saved.status]}</div>
-          {saved.note?.trim() ? <div className={styles.tileStatus}>nota</div> : null}
         </div>
       );
     }
@@ -748,80 +478,6 @@ const Dashboard = () => {
       ))}
     </select>
   );
-
-  const templatesForSelectedDate = selectedDate
-    ? (Array.isArray(dayTemplates)
-      ? dayTemplates
-      : shiftTemplates.filter((t) => resolveTemplateHours(t, selectedDate)))
-    : [];
-  const templatesConfigured = shiftTemplates.length > 0;
-  const selectedTemplateFull = Boolean(
-    selectedShiftId &&
-      templatesForSelectedDate.find(
-        (t) => String(t.id) === String(selectedShiftId) && t.is_full
-      )
-  );
-
-  const applyEmployeeTemplate = (templateId) => {
-    setSelectedShiftId(templateId);
-    if (!templateId || !selectedDate) return;
-    const template = templatesForSelectedDate.find((t) => String(t.id) === String(templateId))
-      || shiftTemplates.find((t) => String(t.id) === String(templateId));
-    if (template?.is_full) return;
-    const hours = resolveTemplateHours(template, selectedDate);
-    if (hours) {
-      setTimeFrom(toDisplayTime(hours.start_time));
-      setTimeTo(toDisplayTime(hours.end_time));
-    }
-  };
-
-  const renderShiftSelect = () => {
-    if (!templatesConfigured) {
-      return (
-        <div className={styles.popupField}>
-          <input type="time" onChange={(e) => setTimeFrom(e.target.value)} value={timeFrom} />
-          <input type="time" onChange={(e) => setTimeTo(e.target.value)} value={timeTo} />
-          <p className={styles.popupInfo}>
-            Kierownik nie zdefiniował jeszcze szablonów zmian — możesz podać godziny ręcznie.
-          </p>
-        </div>
-      );
-    }
-
-    return (
-      <>
-        <select
-          className={styles.roleSelect}
-          value={selectedShiftId}
-          onChange={(e) => applyEmployeeTemplate(e.target.value)}
-        >
-          <option value="">Wybierz zmianę</option>
-          {templatesForSelectedDate.map((template) => {
-            const hours = resolveTemplateHours(template, selectedDate);
-            const full = template.is_full === true;
-            return (
-              <option key={template.id} value={template.id} disabled={full}>
-                {template.name}
-                {hours ? ` (${toDisplayTime(hours.start_time)}-${toDisplayTime(hours.end_time)})` : ''}
-                {full ? ' — brak miejsc' : ''}
-              </option>
-            );
-          })}
-        </select>
-        {templatesForSelectedDate.length === 0 ? (
-          <p className={styles.popupInfo}>Brak zdefiniowanych zmian na ten dzień tygodnia.</p>
-        ) : selectedTemplateFull ? (
-          <p className={styles.popupInfo}>Brak miejsc na wybranej zmianie.</p>
-        ) : selectedShiftId ? (
-          <p className={styles.popupInfo}>
-            Godziny: {timeFrom} - {timeTo} (ustalone przez kierownika)
-          </p>
-        ) : (
-          <p className={styles.popupInfo}>Wybierz zmianę — godzin nie wpisujesz samodzielnie.</p>
-        )}
-      </>
-    );
-  };
 
   const renderStatusBadge = (status) => (
     <span
@@ -853,37 +509,17 @@ const Dashboard = () => {
     }
 
     if (existingWorkday?.status === 'approved') {
-      const canGiveAway =
-        !isPastDate(existingWorkday.date) && !hasActiveSwapForWorkday(existingWorkday.id);
-      const giveAwayPending = hasActiveSwapForWorkday(existingWorkday.id);
-
       return (
         <>
           <h2 className={styles.popupTitle}>Zatwierdzony grafik</h2>
           <p className={styles.popupInfo}>{selectedDate}</p>
           <p className={styles.popupInfo}>
             {existingWorkday.start_time.slice(0, 5)} - {existingWorkday.end_time.slice(0, 5)}
-            {existingWorkday.shift_template_name ? ` · ${existingWorkday.shift_template_name}` : ''}
             {existingWorkday.role_name ? ` (${existingWorkday.role_name})` : ''}
           </p>
           {renderStatusBadge('approved')}
-          {existingWorkday.note?.trim() ? (
-            <div className={styles.dayNoteBox}>Notatka: {existingWorkday.note}</div>
-          ) : null}
           <p className={styles.popupInfo}>Ten dzień został zatwierdzony przez kierownika. Nie możesz go edytować.</p>
-          {giveAwayPending ? (
-            <p className={styles.popupInfo}>Prośba o oddanie tej zmiany jest już w toku.</p>
-          ) : null}
           <div className={styles.popupButtons}>
-            {canGiveAway ? (
-              <button
-                type="button"
-                className={`${styles.popupBtn} ${styles.giveAwayBtn}`}
-                onClick={() => startGiveAwayShift(existingWorkday)}
-              >
-                Chcę oddać zmianę
-              </button>
-            ) : null}
             <input type="button" className={`${styles.popupBtn} ${styles.popupBtnSecondary}`} onClick={cancelSelection} value="Wróć" />
           </div>
         </>
@@ -903,21 +539,10 @@ const Dashboard = () => {
           ) : null}
           <p className={styles.popupInfo}>Możesz złożyć nową deklarację na ten dzień.</p>
           <div className={styles.popupField}>
-            {renderShiftSelect()}
+            <input type="time" onChange={(e) => setTimeFrom(e.target.value)} value={timeFrom} />
+            <input type="time" onChange={(e) => setTimeTo(e.target.value)} value={timeTo} />
           </div>
           {renderRoleSelect()}
-          <label className={styles.noteLabel} htmlFor="day-note-rejected">
-            Notatka (opcjonalnie)
-          </label>
-          <textarea
-            id="day-note-rejected"
-            className={styles.noteInput}
-            rows={2}
-            maxLength={500}
-            placeholder="Np. muszę wyjść wcześniej"
-            value={dayNote}
-            onChange={(e) => setDayNote(e.target.value)}
-          />
           <div className={styles.popupButtons}>
             <input type="button" className={`${styles.popupBtn} ${styles.popupBtnSecondary}`} onClick={cancelSelection} value="Wróć" />
             <input type="button" className={styles.popupBtn} onClick={setChoosedHours} value="Złóż ponownie" />
@@ -941,21 +566,10 @@ const Dashboard = () => {
           {canModify ? (
             <>
               <div className={styles.popupField}>
-                {renderShiftSelect()}
+                <input type="time" onChange={(e) => setTimeFrom(e.target.value)} value={timeFrom} />
+                <input type="time" onChange={(e) => setTimeTo(e.target.value)} value={timeTo} />
               </div>
               {renderRoleSelect()}
-              <label className={styles.noteLabel} htmlFor="day-note-proposed">
-                Notatka (opcjonalnie)
-              </label>
-              <textarea
-                id="day-note-proposed"
-                className={styles.noteInput}
-                rows={2}
-                maxLength={500}
-                placeholder="Np. muszę wyjść wcześniej"
-                value={dayNote}
-                onChange={(e) => setDayNote(e.target.value)}
-              />
               <div className={styles.popupButtons}>
                 <input type="button" className={`${styles.popupBtn} ${styles.popupBtnSecondary}`} onClick={cancelSelection} value="Wróć" />
                 <input type="button" className={`${styles.popupBtn} ${styles.popupBtnDanger}`} onClick={() => removeDateFromSelection(selectedDate)} value="Usuń" />
@@ -990,25 +604,12 @@ const Dashboard = () => {
     return (
       <>
         <h2 className={styles.popupTitle}>{selectedDate}</h2>
-        <p className={styles.popupInfo}>
-          {templatesConfigured ? 'Wybierz zdefiniowaną zmianę' : 'Wybierz godziny dyspozycyjności'}
-        </p>
+        <p className={styles.popupInfo}>Wybierz zmianę</p>
         <div className={styles.popupField}>
-          {renderShiftSelect()}
+          <input type="time" onChange={(e) => setTimeFrom(e.target.value)} value={timeFrom} />
+          <input type="time" onChange={(e) => setTimeTo(e.target.value)} value={timeTo} />
         </div>
         {renderRoleSelect()}
-        <label className={styles.noteLabel} htmlFor="day-note-new">
-          Notatka (opcjonalnie)
-        </label>
-        <textarea
-          id="day-note-new"
-          className={styles.noteInput}
-          rows={2}
-          maxLength={500}
-          placeholder="Np. muszę wyjść wcześniej"
-          value={dayNote}
-          onChange={(e) => setDayNote(e.target.value)}
-        />
         <div className={styles.popupButtons}>
           <input type="button" onClick={cancelSelection} value="Wróć" className={`${styles.popupBtn} ${styles.popupBtnSecondary}`} />
           <input type="button" onClick={setChoosedHours} value="Dodaj deklarację" className={styles.popupBtn} />
@@ -1021,7 +622,7 @@ const Dashboard = () => {
   const receivedSwaps = swaps.filter((swap) => swap.target_user === currentUser?.id);
 
   return (
-    <div className={`${styles.dashboardPage} lsFields`}>
+    <div className={styles.dashboardPage}>
       <div className={styles.pageHeader}>
         <h1 className={styles.dashboardTitle}>Twój Grafik Pracy</h1>
         {currentUser ? (
@@ -1039,89 +640,31 @@ const Dashboard = () => {
           />
         ) : null}
       </div>
-      <ToastStack
-        items={[
-          ...visibleNotices.map(({ entry, key }) => ({
-            key: `notice-${key}`,
-            message: entry.message,
-            variant: entry.type === 'shortage' ? 'error' : 'warning',
-            onClose: () => dismissNotice(key),
-          })),
-          { key: 'error', message: error, variant: 'error', onClose: () => setError('') },
-          {
-            key: 'scheduleSuccess',
-            message: scheduleSuccess,
-            variant: 'success',
-            onClose: () => setScheduleSuccess(''),
-          },
-          {
-            key: 'swapSuccess',
-            message: swapSuccess,
-            variant: 'success',
-            onClose: () => setSwapSuccess(''),
-          },
-        ]}
-      />
-      {declarationsClosed ? (
-        <div className={styles.deadlineBanner}>{deadlineMessage}</div>
-      ) : deadlineOpenMessage ? (
-        <div className={styles.deadlineInfo}>{deadlineOpenMessage}</div>
+      {error ? <div className={styles.rejectionReason}>{error}</div> : null}
+      {swapSuccess ? <div className={styles.swapSuccess}>{swapSuccess}</div> : null}
+      {notifications.items?.length ? (
+        <div className={styles.notificationsBanner}>
+          {notifications.items.map((item) => (
+            <div key={item.type} className={styles.notificationItem}>
+              {item.message}
+            </div>
+          ))}
+        </div>
       ) : null}
       <div className={styles.dashboardBody}>
         <div className={styles.statsWrapper}>
-          <div className={styles.weekSummary}>
-            <div className={styles.statsHeader}>
-              <div>
-                <div className={styles.statsLabel}>Podsumowanie tygodnia</div>
-                <div className={styles.statsTitle}>{weekRangeLabel}</div>
-              </div>
-              <div className={styles.weekNav}>
-                <button type="button" className={styles.weekNavBtn} onClick={() => changeWeek(-1)}>
-                  ←
-                </button>
-                <button
-                  type="button"
-                  className={styles.weekNavBtn}
-                  onClick={() => setWeekStart(formatDateStr(getMonday()))}
-                >
-                  Ten tydzień
-                </button>
-                <button type="button" className={styles.weekNavBtn} onClick={() => changeWeek(1)}>
-                  →
-                </button>
-              </div>
-            </div>
-            <div className={styles.weekSummaryGrid}>
-              <div className={`${styles.statCard} ${styles.weekStatApproved}`}>
-                <h3>Zatwierdzone</h3>
-                <p>{weekSummary.approvedHours.toFixed(1)} h</p>
-                <small>
-                  {weekSummary.approvedDays}{' '}
-                  {weekSummary.approvedDays === 1 ? 'dzień' : 'dni'} w grafiku
-                </small>
-              </div>
-              <div className={`${styles.statCard} ${styles.weekStatPending}`}>
-                <h3>Oczekujące</h3>
-                <p>{weekSummary.pendingHours.toFixed(1)} h</p>
-                <small>
-                  {weekSummary.pendingDays}{' '}
-                  {weekSummary.pendingDays === 1 ? 'deklaracja' : 'deklaracje'} do akceptacji
-                </small>
-              </div>
-            </div>
-          </div>
-
           <div className={styles.statsHeader}>
             <div>
               <div className={styles.statsLabel}>Statystyki miesiąca</div>
               <div className={styles.statsTitle}>{monthStats.monthTitle}</div>
             </div>
             <div className={styles.statsMonthPicker}>
-              <MonthPicker
+              <label htmlFor="stats-month">Wybierz miesiąc</label>
+              <input
                 id="stats-month"
-                label="Wybierz miesiąc"
+                type="month"
                 value={statsMonth}
-                onChange={setStatsMonth}
+                onChange={(e) => setStatsMonth(e.target.value)}
               />
             </div>
           </div>
@@ -1155,68 +698,10 @@ const Dashboard = () => {
               <p className={styles.calendarLabel}>Kalendarz</p>
               <div className={styles.calendarHeaderTitle}>Deklaruj swoją dyspozycyjność</div>
             </div>
-            <button
-              type="button"
-              className={styles.calendarExportToggle}
-              onClick={openCalendarExport}
-              aria-expanded={showCalendarExport}
-            >
-              {showCalendarExport ? 'Ukryj eksport' : 'Dodaj do kalendarza'}
-            </button>
           </div>
-          {showCalendarExport ? (
-            <div className={styles.calendarExportPanel}>
-              <p className={styles.calendarExportHint}>
-                Google Calendar: Ustawienia → Importuj lub dodaj kalendarz przez URL.
-                Apple Calendar: otwórz pobrany plik .ics albo dodaj subskrypcję kalendarza.
-              </p>
-              <div className={styles.calendarExportActions}>
-                <button
-                  type="button"
-                  className={styles.calendarExportBtn}
-                  disabled={calendarExportBusy}
-                  onClick={() => handleDownloadIcs(false)}
-                >
-                  Pobierz .ics (nadchodzące)
-                </button>
-                <button
-                  type="button"
-                  className={styles.calendarExportBtnSecondary}
-                  disabled={calendarExportBusy}
-                  onClick={() => handleDownloadIcs(true)}
-                >
-                  Pobierz .ics ({formatMonthYearPl(statsMonth)})
-                </button>
-              </div>
-              {calendarFeed?.url ? (
-                <div className={styles.calendarFeedBox}>
-                  <div className={styles.calendarFeedLabel}>Subskrypcja (auto-odświeżanie)</div>
-                  <code className={styles.calendarFeedUrl}>{calendarFeed.url}</code>
-                  <div className={styles.calendarExportActions}>
-                    <button
-                      type="button"
-                      className={styles.calendarExportBtnSecondary}
-                      onClick={copyCalendarFeedUrl}
-                    >
-                      Kopiuj link
-                    </button>
-                    {calendarFeed.webcal_url ? (
-                      <a
-                        className={styles.calendarExportBtnSecondary}
-                        href={calendarFeed.webcal_url}
-                      >
-                        Otwórz w kalendarzu
-                      </a>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
           <div className={styles.calendarWrapper}>
             <div className={styles.calendarContainer}>
               <Calendar
-                locale="pl-PL"
                 onChange={setChosenDate}
                 value={null}
                 tileClassName={getTileClassName}
@@ -1234,10 +719,6 @@ const Dashboard = () => {
               Zatwierdzony przez kierownika
             </div>
             <div className={styles.legendItem}>
-              <span className={`${styles.legendDot} ${styles.legendApprovedNote}`} />
-              Zatwierdzony z notatką
-            </div>
-            <div className={styles.legendItem}>
               <span className={`${styles.legendDot} ${styles.legendRejected}`} />
               Odrzucony
             </div>
@@ -1246,49 +727,24 @@ const Dashboard = () => {
               Do wysłania
             </div>
           </div>
-          <div className={styles.copyScheduleRow}>
-            <button
-              type="button"
-              className={styles.copyScheduleBtn}
-              disabled={declarationsClosed || copyBusy}
-              onClick={() => handleCopySchedule('week')}
-            >
-              Kopiuj poprzedni tydzień
-            </button>
-            <button
-              type="button"
-              className={styles.copyScheduleBtn}
-              disabled={declarationsClosed || copyBusy}
-              onClick={() => handleCopySchedule('month')}
-              title={`Na miesiąc ${formatMonthYearPl(statsMonth)}`}
-            >
-              Kopiuj poprzedni miesiąc
-            </button>
-          </div>
-          <input
+          <input 
             type="button"
             onClick={setSchedule}
-            value={declarationsClosed ? 'Termin deklaracji minął' : 'Wyślij deklaracje'}
-            disabled={declarationsClosed}
+            value="Wyślij deklaracje"
             className={`${styles.scheduleSetBtn} ${styles.saveScheduleBtn}`}
           />
         </div>
       </div>
 
-      <section className={styles.swapsSection} ref={swapsSectionRef}>
+      <section className={styles.swapsSection}>
         <h3 className={styles.swapsTitle}>Zamiany zmian</h3>
         <p className={styles.swapsHint}>
           Przekazanie: współpracownik przejmuje Twoją zmianę. Dwustronna zamiana: wybierz też zmianę współpracownika — wtedy
           wymienicie się. Obie opcje wymagają akceptacji współpracownika i zatwierdzenia kierownika.
-          Szybka ścieżka: otwórz zatwierdzony dzień w kalendarzu → „Chcę oddać zmianę”.
         </p>
 
         <div className={styles.swapForm}>
-          <select
-            value={swapWorkDayId}
-            onChange={(e) => setSwapWorkDayId(e.target.value)}
-            className={swapWorkDayId ? styles.swapFieldPrefill : undefined}
-          >
+          <select value={swapWorkDayId} onChange={(e) => setSwapWorkDayId(e.target.value)}>
             <option value="">Wybierz swoją zmianę</option>
             {swappableWorkdays.map((day) => (
               <option key={day.id} value={day.id}>

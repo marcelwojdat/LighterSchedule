@@ -2,10 +2,26 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 
+
+class Organization(models.Model):
+    name = models.CharField(max_length=120)
+    description = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    owners = models.ManyToManyField(User, related_name='owned_organizations')
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
 class EmployeeProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
     is_manager = models.BooleanField(default=False)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, default=1)
+    is_active = models.BooleanField(default=True)
 
     def __str__(self):
         return self.user.username
@@ -208,18 +224,6 @@ class SwapRequest(models.Model):
         if self.target_work_day_id:
             return f"Zamiana {self.work_day.date} <-> {self.target_work_day.date}"
         return f"Zamiana {self.work_day.date} od {self.requested_by}"
-
-
-class Organization(models.Model):
-    """Tenant / billing account. v1 uses a single default organization."""
-    name = models.CharField(max_length=120)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ['name']
-
-    def __str__(self):
-        return self.name
 
 
 class Subscription(models.Model):
