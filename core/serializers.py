@@ -10,6 +10,7 @@ from rest_framework import serializers
 
 from .models import (
     EmployeeProfile,
+    Organization,
     RejectionReasonTemplate,
     ScheduleSettings,
     ShiftTemplate,
@@ -72,27 +73,22 @@ class UserSerializer(serializers.ModelSerializer):
         ]
 
 
-class ManagerUserCreateSerializer(serializers.Serializer):
-    """Manager adds an employee (or another manager) to their own organization."""
+class AccountCreateSerializer(serializers.Serializer):
+    """Shared fields and validation for creating a user account."""
 
     username = serializers.CharField(max_length=150)
-    password = serializers.CharField(write_only=True, min_length=8)
+    password = serializers.CharField(write_only=True)
     first_name = serializers.CharField(max_length=150)
     last_name = serializers.CharField(max_length=150)
     email = serializers.EmailField()
-    is_manager = serializers.BooleanField(default=False)
-    hourly_rate = serializers.DecimalField(
-        max_digits=10, decimal_places=2, required=False, default=Decimal('0.00'),
-    )
 
     def validate_username(self, value):
-        username = value.strip()
-        if User.objects.filter(username=username).exists():
+        if User.objects.filter(username=value).exists():
             raise serializers.ValidationError('Użytkownik o tym loginie już istnieje.')
-        return username
+        return value
 
     def validate_email(self, value):
-        email = value.strip().lower()
+        email = value.lower()
         if User.objects.filter(email__iexact=email).exists():
             raise serializers.ValidationError('Konto z tym adresem e-mail już istnieje.')
         return email
@@ -103,6 +99,18 @@ class ManagerUserCreateSerializer(serializers.Serializer):
         except DjangoValidationError as exc:
             raise serializers.ValidationError(list(exc.messages))
         return value
+
+    def to_representation(self, instance):
+        return UserSerializer(instance, context=self.context).data
+
+
+class ManagerUserCreateSerializer(AccountCreateSerializer):
+    """Manager adds an employee (or another manager) to their own organization."""
+
+    is_manager = serializers.BooleanField(default=False)
+    hourly_rate = serializers.DecimalField(
+        max_digits=10, decimal_places=2, min_value=0, default=Decimal('0.00'),
+    )
 
     @transaction.atomic
     def create(self, validated_data):
@@ -119,8 +127,37 @@ class ManagerUserCreateSerializer(serializers.Serializer):
         )
         return user
 
-    def to_representation(self, instance):
-        return UserSerializer(instance, context=self.context).data
+
+class RegistrationSerializer(AccountCreateSerializer):
+    """Public sign-up: creates a new organization with the user as its first manager."""
+
+    DEFAULT_TASK_TYPES = ('Kasa', 'Magazyn', 'Obsługa')
+
+    organization_name = serializers.CharField(max_length=120)
+
+    @transaction.atomic
+    def create(self, validated_data):
+        organization = Organization.objects.create(name=validated_data.pop('organization_name'))
+        user = User.objects.create_user(**validated_data)
+        EmployeeProfile.objects.create(user=user, organization=organization, is_manager=True)
+        ScheduleSettings.objects.create(organization=organization)
+        TaskType.objects.bulk_create(
+            TaskType(organization=organization, name=name) for name in self.DEFAULT_TASK_TYPES
+        )
+        return user
+
+
+class ProfileUpdateSerializer(serializers.Serializer):
+    """Fields a manager may change on an employee's account."""
+
+    hourly_rate = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0, required=False)
+    is_manager = serializers.BooleanField(required=False)
+    is_active = serializers.BooleanField(required=False)
+
+    def validate(self, attrs):
+        if not attrs:
+            raise serializers.ValidationError('Podaj hourly_rate, is_manager lub is_active.')
+        return attrs
 
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer):

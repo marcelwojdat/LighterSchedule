@@ -1,12 +1,7 @@
-from datetime import datetime, date, timedelta
-from io import BytesIO
 import calendar
+from datetime import date, datetime, timedelta
+from io import BytesIO
 
-from rest_framework import viewsets, status, mixins
-from rest_framework.decorators import action, api_view, permission_classes
-from rest_framework.exceptions import PermissionDenied
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework.response import Response
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
@@ -15,49 +10,60 @@ from django.db import transaction
 from django.db.models import F, Q
 from django.http import HttpResponse
 from django.utils import timezone
+from rest_framework import mixins, status, viewsets
+from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
 
+from .approval import approve_proposed_workday
+from .email_notify import (
+    notify_swap_accepted_by_target,
+    notify_swap_created,
+    notify_swap_manager_decision,
+    notify_workday_approved,
+    notify_workday_rejected,
+)
+from .ical import build_workdays_ics, make_calendar_token, resolve_calendar_token
 from .models import (
+    RejectionReasonTemplate,
+    ScheduleSettings,
+    ShiftTemplate,
+    SwapRequest,
     TaskType,
     WorkDay,
-    SwapRequest,
-    EmployeeProfile,
-    ShiftTemplate,
-    ScheduleSettings,
-    RejectionReasonTemplate,
 )
-from .permissions import is_manager, IsManager
+from .permissions import IsManager, is_manager
+from .schedule_copy import copy_workdays, parse_iso_date
 from .serializers import (
-    TaskTypeSerializer,
-    WorkDaySerializer,
-    SwapRequestSerializer,
-    UserSerializer,
-    UserProfileUpdateSerializer,
     ManagerUserCreateSerializer,
-    ShiftTemplateSerializer,
-    ScheduleSettingsSerializer,
+    ProfileUpdateSerializer,
+    RegistrationSerializer,
     RejectionReasonTemplateSerializer,
+    ScheduleSettingsSerializer,
+    ShiftTemplateSerializer,
+    SwapRequestSerializer,
+    TaskTypeSerializer,
+    UserProfileUpdateSerializer,
+    UserSerializer,
+    WorkDaySerializer,
+)
+from .tenancy import (
+    OrganizationOwnedMixin,
+    OrganizationScopedMixin,
+    get_user_organization,
+    organization_users,
 )
 from .utils import (
-    ensure_user_profile,
+    DECLARATION_DEADLINE_MESSAGE,
     assert_shift_slot_available,
     declaration_deadline_passed,
-    DECLARATION_DEADLINE_MESSAGE,
     find_shift_shortages,
     find_shortages_in_range,
     format_shortage_message,
     remember_rejection_reason,
     serialize_shortage,
 )
-from .ical import build_workdays_ics, make_calendar_token, resolve_calendar_token
-from .schedule_copy import copy_workdays, parse_iso_date
-from .email_notify import (
-    notify_workday_approved,
-    notify_workday_rejected,
-    notify_swap_created,
-    notify_swap_accepted_by_target,
-    notify_swap_manager_decision,
-)
-from .approval import approve_proposed_workday
 
 
 @api_view(['GET'])
@@ -143,109 +149,16 @@ def schedule_holes(request):
     })
 
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def subscription_info(request):
-    """Current organization plan, status, and seat usage."""
-    from .subscription import organization_for_user, subscription_snapshot
-
-    ensure_user_profile(request.user)
-    org = organization_for_user(request.user)
-    return Response(subscription_snapshot(org))
-
-
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def payment_session_create(request):
-    """
-    Create a payment session for a plan (mock or Stripe Checkout).
-    Body: plan, email, company_or_name, nip?, payment_method?
-    """
-    from .payments import create_payment_session
-
-    plan = (request.data.get('plan') or '').strip().lower()
-    email = (request.data.get('email') or '').strip().lower()
-    company = (request.data.get('company_or_name') or '').strip()
-    nip = (request.data.get('nip') or '').strip()
-    method = (request.data.get('payment_method') or '').strip()
-
-    if not plan or not email or not company:
-        return Response(
-            {'error': 'Podaj plan, e-mail oraz firmę / imię.'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    try:
-        payload = create_payment_session(
-            plan=plan,
-            email=email,
-            company_or_name=company,
-            nip=nip,
-            payment_method=method,
-        )
-    except ValueError as exc:
-        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-
-    return Response(payload, status=status.HTTP_201_CREATED)
-
-
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def payment_webhook(request):
-    """
-    Confirm payment and activate subscription.
-
-    Mock JSON: { provider: 'mock', session_id, status: 'paid' }.
-    Stripe: raw body + Stripe-Signature header (checkout.session.completed).
-    """
-    from .payments import complete_payment_session, handle_stripe_webhook
-
-    stripe_sig = request.META.get('HTTP_STRIPE_SIGNATURE', '').strip()
-    if stripe_sig:
-        try:
-            result = handle_stripe_webhook(
-                payload=request.body,
-                signature=stripe_sig,
-            )
-        except ValueError as exc:
-            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(result)
-
-    provider = (request.data.get('provider') or '').strip().lower()
-    session_id = (request.data.get('session_id') or '').strip()
-    pay_status = (request.data.get('status') or 'paid').strip().lower()
-
-    if not session_id:
-        return Response(
-            {'error': 'Podaj session_id.'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    try:
-        result = complete_payment_session(
-            provider=provider or None,
-            session_id=session_id,
-            status=pay_status,
-        )
-    except ValueError as exc:
-        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-
-    return Response(result)
-
-
 @api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def schedule_settings(request):
-    settings_obj = ScheduleSettings.load()
+    settings_obj = ScheduleSettings.for_organization(get_user_organization(request.user))
 
     if request.method == 'GET':
         return Response(ScheduleSettingsSerializer(settings_obj).data)
 
     if not is_manager(request.user):
-        return Response(
-            {'error': 'Tylko kierownik może zmieniać termin deklaracji.'},
-            status=status.HTTP_403_FORBIDDEN,
-        )
+        raise PermissionDenied('Tylko kierownik może zmieniać termin deklaracji.')
 
     serializer = ScheduleSettingsSerializer(settings_obj, data=request.data, partial=True)
     serializer.is_valid(raise_exception=True)
@@ -441,17 +354,11 @@ def payroll_report(request):
 @api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def current_user(request):
-    ensure_user_profile(request.user)
-    user = User.objects.select_related('profile').get(pk=request.user.pk)
-
-    if request.method == 'GET':
-        return Response(UserSerializer(user, context={'request': request}).data)
-
-    serializer = UserProfileUpdateSerializer(user, data=request.data, partial=True)
-    serializer.is_valid(raise_exception=True)
-    serializer.save()
-    user.refresh_from_db()
-    return Response(UserSerializer(user, context={'request': request}).data)
+    if request.method == 'PATCH':
+        serializer = UserProfileUpdateSerializer(request.user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+    return Response(UserSerializer(request.user).data)
 
 
 @api_view(['POST'])
@@ -461,25 +368,16 @@ def change_password(request):
     new_password = request.data.get('new_password')
 
     if not current_password or not new_password:
-        return Response(
-            {'error': 'Podaj obecne i nowe hasło.'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
+        return Response({'error': 'Podaj obecne i nowe hasło.'}, status=status.HTTP_400_BAD_REQUEST)
     if not request.user.check_password(current_password):
-        return Response(
-            {'error': 'Obecne hasło jest nieprawidłowe.'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    if len(new_password) < 8:
-        return Response(
-            {'error': 'Nowe hasło musi mieć co najmniej 8 znaków.'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        return Response({'error': 'Obecne hasło jest nieprawidłowe.'}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        validate_password(new_password, user=request.user)
+    except DjangoValidationError as exc:
+        return Response({'error': ' '.join(exc.messages)}, status=status.HTTP_400_BAD_REQUEST)
 
     request.user.set_password(new_password)
-    request.user.save()
+    request.user.save(update_fields=['password'])
     return Response({'message': 'Hasło zostało zmienione.'})
 
 
@@ -508,96 +406,26 @@ def registration_status(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_user(request):
-    if not _registration_is_open():
-        return Response(
-            {'error': 'Rejestracja jest wyłączona. Poproś kierownika o utworzenie konta.'},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-
-    username = (request.data.get('username') or '').strip()
-    password = request.data.get('password')
-    first_name = (request.data.get('first_name') or '').strip()
-    last_name = (request.data.get('last_name') or '').strip()
-    email = (request.data.get('email') or '').strip().lower()
-    invite_code = (request.data.get('invite_code') or '').strip()
-
-    if not username or not password:
-        return Response(
-            {'error': 'Podaj login i hasło'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    if not first_name or not last_name:
-        return Response(
-            {'error': 'Podaj imię i nazwisko'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    if not email:
-        return Response(
-            {'error': 'Podaj adres e-mail'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    if _registration_invite_required() and invite_code != settings.REGISTRATION_INVITE_CODE:
-        return Response(
-            {'error': 'Nieprawidłowy kod zaproszenia'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    if User.objects.filter(username=username).exists():
-        return Response(
-            {'error': 'Użytkownik już istnieje'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    if User.objects.filter(email__iexact=email).exists():
-        return Response(
-            {'error': 'Konto z tym adresem e-mail już istnieje'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    try:
-        validate_password(password)
-    except DjangoValidationError as exc:
-        return Response(
-            {'error': ' '.join(exc.messages)},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    from .subscription import (
-        assert_can_add_seat,
-        get_or_create_default_organization,
-    )
-
-    try:
-        assert_can_add_seat(get_or_create_default_organization(), as_manager=False)
-    except ValueError as exc:
-        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-
-    user = User.objects.create_user(
-        username=username,
-        password=password,
-        first_name=first_name,
-        last_name=last_name,
-        email=email,
-    )
-    EmployeeProfile.objects.get_or_create(user=user)
-
+    """Sign-up creates a new organization with the registering user as its manager."""
+    serializer = RegistrationSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
     return Response({'message': 'Zarejestrowano pomyślnie'}, status=status.HTTP_201_CREATED)
 
 
 class UserViewSet(
+    OrganizationScopedMixin,
     mixins.CreateModelMixin,
     mixins.DestroyModelMixin,
     viewsets.ReadOnlyModelViewSet,
 ):
-    queryset = User.objects.select_related('profile').all().order_by('username')
-    serializer_class = UserSerializer
-    permission_classes = [IsAuthenticated]
+    """Colleagues from the same organization. Managers add, edit and remove accounts."""
+
+    queryset = User.objects.select_related('profile').order_by('username')
+    organization_lookup = 'profile__organization'
 
     def get_permissions(self):
-        if self.action in ('create', 'destroy'):
+        if self.action in ('create', 'destroy', 'profile'):
             return [IsAuthenticated(), IsManager()]
         return super().get_permissions()
 
@@ -606,171 +434,118 @@ class UserViewSet(
             return ManagerUserCreateSerializer
         return UserSerializer
 
-    def _is_last_active_manager(self, user):
-        profile = ensure_user_profile(user)
-        if not profile or not profile.is_manager or not user.is_active:
+    @staticmethod
+    def _is_last_active_manager(user):
+        if not (user.is_active and user.profile.is_manager):
             return False
-        return not User.objects.filter(
+        other_managers = organization_users(user.profile.organization).filter(
             is_active=True,
             profile__is_manager=True,
-        ).exclude(pk=user.pk).exists()
+        ).exclude(pk=user.pk)
+        return not other_managers.exists()
 
-    def _user_has_schedule_history(self, user):
-        has_workdays = WorkDay.objects.filter(employee=user).exists()
-        has_swaps = SwapRequest.objects.filter(
-            Q(requested_by=user) | Q(target_user=user)
-        ).exists()
-        return has_workdays or has_swaps
+    @staticmethod
+    def _has_schedule_history(user):
+        return (
+            WorkDay.objects.filter(employee=user).exists()
+            or SwapRequest.objects.filter(Q(requested_by=user) | Q(target_user=user)).exists()
+        )
 
     def destroy(self, request, *args, **kwargs):
+        """Deactivate the account, or delete it for good with ?permanent=1 (only without history)."""
         user = self.get_object()
-        permanent = str(request.query_params.get('permanent', '')).lower() in ('1', 'true', 'yes')
+        permanent = request.query_params.get('permanent', '').lower() in ('1', 'true', 'yes')
 
+        if user == request.user:
+            return Response(
+                {'error': 'Nie możesz usunąć ani dezaktywować własnego konta.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         if self._is_last_active_manager(user):
             return Response(
                 {'error': 'Nie można usunąć ani dezaktywować ostatniego aktywnego kierownika.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if user.id == request.user.id:
-            return Response(
-                {'error': 'Nie możesz usunąć ani dezaktywować własnego konta.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         if permanent:
-            if self._user_has_schedule_history(user):
+            if self._has_schedule_history(user):
                 return Response(
                     {
-                        'error': (
-                            'Konto ma historię grafiku lub zamian. '
-                            'Użyj dezaktywacji zamiast trwałego usunięcia.'
-                        ),
+                        'error': 'Konto ma historię grafiku lub zamian. Użyj dezaktywacji zamiast trwałego usunięcia.',
                         'can_hard_delete': False,
                     },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             username = user.username
             user.delete()
-            return Response(
-                {'message': f'Usunięto konto „{username}".', 'deleted': True},
-                status=status.HTTP_200_OK,
-            )
+            return Response({'message': f'Usunięto konto „{username}".', 'deleted': True})
 
         if not user.is_active:
             return Response(
                 {'error': 'Konto jest już nieaktywne. Możesz spróbować trwałego usunięcia.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
         user.is_active = False
         user.save(update_fields=['is_active'])
-        return Response(UserSerializer(user, context={'request': request}).data)
+        return Response(UserSerializer(user).data)
 
-    @action(detail=True, methods=['patch'], permission_classes=[IsAuthenticated, IsManager])
+    @action(detail=True, methods=['patch'])
     def profile(self, request, pk=None):
         user = self.get_object()
-        data = request.data
-        has_rate = 'hourly_rate' in data
-        has_manager = 'is_manager' in data
-        has_active = 'is_active' in data
+        serializer = ProfileUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        changes = serializer.validated_data
 
-        if not has_rate and not has_manager and not has_active:
-            return Response(
-                {'error': 'Podaj hourly_rate, is_manager lub is_active.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        is_self = user == request.user
+        demoting = changes.get('is_manager') is False
+        deactivating = changes.get('is_active') is False
 
-        if user.id == request.user.id and has_manager and not data.get('is_manager'):
+        if is_self and demoting:
             return Response(
                 {'error': 'Nie możesz odebrać sobie uprawnień kierownika.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-        if user.id == request.user.id and has_active and data.get('is_active') is False:
+        if is_self and deactivating:
             return Response(
                 {'error': 'Nie możesz dezaktywować własnego konta.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-        if has_active and data.get('is_active') is False and self._is_last_active_manager(user):
+        if (demoting or deactivating) and self._is_last_active_manager(user):
             return Response(
-                {'error': 'Nie można dezaktywować ostatniego aktywnego kierownika.'},
+                {'error': 'Firma musi mieć co najmniej jednego aktywnego kierownika.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        profile = ensure_user_profile(user)
+        with transaction.atomic():
+            profile = user.profile
+            for field in ('hourly_rate', 'is_manager'):
+                if field in changes:
+                    setattr(profile, field, changes[field])
+            profile.save()
+            if 'is_active' in changes:
+                user.is_active = changes['is_active']
+                user.save(update_fields=['is_active'])
 
-        if has_manager:
-            becoming_manager = bool(data.get('is_manager')) and not profile.is_manager
-            if becoming_manager and user.is_active:
-                from .subscription import assert_can_add_seat, organization_for_user
-
-                try:
-                    assert_can_add_seat(
-                        organization_for_user(user),
-                        as_manager=True,
-                        exclude_user_id=user.id,
-                    )
-                except ValueError as exc:
-                    return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-
-            if (
-                profile.is_manager
-                and not bool(data.get('is_manager'))
-                and self._is_last_active_manager(user)
-            ):
-                return Response(
-                    {'error': 'Nie można odebrać roli ostatniemu aktywnemu kierownikowi.'},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            profile.is_manager = bool(data.get('is_manager'))
-
-        if has_rate:
-            profile.hourly_rate = data.get('hourly_rate')
-        profile.save()
-
-        if has_active:
-            activating = bool(data.get('is_active')) and not user.is_active
-            if activating:
-                from .subscription import assert_can_add_seat, organization_for_user
-
-                as_manager = bool(profile.is_manager)
-                try:
-                    assert_can_add_seat(
-                        organization_for_user(user),
-                        as_manager=as_manager,
-                        exclude_user_id=user.id,
-                    )
-                except ValueError as exc:
-                    return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-            user.is_active = bool(data.get('is_active'))
-            user.save(update_fields=['is_active'])
-
-        return Response(UserSerializer(user, context={'request': request}).data)
+        return Response(UserSerializer(user).data)
 
     @action(detail=True, methods=['get'], url_path='swappable-workdays')
     def swappable_workdays(self, request, pk=None):
-        """Approved future workdays of a colleague — for two-way swap selection."""
+        """Approved future workdays of a colleague, for picking a two-way swap."""
         colleague = self.get_object()
-        if colleague.id == request.user.id:
-            return Response(
-                {'error': 'Wybierz innego pracownika.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        if colleague == request.user:
+            return Response({'error': 'Wybierz innego pracownika.'}, status=status.HTTP_400_BAD_REQUEST)
 
         workdays = WorkDay.objects.filter(
             employee=colleague,
             status=WorkDay.Status.APPROVED,
-            date__gte=timezone.now().date(),
+            date__gte=timezone.localdate(),
         ).order_by('date')
-        return Response(WorkDaySerializer(workdays, many=True).data)
+        return Response(WorkDaySerializer(workdays, many=True, context={'request': request}).data)
 
 
-class TaskTypeViewSet(viewsets.ModelViewSet):
+class TaskTypeViewSet(OrganizationOwnedMixin, viewsets.ModelViewSet):
     queryset = TaskType.objects.all()
     serializer_class = TaskTypeSerializer
-    permission_classes = [IsAuthenticated]
 
     def get_permissions(self):
         if self.action in ('create', 'update', 'partial_update', 'destroy'):
@@ -778,66 +553,63 @@ class TaskTypeViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
 
-class RejectionReasonTemplateViewSet(viewsets.ModelViewSet):
-    """Quick-pick rejection notes for managers."""
+class RejectionReasonTemplateViewSet(OrganizationOwnedMixin, viewsets.ModelViewSet):
+    """Quick-pick rejection notes for managers. List shows recently used first."""
+
     queryset = RejectionReasonTemplate.objects.all()
     serializer_class = RejectionReasonTemplateSerializer
     permission_classes = [IsAuthenticated, IsManager]
 
     def get_queryset(self):
-        qs = RejectionReasonTemplate.objects.all()
-        if self.action == 'list':
-            active_only = self.request.query_params.get('active', '1')
-            if active_only == '1':
-                qs = qs.filter(is_active=True)
-            # Recently used first, then seeded sort_order
-            return qs.order_by(
-                F('last_used_at').desc(nulls_last=True),
-                'sort_order',
-                'text',
-            )
-        return qs.order_by('sort_order', 'text')
+        queryset = super().get_queryset()
+        if self.action != 'list':
+            return queryset
+        if self.request.query_params.get('active', '1') == '1':
+            queryset = queryset.filter(is_active=True)
+        return queryset.order_by(F('last_used_at').desc(nulls_last=True), 'sort_order', 'text')
 
 
-class ShiftTemplateViewSet(viewsets.ModelViewSet):
-    queryset = ShiftTemplate.objects.all()
+class ShiftTemplateViewSet(OrganizationOwnedMixin, viewsets.ModelViewSet):
+    """
+    Shift templates of the organization.
+
+    ?date=YYYY-MM-DD limits the list to templates scheduled that weekday and adds
+    that day's hours and slot usage. Employees only see active templates.
+    """
+
+    queryset = ShiftTemplate.objects.prefetch_related('hours')
     serializer_class = ShiftTemplateSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        qs = ShiftTemplate.objects.prefetch_related('hours').all()
-        if not is_manager(self.request.user):
-            qs = qs.filter(is_active=True)
-
-        date_param = self.request.query_params.get('date')
-        if date_param:
-            try:
-                work_date = datetime.strptime(date_param, '%Y-%m-%d').date()
-            except ValueError:
-                return qs.none()
-            weekday = work_date.weekday()
-            qs = qs.filter(hours__weekday=weekday).distinct()
-
-        active_only = self.request.query_params.get('active')
-        if active_only == '1':
-            qs = qs.filter(is_active=True)
-
-        return qs
-
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        date_param = self.request.query_params.get('date')
-        if date_param:
-            try:
-                context['filter_date'] = datetime.strptime(date_param, '%Y-%m-%d').date()
-            except ValueError:
-                pass
-        return context
 
     def get_permissions(self):
         if self.action in ('create', 'update', 'partial_update', 'destroy'):
             return [IsAuthenticated(), IsManager()]
         return super().get_permissions()
+
+    def _filter_date(self):
+        raw = self.request.query_params.get('date')
+        if not raw:
+            return None
+        try:
+            return date.fromisoformat(raw)
+        except ValueError:
+            return None
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if not is_manager(self.request.user) or self.request.query_params.get('active') == '1':
+            queryset = queryset.filter(is_active=True)
+
+        if self.request.query_params.get('date'):
+            work_date = self._filter_date()
+            if work_date is None:
+                return queryset.none()
+            queryset = queryset.filter(hours__weekday=work_date.weekday()).distinct()
+        return queryset
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['filter_date'] = self._filter_date()
+        return context
 
 
 class WorkDayViewSet(viewsets.ModelViewSet):
