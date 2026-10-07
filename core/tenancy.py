@@ -6,6 +6,7 @@ behave as if they did not exist (404 instead of 403, nothing leaks).
 """
 
 from django.contrib.auth.models import User
+from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
 
 
@@ -47,3 +48,23 @@ class OrganizationOwnedMixin(OrganizationScopedMixin):
     def perform_create(self, serializer):
         # Taken from the account, never from request data.
         serializer.save(organization=self.get_organization())
+
+
+class OrganizationPrimaryKeyRelatedField(serializers.PrimaryKeyRelatedField):
+    """
+    PrimaryKeyRelatedField that only accepts objects of the requesting user's organization.
+
+    An id from another organization fails exactly like a non-existent id.
+    """
+
+    default_error_messages = {
+        'does_not_exist': 'Nie znaleziono obiektu o id {pk_value}.',
+    }
+
+    def __init__(self, organization_lookup='organization', **kwargs):
+        self.organization_lookup = organization_lookup
+        super().__init__(**kwargs)
+
+    def get_queryset(self):
+        organization = get_user_organization(self.context['request'].user)
+        return super().get_queryset().filter(**{self.organization_lookup: organization})

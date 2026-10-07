@@ -1,78 +1,67 @@
-from rest_framework import serializers
+from datetime import datetime
+from decimal import Decimal
+
 from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from django.utils import timezone
+from rest_framework import serializers
+
 from .models import (
-    TaskType,
-    WorkDay,
-    SwapRequest,
+    EmployeeProfile,
+    RejectionReasonTemplate,
+    ScheduleSettings,
     ShiftTemplate,
     ShiftTemplateHours,
-    ScheduleSettings,
-    RejectionReasonTemplate,
+    SwapRequest,
+    TaskType,
+    Weekday,
+    WorkDay,
 )
 from .permissions import is_manager
+from .tenancy import OrganizationPrimaryKeyRelatedField, get_user_organization
 from .utils import (
-    ensure_user_profile,
     assert_shift_slot_available,
-    get_shift_slots_info,
-    declaration_deadline_passed,
     declaration_close_label,
-)
-from datetime import datetime, date as date_cls, time as time_cls
-
-
-WEEKDAY_LABELS = (
-    'Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota', 'Niedziela',
+    declaration_deadline_passed,
+    get_shift_slots_info,
 )
 
 
-class ScheduleSettingsSerializer(serializers.ModelSerializer):
-    declarations_closed = serializers.SerializerMethodField()
-    declaration_close_label = serializers.SerializerMethodField()
+class OrganizationUniqueFieldMixin:
+    """
+    Validate that `unique_field` is unique within the requesting user's organization.
 
-    class Meta:
-        model = ScheduleSettings
-        fields = [
-            'declaration_close_weekday',
-            'declaration_close_time',
-            'declaration_close_label',
-            'declarations_closed',
-            'updated_at',
-        ]
-        read_only_fields = ['updated_at', 'declarations_closed', 'declaration_close_label']
+    DRF cannot check the model's UniqueConstraint itself, because `organization`
+    is not a serializer field (it is assigned by the view).
+    """
 
-    def get_declarations_closed(self, obj):
-        return declaration_deadline_passed()
-
-    def get_declaration_close_label(self, obj):
-        return declaration_close_label(obj)
-
-    def validate_declaration_close_weekday(self, value):
-        if value is None:
-            return value
-        if value not in range(7):
-            raise serializers.ValidationError('Dzień tygodnia musi być liczbą 0–6.')
-        return value
+    unique_field = 'name'
+    unique_error = 'Taka nazwa już istnieje.'
 
     def validate(self, attrs):
-        weekday = attrs.get(
-            'declaration_close_weekday',
-            getattr(self.instance, 'declaration_close_weekday', None),
-        )
-        close_time = attrs.get(
-            'declaration_close_time',
-            getattr(self.instance, 'declaration_close_time', None),
-        )
-        if 'declaration_close_weekday' in attrs and attrs['declaration_close_weekday'] is None:
-            attrs['declaration_close_time'] = None
-        elif weekday is not None and close_time is None and 'declaration_close_time' not in attrs:
-            attrs['declaration_close_time'] = time_cls(23, 59)
-        return attrs
+        value = attrs.get(self.unique_field)
+        if value is not None:
+            organization = get_user_organization(self.context['request'].user)
+            duplicates = self.Meta.model.objects.filter(
+                organization=organization,
+                **{self.unique_field: value},
+            )
+            if self.instance is not None:
+                duplicates = duplicates.exclude(pk=self.instance.pk)
+            if duplicates.exists():
+                raise serializers.ValidationError({self.unique_field: self.unique_error})
+        return super().validate(attrs)
 
+
+# --- Users -------------------------------------------------------------------
 
 class UserSerializer(serializers.ModelSerializer):
-    hourly_rate = serializers.SerializerMethodField()
-    is_manager = serializers.SerializerMethodField()
+    hourly_rate = serializers.DecimalField(
+        source='profile.hourly_rate', max_digits=10, decimal_places=2, read_only=True,
+    )
+    is_manager = serializers.BooleanField(source='profile.is_manager', read_only=True)
     email = serializers.EmailField(read_only=True)
 
     class Meta:
@@ -82,16 +71,10 @@ class UserSerializer(serializers.ModelSerializer):
             'hourly_rate', 'is_manager', 'is_active',
         ]
 
-    def get_hourly_rate(self, obj):
-        profile = ensure_user_profile(obj)
-        return profile.hourly_rate if profile else None
-
-    def get_is_manager(self, obj):
-        profile = ensure_user_profile(obj)
-        return bool(profile and profile.is_manager)
-
 
 class ManagerUserCreateSerializer(serializers.Serializer):
+    """Manager adds an employee (or another manager) to their own organization."""
+
     username = serializers.CharField(max_length=150)
     password = serializers.CharField(write_only=True, min_length=8)
     first_name = serializers.CharField(max_length=150)
@@ -99,7 +82,7 @@ class ManagerUserCreateSerializer(serializers.Serializer):
     email = serializers.EmailField()
     is_manager = serializers.BooleanField(default=False)
     hourly_rate = serializers.DecimalField(
-        max_digits=10, decimal_places=2, required=False, default=0,
+        max_digits=10, decimal_places=2, required=False, default=Decimal('0.00'),
     )
 
     def validate_username(self, value):
@@ -115,43 +98,25 @@ class ManagerUserCreateSerializer(serializers.Serializer):
         return email
 
     def validate_password(self, value):
-        from django.contrib.auth.password_validation import validate_password
-        from django.core.exceptions import ValidationError as DjangoValidationError
-
         try:
             validate_password(value)
         except DjangoValidationError as exc:
             raise serializers.ValidationError(list(exc.messages))
         return value
 
+    @transaction.atomic
     def create(self, validated_data):
-        from .subscription import (
-            assert_can_add_seat,
-            ensure_user_membership,
-            organization_for_user,
-            get_or_create_default_organization,
-        )
-
-        is_manager_flag = validated_data.pop('is_manager', False)
-        hourly_rate = validated_data.pop('hourly_rate', 0)
-
-        request = self.context.get('request')
-        if request and request.user and request.user.is_authenticated:
-            org = organization_for_user(request.user)
-        else:
-            org = get_or_create_default_organization()
-
-        try:
-            assert_can_add_seat(org, as_manager=is_manager_flag)
-        except ValueError as exc:
-            raise serializers.ValidationError(str(exc)) from exc
+        organization = get_user_organization(self.context['request'].user)
+        is_manager_flag = validated_data.pop('is_manager')
+        hourly_rate = validated_data.pop('hourly_rate')
 
         user = User.objects.create_user(**validated_data)
-        profile = ensure_user_profile(user)
-        profile.is_manager = is_manager_flag
-        profile.hourly_rate = hourly_rate
-        profile.save()
-        ensure_user_membership(user, org)
+        EmployeeProfile.objects.create(
+            user=user,
+            organization=organization,
+            is_manager=is_manager_flag,
+            hourly_rate=hourly_rate,
+        )
         return user
 
     def to_representation(self, instance):
@@ -164,13 +129,43 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
         fields = ['first_name', 'last_name', 'email']
 
 
-class TaskTypeSerializer(serializers.ModelSerializer):
+# --- Organization configuration ----------------------------------------------
+
+class ScheduleSettingsSerializer(serializers.ModelSerializer):
+    # Normalization of weekday/time pairs lives in ScheduleSettings.save().
+    declarations_closed = serializers.SerializerMethodField()
+    declaration_close_label = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ScheduleSettings
+        fields = [
+            'declaration_close_weekday',
+            'declaration_close_time',
+            'declaration_close_label',
+            'declarations_closed',
+            'updated_at',
+        ]
+        read_only_fields = ['updated_at']
+
+    def get_declarations_closed(self, obj):
+        return declaration_deadline_passed(obj)
+
+    def get_declaration_close_label(self, obj):
+        return declaration_close_label(obj)
+
+
+class TaskTypeSerializer(OrganizationUniqueFieldMixin, serializers.ModelSerializer):
+    unique_error = 'Typ zadania o tej nazwie już istnieje.'
+
     class Meta:
         model = TaskType
-        fields = '__all__'
+        fields = ['id', 'name']
 
 
-class RejectionReasonTemplateSerializer(serializers.ModelSerializer):
+class RejectionReasonTemplateSerializer(OrganizationUniqueFieldMixin, serializers.ModelSerializer):
+    unique_field = 'text'
+    unique_error = 'Taki szablon już istnieje.'
+
     class Meta:
         model = RejectionReasonTemplate
         fields = ['id', 'text', 'sort_order', 'is_active', 'last_used_at']
@@ -184,28 +179,31 @@ class RejectionReasonTemplateSerializer(serializers.ModelSerializer):
 
 
 class ShiftTemplateHoursSerializer(serializers.ModelSerializer):
-    weekday_label = serializers.SerializerMethodField()
+    weekday_label = serializers.CharField(source='get_weekday_display', read_only=True)
 
     class Meta:
         model = ShiftTemplateHours
         fields = ['id', 'weekday', 'weekday_label', 'start_time', 'end_time']
-        read_only_fields = ['id', 'weekday_label']
-
-    def get_weekday_label(self, obj):
-        if 0 <= obj.weekday <= 6:
-            return WEEKDAY_LABELS[obj.weekday]
-        return str(obj.weekday)
+        read_only_fields = ['id']
 
 
-class ShiftTemplateSerializer(serializers.ModelSerializer):
+class ShiftTemplateSerializer(OrganizationUniqueFieldMixin, serializers.ModelSerializer):
+    """
+    Shift template with its weekday hours.
+
+    Pass `filter_date` in the serializer context to get hours and slot usage for that day.
+    """
+
+    unique_error = 'Zmiana o tej nazwie już istnieje.'
+
     hours = ShiftTemplateHoursSerializer(many=True)
+    max_slots = serializers.IntegerField(min_value=1, default=1)
     resolved_start = serializers.SerializerMethodField()
     resolved_end = serializers.SerializerMethodField()
     slots_filled = serializers.SerializerMethodField()
     slots_remaining = serializers.SerializerMethodField()
     is_full = serializers.SerializerMethodField()
     slot_holders = serializers.SerializerMethodField()
-    max_slots = serializers.IntegerField(min_value=1, default=1)
 
     class Meta:
         model = ShiftTemplate
@@ -216,109 +214,100 @@ class ShiftTemplateSerializer(serializers.ModelSerializer):
         ]
 
     def _filter_date(self):
-        raw = self.context.get('filter_date')
-        if isinstance(raw, date_cls):
-            return raw
-        return None
+        return self.context.get('filter_date')
+
+    def _hours_for_filter_date(self, obj):
+        work_date = self._filter_date()
+        return obj.hours_for_date(work_date) if work_date else None
 
     def _slots_info(self, obj):
-        return get_shift_slots_info(obj, self._filter_date())
+        return get_shift_slots_info(obj, self._filter_date()) or {}
 
     def get_resolved_start(self, obj):
-        work_date = self._filter_date()
-        if not work_date:
-            return None
-        entry = obj.hours_for_date(work_date)
-        return entry.start_time.strftime('%H:%M:%S') if entry else None
+        hours = self._hours_for_filter_date(obj)
+        return hours.start_time.strftime('%H:%M:%S') if hours else None
 
     def get_resolved_end(self, obj):
-        work_date = self._filter_date()
-        if not work_date:
-            return None
-        entry = obj.hours_for_date(work_date)
-        return entry.end_time.strftime('%H:%M:%S') if entry else None
+        hours = self._hours_for_filter_date(obj)
+        return hours.end_time.strftime('%H:%M:%S') if hours else None
 
     def get_slots_filled(self, obj):
-        info = self._slots_info(obj)
-        return info['filled'] if info else None
+        return self._slots_info(obj).get('filled')
 
     def get_slots_remaining(self, obj):
         info = self._slots_info(obj)
-        if not info:
-            return None
-        return max(0, info['max_slots'] - info['filled'])
+        return max(0, info['max_slots'] - info['filled']) if info else None
 
     def get_is_full(self, obj):
-        info = self._slots_info(obj)
-        return info['is_full'] if info else None
+        return self._slots_info(obj).get('is_full')
 
     def get_slot_holders(self, obj):
-        info = self._slots_info(obj)
-        return info['holders'] if info else None
+        return self._slots_info(obj).get('holders')
 
     def validate_hours(self, value):
         if not value:
             raise serializers.ValidationError('Dodaj godziny przynajmniej dla jednego dnia tygodnia.')
-        weekdays = [item.get('weekday') for item in value]
-        if any(w is None or w < 0 or w > 6 for w in weekdays):
-            raise serializers.ValidationError('Dzień tygodnia musi być liczbą 0–6.')
+        weekdays = [item['weekday'] for item in value]
         if len(weekdays) != len(set(weekdays)):
             raise serializers.ValidationError('Każdy dzień tygodnia może mieć tylko jeden zakres godzin.')
         for item in value:
             if item['start_time'] >= item['end_time']:
                 raise serializers.ValidationError(
-                    f"Godzina końcowa musi być później niż początkowa ({WEEKDAY_LABELS[item['weekday']]})."
+                    f"Godzina końcowa musi być później niż początkowa ({Weekday(item['weekday']).label})."
                 )
         return value
 
+    @transaction.atomic
     def create(self, validated_data):
         hours_data = validated_data.pop('hours')
         template = ShiftTemplate.objects.create(**validated_data)
-        ShiftTemplateHours.objects.bulk_create([
-            ShiftTemplateHours(template=template, **item) for item in hours_data
-        ])
+        self._replace_hours(template, hours_data)
         return template
 
+    @transaction.atomic
     def update(self, instance, validated_data):
         hours_data = validated_data.pop('hours', None)
-        instance.name = validated_data.get('name', instance.name)
-        instance.is_active = validated_data.get('is_active', instance.is_active)
-        instance.max_slots = validated_data.get('max_slots', instance.max_slots)
-        instance.save()
-
+        instance = super().update(instance, validated_data)
         if hours_data is not None:
             instance.hours.all().delete()
-            ShiftTemplateHours.objects.bulk_create([
-                ShiftTemplateHours(template=instance, **item) for item in hours_data
-            ])
+            self._replace_hours(instance, hours_data)
         return instance
 
+    @staticmethod
+    def _replace_hours(template, hours_data):
+        ShiftTemplateHours.objects.bulk_create(
+            ShiftTemplateHours(template=template, **item) for item in hours_data
+        )
+
+
+# --- Schedule ----------------------------------------------------------------
 
 class WorkDaySerializer(serializers.ModelSerializer):
-    employee_name = serializers.ReadOnlyField(source='employee.username')
-    role_name = serializers.SerializerMethodField()
-    shift_template_name = serializers.SerializerMethodField()
-    approved_by_name = serializers.SerializerMethodField()
-    total_hours = serializers.SerializerMethodField()
-    earnings = serializers.SerializerMethodField()
-    shift_slots = serializers.SerializerMethodField()
-    employee = serializers.PrimaryKeyRelatedField(
+    employee = OrganizationPrimaryKeyRelatedField(
+        organization_lookup='profile__organization',
         queryset=User.objects.all(),
         required=False,
         default=serializers.CurrentUserDefault(),
     )
-    role = serializers.PrimaryKeyRelatedField(
+    role = OrganizationPrimaryKeyRelatedField(
         queryset=TaskType.objects.all(),
         required=False,
         allow_null=True,
     )
-    shift_template = serializers.PrimaryKeyRelatedField(
+    shift_template = OrganizationPrimaryKeyRelatedField(
         queryset=ShiftTemplate.objects.all(),
         required=False,
         allow_null=True,
     )
     start_time = serializers.TimeField(required=False)
     end_time = serializers.TimeField(required=False)
+    employee_name = serializers.ReadOnlyField(source='employee.username')
+    role_name = serializers.ReadOnlyField(source='role.name', default=None)
+    shift_template_name = serializers.ReadOnlyField(source='shift_template.name', default=None)
+    approved_by_name = serializers.ReadOnlyField(source='approved_by.username', default=None)
+    shift_slots = serializers.SerializerMethodField()
+    total_hours = serializers.SerializerMethodField()
+    earnings = serializers.SerializerMethodField()
 
     class Meta:
         model = WorkDay
@@ -331,129 +320,124 @@ class WorkDaySerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['status', 'approved_by', 'approved_at', 'rejection_reason', 'rate_at_time']
         extra_kwargs = {
-            'employee': {'required': False},
             'note': {'required': False, 'allow_blank': True},
         }
 
-    def get_role_name(self, obj):
-        return obj.role.name if obj.role_id else None
-
-    def get_shift_template_name(self, obj):
-        return obj.shift_template.name if obj.shift_template_id else None
-
-    def get_approved_by_name(self, obj):
-        return obj.approved_by.username if obj.approved_by_id else None
-
     def get_shift_slots(self, obj):
-        if not obj.shift_template_id:
-            return None
         return get_shift_slots_info(obj.shift_template, obj.date)
 
     def get_total_hours(self, obj):
-        tdelta = datetime.combine(obj.date, obj.end_time) - datetime.combine(obj.date, obj.start_time)
-        return round(tdelta.total_seconds() / 3600, 2)
+        duration = datetime.combine(obj.date, obj.end_time) - datetime.combine(obj.date, obj.start_time)
+        return round(duration.total_seconds() / 3600, 2)
 
     def get_earnings(self, obj):
-        hours = self.get_total_hours(obj)
-        if obj.rate_at_time:
-            return round(hours * float(obj.rate_at_time), 2)
-        return 0
+        if not obj.rate_at_time:
+            return 0
+        hours = Decimal(str(self.get_total_hours(obj)))
+        return round(hours * obj.rate_at_time, 2)
+
+    def _current(self, attrs, field):
+        """Value from the request, falling back to the instance being updated."""
+        if field in attrs:
+            return attrs[field]
+        return getattr(self.instance, field, None)
+
+    @staticmethod
+    def _template_hours(template, work_date):
+        if work_date is None:
+            raise serializers.ValidationError({'date': 'Podaj datę.'})
+        hours = template.hours_for_date(work_date)
+        if hours is None:
+            raise serializers.ValidationError({
+                'shift_template': 'Ta zmiana nie jest dostępna w wybranym dniu tygodnia.',
+            })
+        return hours
+
+    def _apply_employee_rules(self, attrs, user, template, work_date):
+        """Employees only edit their own schedule and must pick an active template if any exist."""
+        employee = self._current(attrs, 'employee')
+        if employee and employee != user:
+            raise serializers.ValidationError({'employee': 'Nie możesz zarządzać grafikiem innego pracownika.'})
+        attrs['employee'] = user
+
+        organization = get_user_organization(user)
+        templates_configured = ShiftTemplate.objects.filter(organization=organization, is_active=True).exists()
+        if templates_configured and template is None:
+            raise serializers.ValidationError({
+                'shift_template': 'Wybierz zdefiniowaną zmianę (np. poranna / późniejsza).',
+            })
+        if template is None:
+            return
+        if not template.is_active:
+            raise serializers.ValidationError({'shift_template': 'Ta zmiana jest nieaktywna.'})
+
+        # Employees always get the template's hours; they cannot type their own.
+        hours = self._template_hours(template, work_date)
+        attrs['start_time'] = hours.start_time
+        attrs['end_time'] = hours.end_time
+
+    def _apply_manager_rules(self, attrs, template, work_date):
+        """Managers may set custom hours; missing ones are filled from the template."""
+        has_custom_hours = attrs.get('start_time') is not None and attrs.get('end_time') is not None
+        if template is None or work_date is None or has_custom_hours:
+            return
+        hours = self._template_hours(template, work_date)
+        attrs['start_time'] = hours.start_time
+        attrs['end_time'] = hours.end_time
+
+    def _validate_slot_capacity(self, user, template, work_date):
+        if template is None or work_date is None:
+            return
+        # Employees can't propose for a full shift; managers can't overfill approved slots.
+        occupies_slot = (
+            not is_manager(user)
+            or self.instance is None
+            or self.instance.status == WorkDay.Status.APPROVED
+        )
+        if not occupies_slot:
+            return
+        exclude_id = self.instance.pk if self.instance else None
+        try:
+            assert_shift_slot_available(template, work_date, exclude_workday_id=exclude_id)
+        except ValueError as exc:
+            raise serializers.ValidationError({'shift_template': str(exc)})
 
     def validate(self, attrs):
-        request = self.context.get('request')
-        if not request or not request.user.is_authenticated:
-            return attrs
+        user = self.context['request'].user
+        template = self._current(attrs, 'shift_template')
+        work_date = self._current(attrs, 'date')
 
-        user = request.user
-        employee = attrs.get('employee', getattr(self.instance, 'employee', None))
-        manager = is_manager(user)
-
-        if not manager:
-            if employee and employee != user:
-                raise serializers.ValidationError({'employee': 'Nie możesz zarządzać grafikiem innego pracownika.'})
-            attrs['employee'] = user
-
-        work_date = attrs.get('date', getattr(self.instance, 'date', None))
-        if 'shift_template' in attrs:
-            template = attrs.get('shift_template')
+        if is_manager(user):
+            self._apply_manager_rules(attrs, template, work_date)
         else:
-            template = getattr(self.instance, 'shift_template', None) if self.instance else None
+            self._apply_employee_rules(attrs, user, template, work_date)
 
-        if not manager:
-            templates_configured = ShiftTemplate.objects.filter(is_active=True).exists()
-            if templates_configured:
-                if template is None:
-                    raise serializers.ValidationError({
-                        'shift_template': 'Wybierz zdefiniowaną zmianę (np. poranna / późniejsza).',
-                    })
-                if not template.is_active:
-                    raise serializers.ValidationError({'shift_template': 'Ta zmiana jest nieaktywna.'})
-                if not work_date:
-                    raise serializers.ValidationError({'date': 'Podaj datę.'})
-                hours = template.hours_for_date(work_date)
-                if not hours:
-                    raise serializers.ValidationError({
-                        'shift_template': 'Ta zmiana nie jest dostępna w wybranym dniu tygodnia.',
-                    })
-                attrs['start_time'] = hours.start_time
-                attrs['end_time'] = hours.end_time
-                attrs['shift_template'] = template
-            elif template is not None:
-                if not work_date:
-                    raise serializers.ValidationError({'date': 'Podaj datę.'})
-                hours = template.hours_for_date(work_date)
-                if not hours:
-                    raise serializers.ValidationError({
-                        'shift_template': 'Ta zmiana nie jest dostępna w wybranym dniu tygodnia.',
-                    })
-                attrs['start_time'] = hours.start_time
-                attrs['end_time'] = hours.end_time
-        elif template is not None and work_date:
-            has_start = 'start_time' in attrs and attrs.get('start_time') is not None
-            has_end = 'end_time' in attrs and attrs.get('end_time') is not None
-            if not (has_start and has_end):
-                hours = template.hours_for_date(work_date)
-                if not hours:
-                    raise serializers.ValidationError({
-                        'shift_template': 'Ta zmiana nie ma godzin na ten dzień tygodnia.',
-                    })
-                attrs['start_time'] = hours.start_time
-                attrs['end_time'] = hours.end_time
-
-        start_time = attrs.get('start_time', getattr(self.instance, 'start_time', None))
-        end_time = attrs.get('end_time', getattr(self.instance, 'end_time', None))
+        start_time = self._current(attrs, 'start_time')
+        end_time = self._current(attrs, 'end_time')
         if start_time is None or end_time is None:
-            raise serializers.ValidationError({
-                'start_time': 'Podaj godziny lub wybierz szablon zmiany.',
-            })
+            raise serializers.ValidationError({'start_time': 'Podaj godziny lub wybierz szablon zmiany.'})
         if start_time >= end_time:
-            raise serializers.ValidationError({
-                'end_time': 'Godzina końcowa musi być później niż początkowa.',
-            })
+            raise serializers.ValidationError({'end_time': 'Godzina końcowa musi być później niż początkowa.'})
 
-        # Capacity: managers filling approved slots, and employees declaring when already full.
-        if template is not None and work_date is not None:
-            will_occupy_approved_slot = False
-            if manager:
-                if self.instance is None:
-                    will_occupy_approved_slot = True
-                elif self.instance.status == WorkDay.Status.APPROVED:
-                    will_occupy_approved_slot = True
-            else:
-                # Block new proposals when the shift is already at capacity.
-                will_occupy_approved_slot = True
-
-            if will_occupy_approved_slot:
-                exclude_id = self.instance.pk if self.instance else None
-                try:
-                    assert_shift_slot_available(template, work_date, exclude_workday_id=exclude_id)
-                except ValueError as exc:
-                    raise serializers.ValidationError({'shift_template': str(exc)})
-
+        self._validate_slot_capacity(user, template, work_date)
         return attrs
 
 
 class SwapRequestSerializer(serializers.ModelSerializer):
+    work_day = OrganizationPrimaryKeyRelatedField(
+        organization_lookup='employee__profile__organization',
+        queryset=WorkDay.objects.all(),
+    )
+    target_work_day = OrganizationPrimaryKeyRelatedField(
+        organization_lookup='employee__profile__organization',
+        queryset=WorkDay.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+    target_user = OrganizationPrimaryKeyRelatedField(
+        organization_lookup='profile__organization',
+        queryset=User.objects.all(),
+    )
     work_day_details = WorkDaySerializer(source='work_day', read_only=True)
     target_work_day_details = WorkDaySerializer(source='target_work_day', read_only=True)
     requested_by_name = serializers.ReadOnlyField(source='requested_by.username')
@@ -473,7 +457,7 @@ class SwapRequestSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'requested_by', 'accepted_by_target', 'approved_by_manager',
-            'is_rejected', 'rejection_reason', 'status', 'is_two_way', 'created_at',
+            'is_rejected', 'rejection_reason', 'created_at',
         ]
 
     def get_status(self, obj):
@@ -486,35 +470,48 @@ class SwapRequestSerializer(serializers.ModelSerializer):
         return 'pending_target'
 
     def get_is_two_way(self, obj):
-        return bool(obj.target_work_day_id)
+        return obj.target_work_day_id is not None
+
+    @staticmethod
+    def _validate_swappable(work_day, field):
+        if work_day.status != WorkDay.Status.APPROVED:
+            raise serializers.ValidationError({field: 'Można zamieniać tylko zatwierdzone zmiany.'})
+        if work_day.date < timezone.localdate():
+            raise serializers.ValidationError({field: 'Nie można zamieniać przeszłych zmian.'})
+
+    @staticmethod
+    def _validate_two_way(user, work_day, target_user, target_work_day):
+        if target_work_day.employee_id != target_user.id:
+            raise serializers.ValidationError({
+                'target_work_day': 'Wybrana zmiana musi należeć do wskazanego kolegi.',
+            })
+        if target_work_day.pk == work_day.pk:
+            raise serializers.ValidationError({'target_work_day': 'Wybierz inną zmianę do wymiany.'})
+
+        # After the swap each person takes the other's day, so both must be free then.
+        if WorkDay.objects.filter(employee=user, date=target_work_day.date).exclude(pk=work_day.pk).exists():
+            raise serializers.ValidationError({
+                'target_work_day': 'Masz już wpis w grafiku w dniu zmiany kolegi.',
+            })
+        if WorkDay.objects.filter(employee=target_user, date=work_day.date).exclude(pk=target_work_day.pk).exists():
+            raise serializers.ValidationError({
+                'target_work_day': 'Kolega ma już inny wpis w dniu Twojej zmiany.',
+            })
 
     def validate(self, attrs):
-        request = self.context.get('request')
-        if not request or not request.user.is_authenticated:
-            return attrs
-
-        work_day = attrs.get('work_day')
-        target_user = attrs.get('target_user')
+        user = self.context['request'].user
+        work_day = attrs['work_day']
+        target_user = attrs['target_user']
         target_work_day = attrs.get('target_work_day')
-        user = request.user
-        today = timezone.now().date()
 
         if is_manager(user):
             raise serializers.ValidationError('Kierownik nie może tworzyć próśb o zamianę.')
-
         if work_day.employee != user:
             raise serializers.ValidationError({'work_day': 'Możesz oddać tylko własną zmianę.'})
-
-        if work_day.status != WorkDay.Status.APPROVED:
-            raise serializers.ValidationError({'work_day': 'Można zamieniać tylko zatwierdzone zmiany.'})
-
-        if work_day.date < today:
-            raise serializers.ValidationError({'work_day': 'Nie można zamieniać przeszłych zmian.'})
+        self._validate_swappable(work_day, 'work_day')
 
         if target_user == user:
             raise serializers.ValidationError({'target_user': 'Nie możesz wysłać prośby do siebie.'})
-
-        ensure_user_profile(target_user)
         if is_manager(target_user):
             raise serializers.ValidationError({'target_user': 'Nie można wysłać prośby do kierownika.'})
 
@@ -527,47 +524,12 @@ class SwapRequestSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'work_day': 'Dla tej zmiany istnieje już aktywna prośba.'})
 
         if target_work_day is not None:
-            if target_work_day.employee_id != target_user.id:
-                raise serializers.ValidationError({
-                    'target_work_day': 'Wybrana zmiana musi należeć do wskazanego kolegi.',
-                })
-            if target_work_day.status != WorkDay.Status.APPROVED:
-                raise serializers.ValidationError({
-                    'target_work_day': 'Można zamieniać tylko zatwierdzone zmiany.',
-                })
-            if target_work_day.date < today:
-                raise serializers.ValidationError({
-                    'target_work_day': 'Nie można zamieniać przeszłych zmian.',
-                })
-            if target_work_day.id == work_day.id:
-                raise serializers.ValidationError({
-                    'target_work_day': 'Wybierz inną zmianę do wymiany.',
-                })
-
-            # After swap, requester takes target's day — requester must be free that day
-            # (unless it's the same date as their own outgoing day, which is rare).
-            conflict_requester = WorkDay.objects.filter(
-                employee=user,
-                date=target_work_day.date,
-            ).exclude(pk=work_day.pk).exists()
-            if conflict_requester:
-                raise serializers.ValidationError({
-                    'target_work_day': 'Masz już wpis w grafiku w dniu zmiany kolegi.',
-                })
-
-            conflict_target = WorkDay.objects.filter(
-                employee=target_user,
-                date=work_day.date,
-            ).exclude(pk=target_work_day.pk).exists()
-            if conflict_target:
-                raise serializers.ValidationError({
-                    'target_work_day': 'Kolega ma już inny wpis w dniu Twojej zmiany.',
-                })
-        else:
-            if WorkDay.objects.filter(employee=target_user, date=work_day.date).exists():
-                raise serializers.ValidationError({
-                    'target_user': 'Wybrany pracownik ma już wpis w grafiku na ten dzień. '
-                                   'Wybierz jego zmianę, aby wykonać dwustronną zamianę.',
-                })
+            self._validate_swappable(target_work_day, 'target_work_day')
+            self._validate_two_way(user, work_day, target_user, target_work_day)
+        elif WorkDay.objects.filter(employee=target_user, date=work_day.date).exists():
+            raise serializers.ValidationError({
+                'target_user': 'Wybrany pracownik ma już wpis w grafiku na ten dzień. '
+                               'Wybierz jego zmianę, aby wykonać dwustronną zamianę.',
+            })
 
         return attrs
