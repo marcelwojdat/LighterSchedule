@@ -15,7 +15,6 @@ from core.views import (
     notifications,
     payroll_report,
     register_user,
-    registration_status,
     schedule_holes,
     schedule_settings,
     team_stats,
@@ -36,7 +35,6 @@ urlpatterns = [
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/register/', register_user, name='register'),
-    path('api/register/status/', registration_status, name='registration_status'),
 
     # Current user
     path('api/me/', current_user, name='current_user'),
