@@ -132,6 +132,12 @@ class RegistrationSerializer(AccountCreateSerializer):
     """Public sign-up: creates a new organization with the user as its first manager."""
 
     DEFAULT_TASK_TYPES = ('Kasa', 'Magazyn', 'Obsługa')
+    DEFAULT_REJECTION_REASONS = (
+        'Za dużo osób',
+        'Inna zmiana',
+        'Brak potrzeby w tym dniu',
+        'Proszę wybrać inne godziny',
+    )
 
     organization_name = serializers.CharField(max_length=120)
 
@@ -143,6 +149,10 @@ class RegistrationSerializer(AccountCreateSerializer):
         ScheduleSettings.objects.create(organization=organization)
         TaskType.objects.bulk_create(
             TaskType(organization=organization, name=name) for name in self.DEFAULT_TASK_TYPES
+        )
+        RejectionReasonTemplate.objects.bulk_create(
+            RejectionReasonTemplate(organization=organization, text=text, sort_order=(index + 1) * 10)
+            for index, text in enumerate(self.DEFAULT_REJECTION_REASONS)
         )
         return user
 
@@ -414,13 +424,16 @@ class WorkDaySerializer(serializers.ModelSerializer):
         attrs['end_time'] = hours.end_time
 
     def _apply_manager_rules(self, attrs, template, work_date):
-        """Managers may set custom hours; missing ones are filled from the template."""
-        has_custom_hours = attrs.get('start_time') is not None and attrs.get('end_time') is not None
-        if template is None or work_date is None or has_custom_hours:
+        """Managers may set custom hours; hours not given are taken from a newly chosen template."""
+        template_chosen_now = self.instance is None or 'shift_template' in attrs
+        if template is None or not template_chosen_now:
+            return
+        missing = [field for field in ('start_time', 'end_time') if attrs.get(field) is None]
+        if not missing:
             return
         hours = self._template_hours(template, work_date)
-        attrs['start_time'] = hours.start_time
-        attrs['end_time'] = hours.end_time
+        for field in missing:
+            attrs[field] = getattr(hours, field)
 
     def _validate_slot_capacity(self, user, template, work_date):
         if template is None or work_date is None:
