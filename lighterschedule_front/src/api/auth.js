@@ -16,24 +16,8 @@ export const getRegistrationStatus = async () => {
   return data;
 };
 
-export const register = async ({
-  username,
-  password,
-  first_name,
-  last_name,
-  email,
-  invite_code,
-}) => {
-  const payload = {
-    username,
-    password,
-    first_name,
-    last_name,
-    email,
-  };
-  if (invite_code) {
-    payload.invite_code = invite_code;
-  }
+/** Creates a new organization with the registering user as its manager. */
+export const register = async (payload) => {
   const { data } = await axios.post(`${API_BASE_URL}/register/`, payload);
   return data;
 };
