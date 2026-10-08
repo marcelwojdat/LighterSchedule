@@ -1,0 +1,9 @@
+# Store text files with LF line endings, whatever OS they are committed from.
+* text=auto eol=lf
+
+# Binary files: never touch line endings or try to diff them.
+*.ttf binary
+*.ico binary
+*.png binary
+*.jpg binary
+*.pdf binary
