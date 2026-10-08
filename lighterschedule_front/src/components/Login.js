@@ -1,24 +1,24 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import Auth from './Auth';
-import { useNavigate, Link } from 'react-router-dom';
 import styles from './Login.module.css';
+import { clearSession, getErrorMessage } from '../api/client';
+
+const loginErrorMessage = (err) => {
+  if (err.response?.status === 401) {
+    return 'Błędny login lub hasło.';
+  }
+  return getErrorMessage(err, 'Nie udało się zalogować. Spróbuj ponownie.');
+};
 
 const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [registrationOpen, setRegistrationOpen] = useState(true);
-
   const navigate = useNavigate();
 
-  useEffect(() => {
-    Auth.getRegistrationStatus()
-      .then((status) => setRegistrationOpen(status.open !== false))
-      .catch(() => setRegistrationOpen(true));
-  }, []);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     setError('');
 
     try {
@@ -26,7 +26,8 @@ const Login = () => {
       const user = await Auth.fetchCurrentUser();
       navigate(user.is_manager ? '/manager' : '/dashboard');
     } catch (err) {
-      setError('Błędny login lub hasło!');
+      clearSession(); // don't keep tokens of a half-finished login
+      setError(loginErrorMessage(err));
     }
   };
 
@@ -38,7 +39,7 @@ const Login = () => {
           <p className={styles.loginSubtitle}>Wróć do swojego grafiku pracy</p>
         </div>
 
-        {error && <div className={styles.errorMessage}>{error}</div>}
+        {error && <div className={styles.errorMessage} role="alert">{error}</div>}
 
         <form className={`${styles.loginForm} lsFields`} onSubmit={handleSubmit}>
           <div className={styles.formGroup}>
@@ -48,7 +49,7 @@ const Login = () => {
               type="text"
               placeholder="Wpisz swoją nazwę użytkownika"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(event) => setUsername(event.target.value)}
               autoComplete="username"
             />
           </div>
@@ -60,7 +61,7 @@ const Login = () => {
               type="password"
               placeholder="Wpisz swoje hasło"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(event) => setPassword(event.target.value)}
               autoComplete="current-password"
             />
           </div>
@@ -70,15 +71,11 @@ const Login = () => {
           </button>
         </form>
 
-        {registrationOpen ? (
-          <div className={styles.loginFooter}>
-            <p>
-              Nie masz konta?{' '}
-              <Link to="/register">Zarejestruj się tutaj</Link>
-            </p>
-          </div>
-        ) : null}
         <div className={styles.loginFooter}>
+          <p>
+            Prowadzisz firmę? <Link to="/register">Załóż konto firmy</Link>
+          </p>
+          <p>Jesteś pracownikiem? Konto zakłada Ci kierownik.</p>
           <p>
             <Link to="/">← Strona główna</Link>
           </p>

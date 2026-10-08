@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import RoleRedirect from './components/RoleRedirect';
 import Login from './components/Login';
@@ -9,9 +9,6 @@ import Manager from './components/Manager';
 import Profile from './components/Profile';
 import PublicLayout from './components/marketing/PublicLayout';
 import Landing from './components/marketing/Landing';
-import Pricing from './components/marketing/Pricing';
-import Checkout from './components/marketing/Checkout';
-import { CheckoutSuccess, CheckoutCancel } from './components/marketing/CheckoutResult';
 import { TermsPage, PrivacyPage } from './components/marketing/LegalPages';
 
 function App() {
@@ -19,10 +16,6 @@ function App() {
     <Routes>
       <Route element={<PublicLayout />}>
         <Route path="/" element={<Landing />} />
-        <Route path="/pricing" element={<Pricing />} />
-        <Route path="/checkout" element={<Checkout />} />
-        <Route path="/checkout/success" element={<CheckoutSuccess />} />
-        <Route path="/checkout/cancel" element={<CheckoutCancel />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
       </Route>
@@ -55,6 +48,9 @@ function App() {
           </ProtectedRoute>
         }
       />
+
+      {/* Unknown or removed addresses (e.g. old /pricing bookmarks) go to the home page. */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
