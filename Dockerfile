@@ -26,7 +26,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 COPY --from=frontend /frontend/build ./lighterschedule_front/build
 
-RUN python manage.py collectstatic --noinput
+# collectstatic only copies files, but importing settings requires these; real values come at runtime.
+RUN DJANGO_SECRET_KEY=build-only DB_PASSWORD=build-only python manage.py collectstatic --noinput
 
 EXPOSE 8000
 
