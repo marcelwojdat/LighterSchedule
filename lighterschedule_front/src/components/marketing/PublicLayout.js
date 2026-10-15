@@ -77,7 +77,7 @@ const PublicLayout = () => {
             <Link to="/login">Logowanie</Link>
             <Link to="/terms">Regulamin</Link>
             <Link to="/privacy">Prywatność</Link>
-            <a href="mailto:kontakt@prostygrafik.pl">Kontakt</a>
+            <a href="mailto:kontakt@prostygrafik.com">Kontakt</a>
           </div>
           <p className={styles.copyright}>
             © {new Date().getFullYear()} ProstyGrafik. Wszelkie prawa zastrzeżone.
