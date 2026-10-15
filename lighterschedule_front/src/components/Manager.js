@@ -32,6 +32,7 @@ import {
   getRejectionReasons,
 } from '../api/rejectionReasons';
 import { getScheduleHoles } from '../api/scheduleHoles';
+import { useApiResource } from '../hooks/useApiResource';
 import { useTheme } from '../hooks/useTheme';
 import { useAutoDismiss } from '../hooks/useAutoDismiss';
 import { useDismissibleList } from '../hooks/useDismissibleList';
@@ -76,26 +77,18 @@ const EMPTY_USER_FORM = {
 const USERS_PREVIEW_COUNT = 5;
 const HOLES_PREVIEW_COUNT = 5;
 
+const currentMonthValue = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+};
+
 const Manager = () => {
-  const [employees, setEmployees] = useState([]);
-  const [allUsers, setAllUsers] = useState([]);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
-  const [statsMonth, setStatsMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  });
-  const [workdays, setWorkdays] = useState([]);
-  const [pendingQueue, setPendingQueue] = useState([]);
-  const [swapQueue, setSwapQueue] = useState([]);
-  const [teamStats, setTeamStats] = useState(null);
-  const [teamWorkdays, setTeamWorkdays] = useState([]);
-  const [coverageWorkdays, setCoverageWorkdays] = useState([]);
+  const [statsMonth, setStatsMonth] = useState(currentMonthValue);
   const [coverageMonth, setCoverageMonth] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
   });
-  const [taskTypes, setTaskTypes] = useState([]);
-  const [shiftTemplates, setShiftTemplates] = useState([]);
   const [selectedShiftId, setSelectedShiftId] = useState('');
   const [templateForm, setTemplateForm] = useState({
     id: null,
@@ -120,25 +113,138 @@ const Manager = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
-  const [notifications, setNotifications] = useState({ total: 0, items: [] });
   const [dayNote, setDayNote] = useState('');
   const [showShiftTemplates, setShowShiftTemplates] = useState(false);
   const [declarationCloseWeekday, setDeclarationCloseWeekday] = useState('');
   const [declarationCloseTime, setDeclarationCloseTime] = useState('23:59');
-  const [rejectionReasons, setRejectionReasons] = useState([]);
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const [showAllUsers, setShowAllUsers] = useState(false);
   const [moreOptionsUserId, setMoreOptionsUserId] = useState(null);
   const [newUserForm, setNewUserForm] = useState(() => ({ ...EMPTY_USER_FORM }));
   const [copyBusy, setCopyBusy] = useState(false);
   const [holesDays, setHolesDays] = useState(7);
-  const [scheduleHoles, setScheduleHoles] = useState({ count: 0, items: [] });
   const [showAllHoles, setShowAllHoles] = useState(false);
   const [selectedApproveIds, setSelectedApproveIds] = useState([]);
   const [bulkApproveBusy, setBulkApproveBusy] = useState(false);
   const { darkMode, toggleTheme } = useTheme();
   useAutoDismiss(success, setSuccess, 7000);
   useAutoDismiss(error, setError, 7000);
+
+  // --- Server data (each resource reloads itself when its params change) ---
+
+  const weekDates = getWeekDates(weekStart);
+  const coverageRange = monthBounds(coverageMonth.year, coverageMonth.month);
+
+  const { data: allUsers, setData: setAllUsers, reload: reloadUsers } = useApiResource(getUsers, undefined, {
+    initial: [], errorMessage: 'Nie udało się pobrać listy pracowników', onError: setError,
+  });
+  const { data: proposals, reload: reloadPendingQueue } = useApiResource(getWorkdays, { status: 'proposed' }, {
+    initial: [], errorMessage: 'Nie udało się pobrać kolejki akceptacji', onError: setError,
+  });
+  const { data: swapQueue, reload: reloadSwapQueue } = useApiResource(getSwaps, { pending_manager: 'true' }, {
+    initial: [], errorMessage: 'Nie udało się pobrać zamian do zatwierdzenia', onError: setError,
+  });
+  const { data: teamStats, reload: reloadTeamStats } = useApiResource(getTeamStats, statsMonth, {
+    initial: null, errorMessage: 'Nie udało się pobrać statystyk zespołu', onError: setError,
+  });
+  const { data: teamWorkdays, reload: reloadTeamWorkdays } = useApiResource(
+    getWorkdays,
+    { status: 'approved', date_from: weekStart, date_to: weekDates[6] },
+    { initial: [], errorMessage: 'Nie udało się pobrać grafiku zespołu', onError: setError },
+  );
+  const { data: coverageWorkdays, reload: reloadCoverage } = useApiResource(
+    getWorkdays,
+    { status: 'approved', date_from: coverageRange.dateFrom, date_to: coverageRange.dateTo },
+    { initial: [], errorMessage: 'Nie udało się pobrać obsadzenia zmian', onError: setError },
+  );
+  const { data: workdays, reload: reloadEmployeeWorkdays } = useApiResource(
+    getWorkdays,
+    { employee: selectedEmployee?.id },
+    {
+      initial: [],
+      enabled: Boolean(selectedEmployee),
+      errorMessage: 'Nie udało się pobrać grafiku pracownika',
+      onError: setError,
+    },
+  );
+  const { data: taskTypes, reload: reloadTaskTypes } = useApiResource(getTaskTypes, undefined, {
+    initial: [], errorMessage: 'Nie udało się pobrać stanowisk', onError: setError,
+  });
+  const { data: shiftTemplates, reload: reloadShiftTemplates } = useApiResource(getShiftTemplates, undefined, {
+    initial: [], errorMessage: 'Nie udało się pobrać szablonów zmian', onError: setError,
+  });
+  const {
+    data: scheduleSettings,
+    setData: setScheduleSettings,
+    reload: reloadScheduleSettings,
+  } = useApiResource(getScheduleSettings, undefined, {
+    initial: null, errorMessage: 'Nie udało się pobrać ustawień grafiku', onError: setError,
+  });
+  const { data: rejectionReasons, reload: reloadRejectionReasons } = useApiResource(
+    getRejectionReasons,
+    { active: '1' },
+    { initial: [] },
+  );
+  const { data: scheduleHoles, reload: reloadScheduleHoles } = useApiResource(
+    getScheduleHoles,
+    { days: holesDays },
+    { initial: { count: 0, items: [] } },
+  );
+  const { data: notifications, reload: reloadNotifications } = useApiResource(getNotifications, undefined, {
+    initial: { total: 0, items: [] },
+  });
+
+  const employees = useMemo(
+    () => allUsers.filter((user) => !user.is_manager && user.is_active !== false),
+    [allUsers],
+  );
+  const pendingQueue = useMemo(
+    () => [...proposals].sort((a, b) => a.date.localeCompare(b.date)),
+    [proposals],
+  );
+
+  /** Reload everything an approval or schedule change can affect. */
+  const refreshData = () =>
+    Promise.all([
+      reloadUsers(),
+      reloadPendingQueue(),
+      reloadSwapQueue(),
+      reloadTeamStats(),
+      reloadTeamWorkdays(),
+      reloadCoverage(),
+      reloadTaskTypes(),
+      reloadShiftTemplates(),
+      reloadScheduleSettings(),
+      reloadRejectionReasons(),
+      reloadScheduleHoles(),
+      reloadNotifications(),
+      selectedEmployee ? reloadEmployeeWorkdays() : null,
+    ]);
+
+  useEffect(() => {
+    Auth.fetchCurrentUser()
+      .then(setCurrentUser)
+      .catch(() => Auth.logout());
+  }, []);
+
+  // The deadline form is editable, so it mirrors the loaded settings instead of rendering them directly.
+  useEffect(() => {
+    if (!scheduleSettings) return;
+    const weekday = scheduleSettings.declaration_close_weekday;
+    setDeclarationCloseWeekday(weekday === null || weekday === undefined ? '' : String(weekday));
+    setDeclarationCloseTime(
+      scheduleSettings.declaration_close_time ? String(scheduleSettings.declaration_close_time).slice(0, 5) : '23:59'
+    );
+  }, [scheduleSettings]);
+
+  useEffect(() => {
+    const validIds = new Set(
+      pendingQueue
+        .filter((item) => !item.shift_slots?.is_full)
+        .map((item) => item.id)
+    );
+    setSelectedApproveIds((prev) => prev.filter((id) => validIds.has(id)));
+  }, [pendingQueue]);
 
   const notificationKey = useCallback(
     (item, index) =>
@@ -150,8 +256,6 @@ const Manager = () => {
     notificationKey,
     7000,
   );
-
-  const weekDates = getWeekDates(weekStart);
 
   const sortedHoles = useMemo(() => {
     const items = scheduleHoles.items || [];
@@ -166,6 +270,11 @@ const Manager = () => {
     ? sortedHoles
     : sortedHoles.slice(0, HOLES_PREVIEW_COUNT);
 
+  const changeHolesDays = (days) => {
+    setHolesDays(days);
+    setShowAllHoles(false);
+  };
+
   const resetTemplateForm = () => {
     setTemplateForm({
       id: null,
@@ -174,49 +283,6 @@ const Manager = () => {
       max_slots: 1,
       hours: buildEmptyTemplateHours(),
     });
-  };
-
-  const fetchShiftTemplates = async () => {
-    try {
-      const data = await getShiftTemplates();
-      setShiftTemplates(data);
-    } catch (e) {
-      setError(getErrorMessage(e, 'Nie udało się pobrać szablonów zmian'));
-    }
-  };
-
-  const fetchRejectionReasons = async () => {
-    try {
-      const data = await getRejectionReasons({ active: '1' });
-      setRejectionReasons(Array.isArray(data) ? data : []);
-    } catch {
-      setRejectionReasons([]);
-    }
-  };
-
-  const fetchScheduleHoles = async (days = holesDays) => {
-    try {
-      const data = await getScheduleHoles({ days });
-      setScheduleHoles(data);
-    } catch {
-      setScheduleHoles({ count: 0, items: [] });
-    }
-  };
-
-  const fetchScheduleSettings = async () => {
-    try {
-      const data = await getScheduleSettings();
-      setDeclarationCloseWeekday(
-        data.declaration_close_weekday === null || data.declaration_close_weekday === undefined
-          ? ''
-          : String(data.declaration_close_weekday)
-      );
-      setDeclarationCloseTime(
-        data.declaration_close_time ? String(data.declaration_close_time).slice(0, 5) : '23:59'
-      );
-    } catch (e) {
-      setError(getErrorMessage(e, 'Nie udało się pobrać ustawień grafiku'));
-    }
   };
 
   const handleSaveDeclarationDeadline = async (e) => {
@@ -228,14 +294,7 @@ const Manager = () => {
         declaration_close_weekday: weekday,
         declaration_close_time: weekday === null ? null : `${declarationCloseTime || '23:59'}:00`,
       });
-      setDeclarationCloseWeekday(
-        data.declaration_close_weekday === null || data.declaration_close_weekday === undefined
-          ? ''
-          : String(data.declaration_close_weekday)
-      );
-      setDeclarationCloseTime(
-        data.declaration_close_time ? String(data.declaration_close_time).slice(0, 5) : '23:59'
-      );
+      setScheduleSettings(data);
       setSuccess(
         data.declaration_close_label
           ? `Okno deklaracji zamyka się w: ${data.declaration_close_label} (co tydzień).`
@@ -247,124 +306,6 @@ const Manager = () => {
     }
   };
 
-  const fetchEmployees = async () => {
-    try {
-      const data = await getUsers();
-      setAllUsers(data);
-      setEmployees(data.filter((emp) => !emp.is_manager && emp.is_active !== false));
-    } catch (e) {
-      setError(getErrorMessage(e, 'Nie udało się pobrać listy pracowników'));
-    }
-  };
-
-  const fetchPendingQueue = async () => {
-    try {
-      const data = await getWorkdays({ status: 'proposed' });
-      const sorted = [...data].sort((a, b) => a.date.localeCompare(b.date));
-      setPendingQueue(sorted);
-    } catch (e) {
-      setError(getErrorMessage(e, 'Nie udało się pobrać kolejki akceptacji'));
-    }
-  };
-
-  const fetchTeamStats = async () => {
-    try {
-      const data = await getTeamStats(statsMonth);
-      setTeamStats(data);
-    } catch (e) {
-      setError(getErrorMessage(e, 'Nie udało się pobrać statystyk zespołu'));
-    }
-  };
-
-  const fetchTeamWorkdays = async () => {
-    try {
-      const weekEnd = weekDates[6];
-      const data = await getWorkdays({
-        status: 'approved',
-        date_from: weekStart,
-        date_to: weekEnd,
-      });
-      setTeamWorkdays(data);
-    } catch (e) {
-      setError(getErrorMessage(e, 'Nie udało się pobrać grafiku zespołu'));
-    }
-  };
-
-  const fetchMonthCoverage = async (month = coverageMonth) => {
-    try {
-      const { dateFrom, dateTo } = monthBounds(month.year, month.month);
-      const data = await getWorkdays({
-        status: 'approved',
-        date_from: dateFrom,
-        date_to: dateTo,
-      });
-      setCoverageWorkdays(data);
-    } catch (e) {
-      setError(getErrorMessage(e, 'Nie udało się pobrać obsadzenia zmian'));
-    }
-  };
-
-  const fetchTaskTypes = async () => {
-    try {
-      const data = await getTaskTypes();
-      setTaskTypes(data);
-    } catch (e) {
-      setError(getErrorMessage(e, 'Nie udało się pobrać stanowisk'));
-    }
-  };
-
-  const fetchSwapQueue = async () => {
-    try {
-      const data = await getSwaps({ pending_manager: 'true' });
-      setSwapQueue(data);
-    } catch (e) {
-      setError(getErrorMessage(e, 'Nie udało się pobrać zamian do zatwierdzenia'));
-    }
-  };
-
-  const fetchWorkdaysForEmployee = async (employeeId) => {
-    try {
-      const data = await getWorkdays({ employee: employeeId });
-      setWorkdays(data);
-    } catch (e) {
-      setError(getErrorMessage(e, 'Nie udało się pobrać grafiku pracownika'));
-    }
-  };
-
-  const fetchNotifications = async () => {
-    try {
-      const data = await getNotifications();
-      setNotifications(data);
-    } catch {
-      setNotifications({ total: 0, items: [] });
-    }
-  };
-
-  const refreshData = async (employeeId = selectedEmployee?.id) => {
-    await Promise.all([
-      fetchEmployees(),
-      fetchPendingQueue(),
-      fetchSwapQueue(),
-      fetchTeamStats(),
-      fetchTeamWorkdays(),
-      fetchMonthCoverage(),
-      fetchTaskTypes(),
-      fetchShiftTemplates(),
-      fetchScheduleSettings(),
-      fetchRejectionReasons(),
-      fetchScheduleHoles(),
-      fetchNotifications(),
-      employeeId ? fetchWorkdaysForEmployee(employeeId) : Promise.resolve(),
-    ]);
-  };
-
-  useEffect(() => {
-    refreshData();
-    Auth.fetchCurrentUser()
-      .then(setCurrentUser)
-      .catch(() => Auth.logout());
-  }, []);
-
   const handlePayrollDownload = async () => {
     try {
       await downloadPayrollPdf(statsMonth);
@@ -375,37 +316,11 @@ const Manager = () => {
     }
   };
 
-  useEffect(() => {
-    fetchTeamStats();
-  }, [statsMonth]);
-
-  useEffect(() => {
-    fetchTeamWorkdays();
-  }, [weekStart]);
-
-  useEffect(() => {
-    fetchMonthCoverage(coverageMonth);
-  }, [coverageMonth.year, coverageMonth.month]);
-
-  useEffect(() => {
-    setShowAllHoles(false);
-    fetchScheduleHoles(holesDays);
-  }, [holesDays]);
-
-  useEffect(() => {
-    const validIds = new Set(
-      pendingQueue
-        .filter((item) => !item.shift_slots?.is_full)
-        .map((item) => item.id)
-    );
-    setSelectedApproveIds((prev) => prev.filter((id) => validIds.has(id)));
-  }, [pendingQueue]);
-
   const openManage = (employee) => {
+    if (employee.id === selectedEmployee?.id) reloadEmployeeWorkdays();
     setSelectedEmployee(employee);
     setSelectedDates({});
     setSelectedDate('');
-    fetchWorkdaysForEmployee(employee.id);
   };
 
   const setChosenDate = (e) => {
@@ -588,7 +503,7 @@ const Manager = () => {
         setSelectedDate('');
         setSuccess('Grafik pracownika zapisany.');
         setError('');
-        await refreshData(selectedEmployee.id);
+        await refreshData();
       } else {
         setError('Część zapisów nie powiodła się.');
       }
@@ -605,9 +520,6 @@ const Manager = () => {
       setAllUsers((prev) =>
         prev.map((emp) => (emp.id === employeeId ? { ...emp, hourly_rate: updated.hourly_rate } : emp))
       );
-      setEmployees((prev) =>
-        prev.map((emp) => (emp.id === employeeId ? { ...emp, hourly_rate: updated.hourly_rate } : emp))
-      );
       if (selectedEmployee?.id === employeeId) {
         setSelectedEmployee((prev) => ({ ...prev, hourly_rate: updated.hourly_rate }));
       }
@@ -622,13 +534,6 @@ const Manager = () => {
     try {
       const updated = await updateUserProfile(userId, patch);
       setAllUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...updated } : u)));
-      setEmployees((prev) => {
-        const next = prev.filter((u) => u.id !== userId || (!updated.is_manager && updated.is_active !== false));
-        if (!updated.is_manager && updated.is_active !== false && !next.some((u) => u.id === userId)) {
-          return [...next, updated];
-        }
-        return next.map((u) => (u.id === userId ? { ...u, ...updated } : u)).filter((u) => !u.is_manager);
-      });
       if (selectedEmployee?.id === userId) {
         if (updated.is_manager || updated.is_active === false) {
           setSelectedEmployee(null);
@@ -638,7 +543,7 @@ const Manager = () => {
       }
       setSuccess('Konto zaktualizowane.');
       setError('');
-      await fetchEmployees();
+      await reloadUsers();
     } catch (e) {
       setError(getErrorMessage(e, 'Nie udało się zaktualizować konta.'));
     }
@@ -670,7 +575,7 @@ const Manager = () => {
       setShowAddUserForm(false);
       setSuccess(is_manager ? 'Dodano kierownika.' : 'Dodano pracownika.');
       setError('');
-      await fetchEmployees();
+      await reloadUsers();
     } catch (err) {
       setError(getErrorMessage(err, 'Nie udało się dodać użytkownika.'));
     }
@@ -698,7 +603,7 @@ const Manager = () => {
       if (selectedEmployee?.id === user.id) {
         setSelectedEmployee(null);
       }
-      await fetchEmployees();
+      await reloadUsers();
     } catch (e) {
       setError(getErrorMessage(e, 'Nie udało się dezaktywować konta.'));
     }
@@ -724,7 +629,7 @@ const Manager = () => {
       if (selectedEmployee?.id === user.id) {
         setSelectedEmployee(null);
       }
-      await fetchEmployees();
+      await reloadUsers();
     } catch (e) {
       setError(getErrorMessage(e, 'Nie udało się usunąć konta.'));
     }
@@ -791,7 +696,7 @@ const Manager = () => {
       }
       setError('');
       resetTemplateForm();
-      await fetchShiftTemplates();
+      await reloadShiftTemplates();
     } catch (err) {
       setError(getErrorMessage(err, 'Nie udało się zapisać szablonu zmiany.'));
     }
@@ -804,7 +709,7 @@ const Manager = () => {
       setSuccess(`Usunięto zmianę „${template.name}".`);
       setError('');
       if (templateForm.id === template.id) resetTemplateForm();
-      await fetchShiftTemplates();
+      await reloadShiftTemplates();
     } catch (err) {
       setError(getErrorMessage(err, 'Nie udało się usunąć szablonu.'));
     }
@@ -896,7 +801,7 @@ const Manager = () => {
       setError('');
       setSelectedApproveIds([]);
       cancelQueueEdit();
-      await refreshData(selectedEmployee?.id);
+      await refreshData();
     } catch (e) {
       setError(getErrorMessage(e, 'Nie udało się zatwierdzić zaznaczonych deklaracji.'));
     } finally {
@@ -921,7 +826,7 @@ const Manager = () => {
       setSuccess(`Zatwierdzono grafik ${item.employee_name} na ${item.date}.`);
       setError('');
       cancelQueueEdit();
-      await refreshData(selectedEmployee?.id);
+      await refreshData();
     } catch (e) {
       setError(getErrorMessage(e, 'Nie udało się zatwierdzić deklaracji.'));
     }
@@ -988,7 +893,7 @@ const Manager = () => {
       setSuccess(`Odrzucono deklarację ${item.employee_name} na ${item.date}.`);
       setError('');
       cancelQueueEdit();
-      await refreshData(selectedEmployee?.id);
+      await refreshData();
     } catch (e) {
       setError(getErrorMessage(e, 'Nie udało się odrzucić deklaracji.'));
     }
@@ -1002,7 +907,7 @@ const Manager = () => {
       setRejectingSwapId(null);
       setShowRejectNote(false);
       setRejectionReason('');
-      await refreshData(selectedEmployee?.id);
+      await refreshData();
     } catch (e) {
       setError(getErrorMessage(e, 'Nie udało się zatwierdzić zamiany.'));
     }
@@ -1015,7 +920,7 @@ const Manager = () => {
       setSuccess(`Odrzucono zamianę zmiany z dnia ${swap.work_day_details?.date}.`);
       setError('');
       cancelQueueEdit();
-      await refreshData(selectedEmployee?.id);
+      await refreshData();
     } catch (e) {
       setError(getErrorMessage(e, 'Nie udało się odrzucić zamiany.'));
     }
@@ -1098,7 +1003,7 @@ const Manager = () => {
         employee: selectedEmployee.id,
         on_conflict: 'skip',
       });
-      await refreshData(selectedEmployee.id);
+      await refreshData();
       const parts = [];
       if (result.created_count) parts.push(`dodano ${result.created_count}`);
       if (result.skipped_count) parts.push(`pominięto ${result.skipped_count}`);
@@ -1325,14 +1230,14 @@ const Manager = () => {
                 <button
                   type="button"
                   className={`${styles.btnSecondary}${holesDays === 7 ? ` ${styles.holesToggleActive}` : ''}`}
-                  onClick={() => setHolesDays(7)}
+                  onClick={() => changeHolesDays(7)}
                 >
                   7 dni
                 </button>
                 <button
                   type="button"
                   className={`${styles.btnSecondary}${holesDays === 14 ? ` ${styles.holesToggleActive}` : ''}`}
-                  onClick={() => setHolesDays(14)}
+                  onClick={() => changeHolesDays(14)}
                 >
                   14 dni
                 </button>
