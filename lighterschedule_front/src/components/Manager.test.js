@@ -340,3 +340,77 @@ describe('employee schedule editor', () => {
     expect(await screen.findByText('Skopiowano poprzedni tydzień: dodano 2.')).toBeInTheDocument();
   });
 });
+
+describe('settings: deadline and shift templates', () => {
+  const openTemplates = async () => {
+    await renderManager();
+    const settings = card('Ustawienia');
+    fireEvent.click(within(settings).getByRole('button', { name: 'Szablony zmian' }));
+    return settings;
+  };
+
+  test('clearing the declaration deadline', async () => {
+    await renderManager();
+    fireEvent.change(screen.getByLabelText('Dzień tygodnia zamknięcia'), { target: { value: '5' } });
+
+    fireEvent.click(within(card('Ustawienia')).getByRole('button', { name: 'Wyczyść' }));
+
+    await waitFor(() =>
+      expect(scheduleSettingsApi.updateScheduleSettings).toHaveBeenCalledWith({
+        declaration_close_weekday: null, declaration_close_time: null,
+      }),
+    );
+    expect(await screen.findByText('Usunięto termin deklaracji.')).toBeInTheDocument();
+  });
+
+  test('creating a shift template', async () => {
+    shiftTemplatesApi.createShiftTemplate.mockResolvedValue({});
+    const settings = await openTemplates();
+
+    fireEvent.change(within(settings).getByPlaceholderText('Nazwa zmiany (np. Poranna)'), { target: { value: ' Poranna ' } });
+    fireEvent.change(within(settings).getByRole('spinbutton'), { target: { value: '2' } });
+    fireEvent.click(within(settings).getByRole('checkbox', { name: 'Pon' }));
+    fireEvent.click(within(settings).getByRole('button', { name: 'Dodaj szablon' }));
+
+    await waitFor(() =>
+      expect(shiftTemplatesApi.createShiftTemplate).toHaveBeenCalledWith({
+        name: 'Poranna',
+        is_active: true,
+        max_slots: 2,
+        hours: [{ weekday: 0, start_time: '06:00:00', end_time: '14:00:00' }],
+      }),
+    );
+    expect(await screen.findByText('Dodano zmianę „Poranna".')).toBeInTheDocument();
+  });
+
+  test('a template needs at least one day', async () => {
+    const settings = await openTemplates();
+
+    fireEvent.change(within(settings).getByPlaceholderText('Nazwa zmiany (np. Poranna)'), { target: { value: 'Pusta' } });
+    fireEvent.click(within(settings).getByRole('button', { name: 'Dodaj szablon' }));
+
+    expect(await screen.findByText('Włącz godziny przynajmniej dla jednego dnia tygodnia.')).toBeInTheDocument();
+    expect(shiftTemplatesApi.createShiftTemplate).not.toHaveBeenCalled();
+  });
+
+  test('editing an existing template', async () => {
+    shiftTemplatesApi.getShiftTemplates.mockResolvedValue([{
+      id: 5, name: 'Wieczorna', is_active: true, max_slots: 1,
+      hours: [{ weekday: 4, start_time: '16:00:00', end_time: '22:00:00' }],
+    }]);
+    shiftTemplatesApi.updateShiftTemplate.mockResolvedValue({});
+    const settings = await openTemplates();
+
+    fireEvent.click(await within(settings).findByRole('button', { name: 'Edytuj' }));
+    fireEvent.click(within(settings).getByRole('button', { name: 'Zapisz zmiany szablonu' }));
+
+    await waitFor(() =>
+      expect(shiftTemplatesApi.updateShiftTemplate).toHaveBeenCalledWith(5, {
+        name: 'Wieczorna',
+        is_active: true,
+        max_slots: 1,
+        hours: [{ weekday: 4, start_time: '16:00:00', end_time: '22:00:00' }],
+      }),
+    );
+  });
+});

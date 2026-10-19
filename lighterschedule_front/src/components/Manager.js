@@ -7,6 +7,7 @@ import ApprovalQueue from './manager/ApprovalQueue';
 import EmployeeScheduleEditor from './manager/EmployeeScheduleEditor';
 import ScheduleHolesCard from './manager/ScheduleHolesCard';
 import SwapQueue from './manager/SwapQueue';
+import ScheduleSettingsCard from './manager/ScheduleSettingsCard';
 import TeamStatsBar from './manager/TeamStatsBar';
 import TeamWeekOverview from './manager/TeamWeekOverview';
 import styles from './Manager.module.css';
@@ -37,7 +38,7 @@ import { useTheme } from '../hooks/useTheme';
 import { addDays, formatDateStr, getMonday, getWeekDates, shiftMonth } from '../utils/dates';
 import { formatMonthYearPl } from '../utils/locale';
 import { monthBounds } from '../utils/shiftCoverage';
-import { buildEmptyTemplateHours, buildWorkdayPayload, toApiTime, toDisplayTime, WEEKDAY_SHORT } from '../utils/time';
+import { buildWorkdayPayload } from '../utils/time';
 
 const currentMonthValue = () => {
   const now = new Date();
@@ -63,20 +64,10 @@ const Manager = () => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
   });
-  const [templateForm, setTemplateForm] = useState({
-    id: null,
-    name: '',
-    is_active: true,
-    max_slots: 1,
-    hours: buildEmptyTemplateHours(),
-  });
   const [weekStart, setWeekStart] = useState(() => formatDateStr(getMonday()));
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
-  const [showShiftTemplates, setShowShiftTemplates] = useState(false);
-  const [declarationCloseWeekday, setDeclarationCloseWeekday] = useState('');
-  const [declarationCloseTime, setDeclarationCloseTime] = useState('23:59');
   const [holesDays, setHolesDays] = useState(7);
   const { darkMode, toggleTheme } = useTheme();
   useAutoDismiss(success, setSuccess, 7000);
@@ -179,16 +170,6 @@ const Manager = () => {
       .catch(() => Auth.logout());
   }, []);
 
-  // The deadline form is editable, so it mirrors the loaded settings instead of rendering them directly.
-  useEffect(() => {
-    if (!scheduleSettings) return;
-    const weekday = scheduleSettings.declaration_close_weekday;
-    setDeclarationCloseWeekday(weekday === null || weekday === undefined ? '' : String(weekday));
-    setDeclarationCloseTime(
-      scheduleSettings.declaration_close_time ? String(scheduleSettings.declaration_close_time).slice(0, 5) : '23:59'
-    );
-  }, [scheduleSettings]);
-
   const notificationKey = useCallback(
     (item, index) =>
       `${item.type}|${item.shift_template_id || ''}|${item.date || ''}|${item.message || ''}|${index}`,
@@ -200,34 +181,26 @@ const Manager = () => {
     7000,
   );
 
-  const resetTemplateForm = () => {
-    setTemplateForm({
-      id: null,
-      name: '',
-      is_active: true,
-      max_slots: 1,
-      hours: buildEmptyTemplateHours(),
-    });
-  };
-
-  const handleSaveDeclarationDeadline = async (e) => {
-    e.preventDefault();
+  const saveDeadline = async (changes) => {
     try {
-      const weekday =
-        declarationCloseWeekday === '' ? null : Number(declarationCloseWeekday);
-      const data = await updateScheduleSettings({
-        declaration_close_weekday: weekday,
-        declaration_close_time: weekday === null ? null : `${declarationCloseTime || '23:59'}:00`,
-      });
+      const data = await updateScheduleSettings(changes);
       setScheduleSettings(data);
-      setSuccess(
+      notifySuccess(
         data.declaration_close_label
           ? `Okno deklaracji zamyka się w: ${data.declaration_close_label} (co tydzień).`
           : 'Usunięto termin deklaracji — pracownicy mogą deklarować bez limitu.'
       );
-      setError('');
     } catch (err) {
       setError(getErrorMessage(err, 'Nie udało się zapisać terminu deklaracji.'));
+    }
+  };
+
+  const clearDeadline = async () => {
+    try {
+      setScheduleSettings(await updateScheduleSettings({ declaration_close_weekday: null, declaration_close_time: null }));
+      notifySuccess('Usunięto termin deklaracji.');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Nie udało się usunąć terminu.'));
     }
   };
 
@@ -314,83 +287,33 @@ const Manager = () => {
     }
   };
 
-  const startEditTemplate = (template) => {
-    const hours = buildEmptyTemplateHours().map((row) => {
-      const match = template.hours.find((h) => Number(h.weekday) === row.weekday);
-      if (!match) return row;
-      return {
-        weekday: row.weekday,
-        enabled: true,
-        start: toDisplayTime(match.start_time),
-        end: toDisplayTime(match.end_time),
-      };
-    });
-    setTemplateForm({
-      id: template.id,
-      name: template.name,
-      is_active: template.is_active !== false,
-      max_slots: template.max_slots ?? 1,
-      hours,
-    });
-  };
-
-  const handleSaveTemplate = async (e) => {
-    e.preventDefault();
-    if (!templateForm.name.trim()) {
-      setError('Podaj nazwę zmiany (np. Poranna).');
-      return;
-    }
-    const hours = templateForm.hours
-      .filter((row) => row.enabled)
-      .map((row) => ({
-        weekday: row.weekday,
-        start_time: toApiTime(row.start),
-        end_time: toApiTime(row.end),
-      }));
-    if (hours.length === 0) {
-      setError('Włącz godziny przynajmniej dla jednego dnia tygodnia.');
-      return;
-    }
-
-    const maxSlots = Number(templateForm.max_slots);
-    if (!Number.isInteger(maxSlots) || maxSlots < 1) {
-      setError('Max. osób na zmianę musi być liczbą całkowitą ≥ 1.');
-      return;
-    }
-
-    const payload = {
-      name: templateForm.name.trim(),
-      is_active: templateForm.is_active,
-      max_slots: maxSlots,
-      hours,
-    };
-
+  /** Creates a template, or updates it when `id` is given; resolves to true on success. */
+  const saveTemplate = async (payload, id) => {
     try {
-      if (templateForm.id) {
-        await updateShiftTemplate(templateForm.id, payload);
-        setSuccess(`Zaktualizowano zmianę „${payload.name}".`);
+      if (id) {
+        await updateShiftTemplate(id, payload);
+        notifySuccess(`Zaktualizowano zmianę „${payload.name}".`);
       } else {
         await createShiftTemplate(payload);
-        setSuccess(`Dodano zmianę „${payload.name}".`);
+        notifySuccess(`Dodano zmianę „${payload.name}".`);
       }
-      setError('');
-      resetTemplateForm();
       await reloadShiftTemplates();
+      return true;
     } catch (err) {
       setError(getErrorMessage(err, 'Nie udało się zapisać szablonu zmiany.'));
+      return false;
     }
   };
 
-  const handleDeleteTemplate = async (template) => {
-    if (!window.confirm(`Usunąć zmianę „${template.name}"?`)) return;
+  const deleteTemplate = async (template) => {
     try {
       await deleteShiftTemplate(template.id);
-      setSuccess(`Usunięto zmianę „${template.name}".`);
-      setError('');
-      if (templateForm.id === template.id) resetTemplateForm();
+      notifySuccess(`Usunięto zmianę „${template.name}".`);
       await reloadShiftTemplates();
+      return true;
     } catch (err) {
       setError(getErrorMessage(err, 'Nie udało się usunąć szablonu.'));
+      return false;
     }
   };
 
@@ -608,217 +531,15 @@ const Manager = () => {
         </div>
       </div>
 
-      <section className={styles.settingsSection}>
-        <div className={styles.sectionCard}>
-          <div className={styles.settingsToggleRow}>
-            <h3>Ustawienia</h3>
-            <button
-              type="button"
-              className={styles.btnSecondary}
-              onClick={() => setShowShiftTemplates((prev) => !prev)}
-              aria-expanded={showShiftTemplates}
-            >
-              {showShiftTemplates ? 'Ukryj szablony zmian' : 'Szablony zmian'}
-            </button>
-          </div>
-
-          <form className={styles.deadlineForm} onSubmit={handleSaveDeclarationDeadline}>
-            <div>
-              <label htmlFor="declaration-close-weekday" className={styles.deadlineLabel}>
-                Zamknięcie deklaracji (co tydzień)
-              </label>
-              <p className={styles.statHint}>
-                Po wybranym dniu i godzinie pracownicy nie składają deklaracji do kolejnego
-                poniedziałku — tylko kierownik może zmieniać grafik.
-              </p>
-            </div>
-            <div className={styles.deadlineControls}>
-              <select
-                id="declaration-close-weekday"
-                value={declarationCloseWeekday}
-                onChange={(e) => setDeclarationCloseWeekday(e.target.value)}
-                aria-label="Dzień tygodnia zamknięcia"
-              >
-                <option value="">Bez limitu</option>
-                <option value="0">Poniedziałek</option>
-                <option value="1">Wtorek</option>
-                <option value="2">Środa</option>
-                <option value="3">Czwartek</option>
-                <option value="4">Piątek</option>
-                <option value="5">Sobota</option>
-                <option value="6">Niedziela</option>
-              </select>
-              <input
-                id="declaration-close-time"
-                type="time"
-                value={declarationCloseTime}
-                onChange={(e) => setDeclarationCloseTime(e.target.value || '23:59')}
-                disabled={declarationCloseWeekday === ''}
-                aria-label="Godzina zamknięcia"
-              />
-              <button type="submit" className={styles.btnPrimary}>
-                Zapisz termin
-              </button>
-              {declarationCloseWeekday !== '' ? (
-                <button
-                  type="button"
-                  className={styles.btnSecondary}
-                  onClick={async () => {
-                    setDeclarationCloseWeekday('');
-                    setDeclarationCloseTime('23:59');
-                    try {
-                      await updateScheduleSettings({
-                        declaration_close_weekday: null,
-                        declaration_close_time: null,
-                      });
-                      setSuccess('Usunięto termin deklaracji.');
-                      setError('');
-                    } catch (err) {
-                      setError(getErrorMessage(err, 'Nie udało się usunąć terminu.'));
-                    }
-                  }}
-                >
-                  Wyczyść
-                </button>
-              ) : null}
-            </div>
-          </form>
-
-          {showShiftTemplates ? (
-            <div className={styles.shiftTemplatesPanel}>
-              <p className={styles.statHint}>
-                Zdefiniuj zmiany (np. Poranna, Późniejsza) z godzinami na wybrane dni tygodnia.
-                Pracownicy wybierają tylko nazwę zmiany — bez wpisywania godzin.
-              </p>
-              <form className={styles.userCreateForm} onSubmit={handleSaveTemplate}>
-                <input
-                  type="text"
-                  placeholder="Nazwa zmiany (np. Poranna)"
-                  value={templateForm.name}
-                  onChange={(e) => setTemplateForm((prev) => ({ ...prev, name: e.target.value }))}
-                  required
-                />
-                <label className="checkboxRow">
-                  <input
-                    type="checkbox"
-                    checked={templateForm.is_active}
-                    onChange={(e) => setTemplateForm((prev) => ({ ...prev, is_active: e.target.checked }))}
-                  />
-                  Aktywna (widoczna dla pracowników)
-                </label>
-                <label className={styles.maxSlotsRow}>
-                  <span className={styles.maxSlotsLabel}>Max. osób na zmianę</span>
-                  <input
-                    type="number"
-                    min={1}
-                    step={1}
-                    className={styles.maxSlotsInput}
-                    value={templateForm.max_slots}
-                    onChange={(e) =>
-                      setTemplateForm((prev) => ({ ...prev, max_slots: e.target.value }))
-                    }
-                    required
-                  />
-                </label>
-                <div className={styles.templateHoursGrid}>
-                  {templateForm.hours.map((row) => (
-                    <div key={row.weekday} className={styles.templateHourRow}>
-                      <label className="checkboxRow">
-                        <input
-                          type="checkbox"
-                          checked={row.enabled}
-                          onChange={(e) => {
-                            const enabled = e.target.checked;
-                            setTemplateForm((prev) => ({
-                              ...prev,
-                              hours: prev.hours.map((h) =>
-                                h.weekday === row.weekday ? { ...h, enabled } : h
-                              ),
-                            }));
-                          }}
-                        />
-                        {WEEKDAY_SHORT[row.weekday]}
-                      </label>
-                      <input
-                        type="time"
-                        disabled={!row.enabled}
-                        value={row.start}
-                        onChange={(e) => {
-                          const start = e.target.value;
-                          setTemplateForm((prev) => ({
-                            ...prev,
-                            hours: prev.hours.map((h) =>
-                              h.weekday === row.weekday ? { ...h, start } : h
-                            ),
-                          }));
-                        }}
-                      />
-                      <input
-                        type="time"
-                        disabled={!row.enabled}
-                        value={row.end}
-                        onChange={(e) => {
-                          const end = e.target.value;
-                          setTemplateForm((prev) => ({
-                            ...prev,
-                            hours: prev.hours.map((h) =>
-                              h.weekday === row.weekday ? { ...h, end } : h
-                            ),
-                          }));
-                        }}
-                      />
-                    </div>
-                  ))}
-                </div>
-                <div className={styles.queueActions}>
-                  <button type="submit" className={styles.btnPrimary}>
-                    {templateForm.id ? 'Zapisz zmiany szablonu' : 'Dodaj szablon'}
-                  </button>
-                  {templateForm.id ? (
-                    <button type="button" className={styles.btnSecondary} onClick={resetTemplateForm}>
-                      Anuluj edycję
-                    </button>
-                  ) : null}
-                </div>
-              </form>
-
-              {shiftTemplates.length === 0 ? (
-                <p className={styles.emptyQueue}>Brak szablonów — dodaj pierwszą zmianę powyżej.</p>
-              ) : (
-                <ul className={styles.templateList}>
-                  {shiftTemplates.map((template) => (
-                    <li key={template.id} className={styles.templateListItem}>
-                      <div>
-                        <strong>{template.name}</strong>
-                        {!template.is_active ? <span className={styles.inactiveTag}> nieaktywna</span> : null}
-                        <span className={styles.inactiveTag}>
-                          {' '}· max {template.max_slots ?? 1}{' '}
-                          {(template.max_slots ?? 1) === 1 ? 'osoba' : 'osób'}
-                        </span>
-                        <div className={styles.templateHoursSummary}>
-                          {template.hours
-                            .map((h) => `${WEEKDAY_SHORT[h.weekday]} ${toDisplayTime(h.start_time)}-${toDisplayTime(h.end_time)}`)
-                            .join(' · ')}
-                        </div>
-                      </div>
-                      <div className={styles.queueActions}>
-                        <button type="button" className={styles.btnSecondary} onClick={() => startEditTemplate(template)}>
-                          Edytuj
-                        </button>
-                        <button type="button" className={styles.btnDanger} onClick={() => handleDeleteTemplate(template)}>
-                          Usuń
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ) : null}
-        </div>
-      </section>
-
-      
+      <ScheduleSettingsCard
+        settings={scheduleSettings}
+        onSaveDeadline={saveDeadline}
+        onClearDeadline={clearDeadline}
+        templates={shiftTemplates}
+        onSaveTemplate={saveTemplate}
+        onDeleteTemplate={deleteTemplate}
+        onError={setError}
+      />
     </div>
   );
 };
