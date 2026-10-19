@@ -70,7 +70,7 @@ beforeEach(() => {
   jest.spyOn(window, 'confirm').mockReturnValue(true);
   Auth.fetchCurrentUser.mockResolvedValue(ME);
   workdaysApi.getWorkdays.mockResolvedValue([APPROVED, PROPOSED, THIS_MONTH]);
-  workdaysApi.createWorkday.mockResolvedValue({ status: 201 });
+  workdaysApi.createWorkday.mockResolvedValue({ id: 60 }); // the API returns the created entry
   workdaysApi.updateWorkday.mockResolvedValue({});
   workdaysApi.deleteWorkday.mockResolvedValue({});
   workdaysApi.copyWorkdays.mockResolvedValue({ created_count: 3, skipped_count: 0, updated_count: 0 });

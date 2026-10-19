@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import CoverageLegend from './CoverageLegend';
-import RoleSelect from './RoleSelect';
+import RoleSelect from '../common/RoleSelect';
 import styles from '../Manager.module.css';
 import { WORKDAY_STATUS_LABELS } from '../../constants/statusLabels';
 import { formatDateStr } from '../../utils/dates';
@@ -254,7 +254,12 @@ const EmployeeScheduleEditor = ({
         </select>
         <input type="time" value={form.timeFrom} onChange={(event) => updateForm('timeFrom', event.target.value)} />
         <input type="time" value={form.timeTo} onChange={(event) => updateForm('timeTo', event.target.value)} />
-        <RoleSelect taskTypes={taskTypes} value={form.roleId} onChange={(value) => updateForm('roleId', value)} />
+        <RoleSelect
+          taskTypes={taskTypes}
+          value={form.roleId}
+          onChange={(value) => updateForm('roleId', value)}
+          className={styles.roleSelect}
+        />
         <textarea
           className={styles.noteInput}
           rows={2}

@@ -11,7 +11,6 @@ import SwapQueue from './manager/SwapQueue';
 import TeamStatsBar from './manager/TeamStatsBar';
 import TeamWeekOverview from './manager/TeamWeekOverview';
 import styles from './Manager.module.css';
-import { getErrorMessage } from '../api/client';
 import { updateScheduleSettings } from '../api/scheduleSettings';
 import { createShiftTemplate, deleteShiftTemplate, updateShiftTemplate } from '../api/shiftTemplates';
 import { downloadPayrollPdf } from '../api/stats';
@@ -26,7 +25,7 @@ import {
   rejectWorkday,
   updateWorkday,
 } from '../api/workdays';
-import { useAutoDismiss } from '../hooks/useAutoDismiss';
+import { useMessages } from '../hooks/useMessages';
 import { useDismissibleList } from '../hooks/useDismissibleList';
 import { useManagerData } from '../hooks/useManagerData';
 import { useTheme } from '../hooks/useTheme';
@@ -35,12 +34,10 @@ import { formatMonthYearPl } from '../utils/locale';
 import { displayName } from '../utils/people';
 import { buildWorkdayPayload } from '../utils/time';
 
-const MESSAGE_TIMEOUT_MS = 7000;
 
-const currentMonthValue = () => {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-};
+const NOTICE_TIMEOUT_MS = 7000;
+
+const currentMonthValue = () => formatDateStr(new Date()).slice(0, 7);
 
 const currentCalendarMonth = () => {
   const now = new Date();
@@ -81,11 +78,8 @@ const Manager = () => {
   const [weekStart, setWeekStart] = useState(() => formatDateStr(getMonday()));
   const [holesDays, setHolesDays] = useState(7);
   const [currentUser, setCurrentUser] = useState(null);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const { error, success, setError, setSuccess, notifySuccess, runAction: run } = useMessages();
   const { darkMode, toggleTheme } = useTheme();
-  useAutoDismiss(success, setSuccess, MESSAGE_TIMEOUT_MS);
-  useAutoDismiss(error, setError, MESSAGE_TIMEOUT_MS);
 
   const {
     allUsers,
@@ -113,7 +107,7 @@ const Manager = () => {
   const { visible: visibleNotices, dismiss: dismissNotice } = useDismissibleList(
     notifications.items,
     notificationKey,
-    MESSAGE_TIMEOUT_MS,
+    NOTICE_TIMEOUT_MS,
   );
 
   useEffect(() => {
@@ -122,26 +116,8 @@ const Manager = () => {
       .catch(() => Auth.logout());
   }, []);
 
-  const notifySuccess = (message) => {
-    setSuccess(message);
-    setError('');
-  };
-
-  /**
-   * Runs a server action, shows the outcome and reloads data (everything by default).
-   * Resolves to true on success, so sections know whether to close their forms.
-   */
-  const runAction = async (action, { success: successMessage, failure, reload = refreshData }) => {
-    try {
-      const result = await action();
-      notifySuccess(typeof successMessage === 'function' ? successMessage(result) : successMessage);
-      if (reload) await reload();
-      return true;
-    } catch (err) {
-      setError(getErrorMessage(err, failure));
-      return false;
-    }
-  };
+  /** Runs a server action (see useMessages); by default reloads everything afterwards. */
+  const runAction = (action, options) => run(action, { after: refreshData, ...options });
 
   // --- Team stats ---
 
@@ -149,7 +125,7 @@ const Manager = () => {
     runAction(() => downloadPayrollPdf(statsMonth), {
       success: `Pobrano raport PDF za ${formatMonthYearPl(statsMonth)}.`,
       failure: 'Nie udało się pobrać raportu PDF.',
-      reload: null,
+      after: null,
     });
 
   // --- Approval and swap queues ---
@@ -193,7 +169,7 @@ const Manager = () => {
     runAction(() => createUser(payload), {
       success: payload.is_manager ? 'Dodano kierownika.' : 'Dodano pracownika.',
       failure: 'Nie udało się dodać użytkownika.',
-      reload: reloadUsers,
+      after: reloadUsers,
     });
 
   const updateAccount = (user, patch) => {
@@ -211,7 +187,7 @@ const Manager = () => {
       {
         success: isRate ? 'Stawka godzinowa zaktualizowana.' : 'Konto zaktualizowane.',
         failure: isRate ? 'Nie udało się zaktualizować stawki' : 'Nie udało się zaktualizować konta.',
-        reload: null,
+        after: null,
       },
     );
   };
@@ -225,7 +201,7 @@ const Manager = () => {
       {
         success: permanent ? `Usunięto konto „${displayName(user)}".` : `Dezaktywowano konto „${displayName(user)}".`,
         failure: permanent ? 'Nie udało się usunąć konta.' : 'Nie udało się dezaktywować konta.',
-        reload: reloadUsers,
+        after: reloadUsers,
       },
     );
 
@@ -295,14 +271,14 @@ const Manager = () => {
             ? `Okno deklaracji zamyka się w: ${saved.declaration_close_label} (co tydzień).`
             : 'Usunięto termin deklaracji — pracownicy mogą deklarować bez limitu.',
         failure: 'Nie udało się zapisać terminu deklaracji.',
-        reload: null,
+        after: null,
       },
     );
 
   const clearDeadline = () =>
     runAction(
       async () => setScheduleSettings(await updateScheduleSettings({ declaration_close_weekday: null, declaration_close_time: null })),
-      { success: 'Usunięto termin deklaracji.', failure: 'Nie udało się usunąć terminu.', reload: null },
+      { success: 'Usunięto termin deklaracji.', failure: 'Nie udało się usunąć terminu.', after: null },
     );
 
   /** Creates a template, or updates it when `id` is given. */
@@ -310,14 +286,14 @@ const Manager = () => {
     runAction(() => (id ? updateShiftTemplate(id, payload) : createShiftTemplate(payload)), {
       success: id ? `Zaktualizowano zmianę „${payload.name}".` : `Dodano zmianę „${payload.name}".`,
       failure: 'Nie udało się zapisać szablonu zmiany.',
-      reload: reloadShiftTemplates,
+      after: reloadShiftTemplates,
     });
 
   const deleteTemplate = (template) =>
     runAction(() => deleteShiftTemplate(template.id), {
       success: `Usunięto zmianę „${template.name}".`,
       failure: 'Nie udało się usunąć szablonu.',
-      reload: reloadShiftTemplates,
+      after: reloadShiftTemplates,
     });
 
   return (

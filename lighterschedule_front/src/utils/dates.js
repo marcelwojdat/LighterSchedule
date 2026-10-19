@@ -36,3 +36,6 @@ export const shiftMonth = (dateStr, monthDelta) => {
   d.setMonth(d.getMonth() + monthDelta);
   return formatDateStr(d);
 };
+
+/** True when YYYY-MM-DD is before today (local time); string order equals date order for this format. */
+export const isPastDate = (dateStr, today = new Date()) => dateStr < formatDateStr(today);

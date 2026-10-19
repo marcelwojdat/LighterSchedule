@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import RejectionReasonPicker from './RejectionReasonPicker';
-import RoleSelect from './RoleSelect';
+import RoleSelect from '../common/RoleSelect';
 import styles from '../Manager.module.css';
 import { displayName } from '../../utils/people';
 import { toApiTime } from '../../utils/time';
@@ -185,7 +185,7 @@ const ApprovalQueue = ({ items, employees, taskTypes, rejectionReasons, onApprov
                       value={editTimes.end}
                       onChange={(event) => setEditTimes((prev) => ({ ...prev, end: event.target.value }))}
                     />
-                    <RoleSelect taskTypes={taskTypes} value={editRole} onChange={setEditRole} />
+                    <RoleSelect taskTypes={taskTypes} value={editRole} onChange={setEditRole} className={styles.roleSelect} />
                   </div>
                 ) : (
                   <div className={styles.queueHours}>

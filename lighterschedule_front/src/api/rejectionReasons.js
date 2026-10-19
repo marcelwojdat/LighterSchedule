@@ -7,4 +7,4 @@ export const createRejectionReason = (data) =>
   apiClient.post('/rejection-reasons/', data).then((response) => response.data);
 
 export const deleteRejectionReason = (id) =>
-  apiClient.delete(`/rejection-reasons/${id}/`);
+  apiClient.delete(`/rejection-reasons/${id}/`).then((response) => response.data);

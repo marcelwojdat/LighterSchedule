@@ -291,7 +291,7 @@ describe('employee schedule editor', () => {
   };
 
   test('a new day is created when saved', async () => {
-    workdaysApi.createWorkday.mockResolvedValue({ status: 201 });
+    workdaysApi.createWorkday.mockResolvedValue({ id: 60 }); // the API returns the created entry
     const editor = await openSchedule();
 
     pickDayAndAdd(editor, ['07:00', '15:00']);

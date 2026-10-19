@@ -4,22 +4,22 @@ export const getWorkdays = (params = {}) =>
   apiClient.get('/workdays/', { params }).then((response) => response.data);
 
 export const createWorkday = (data) =>
-  apiClient.post('/workdays/', data);
+  apiClient.post('/workdays/', data).then((response) => response.data);
 
 export const updateWorkday = (id, data) =>
-  apiClient.patch(`/workdays/${id}/`, data);
+  apiClient.patch(`/workdays/${id}/`, data).then((response) => response.data);
 
 export const deleteWorkday = (id) =>
-  apiClient.delete(`/workdays/${id}/`);
+  apiClient.delete(`/workdays/${id}/`).then((response) => response.data);
 
 export const approveWorkday = (id, data = {}) =>
-  apiClient.post(`/workdays/${id}/approve/`, data);
+  apiClient.post(`/workdays/${id}/approve/`, data).then((response) => response.data);
 
 export const bulkApproveWorkdays = (data) =>
   apiClient.post('/workdays/bulk-approve/', data).then((response) => response.data);
 
 export const rejectWorkday = (id, data = {}) =>
-  apiClient.post(`/workdays/${id}/reject/`, data);
+  apiClient.post(`/workdays/${id}/reject/`, data).then((response) => response.data);
 
 export const getCalendarFeedInfo = () =>
   apiClient.get('/workdays/calendar-feed/').then((response) => response.data);
