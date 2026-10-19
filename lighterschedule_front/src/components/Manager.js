@@ -3,7 +3,9 @@ import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import Auth from './Auth';
 import UserMenu from './UserMenu';
-import MonthPicker from './MonthPicker';
+import TeamStatsBar from './manager/TeamStatsBar';
+import ScheduleHolesCard from './manager/ScheduleHolesCard';
+import { SWAP_STATUS_LABELS, WORKDAY_STATUS_LABELS } from '../constants/statusLabels';
 import styles from './Manager.module.css';
 import { getErrorMessage } from '../api/client';
 import { getUsers, createUser, updateUserProfile, deleteUser } from '../api/users';
@@ -49,19 +51,6 @@ import { getDayShiftCoverage, monthBounds } from '../utils/shiftCoverage';
 import { formatDateStr, getMonday, getWeekDates, addDays, shiftMonth } from '../utils/dates';
 import { formatMonthYearPl } from '../utils/locale';
 
-const STATUS_LABELS = {
-  proposed: 'Oczekuje',
-  approved: 'Zatwierdzony',
-  rejected: 'Odrzucony',
-};
-
-const SWAP_STATUS_LABELS = {
-  pending_target: 'Oczekuje na kolegę',
-  pending_manager: 'Oczekuje na kierownika',
-  approved: 'Zatwierdzona',
-  rejected: 'Odrzucona',
-};
-
 const DAY_LABELS = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Ndz'];
 
 const EMPTY_USER_FORM = {
@@ -75,7 +64,6 @@ const EMPTY_USER_FORM = {
 };
 
 const USERS_PREVIEW_COUNT = 5;
-const HOLES_PREVIEW_COUNT = 5;
 
 const currentMonthValue = () => {
   const now = new Date();
@@ -123,7 +111,6 @@ const Manager = () => {
   const [newUserForm, setNewUserForm] = useState(() => ({ ...EMPTY_USER_FORM }));
   const [copyBusy, setCopyBusy] = useState(false);
   const [holesDays, setHolesDays] = useState(7);
-  const [showAllHoles, setShowAllHoles] = useState(false);
   const [selectedApproveIds, setSelectedApproveIds] = useState([]);
   const [bulkApproveBusy, setBulkApproveBusy] = useState(false);
   const { darkMode, toggleTheme } = useTheme();
@@ -256,24 +243,6 @@ const Manager = () => {
     notificationKey,
     7000,
   );
-
-  const sortedHoles = useMemo(() => {
-    const items = scheduleHoles.items || [];
-    return [...items].sort((a, b) => {
-      const byDate = String(a.date).localeCompare(String(b.date));
-      if (byDate !== 0) return byDate;
-      return String(a.start_time || '').localeCompare(String(b.start_time || ''));
-    });
-  }, [scheduleHoles.items]);
-
-  const visibleHoles = showAllHoles
-    ? sortedHoles
-    : sortedHoles.slice(0, HOLES_PREVIEW_COUNT);
-
-  const changeHolesDays = (days) => {
-    setHolesDays(days);
-    setShowAllHoles(false);
-  };
 
   const resetTemplateForm = () => {
     setTemplateForm({
@@ -409,7 +378,7 @@ const Manager = () => {
             {saved.start_time.slice(0, 5)} - {saved.end_time.slice(0, 5)}
           </div>
           {saved.role_name ? <div className={styles.tileStatus}>{saved.role_name}</div> : null}
-          <div className={styles.tileStatus}>{STATUS_LABELS[saved.status]}</div>
+          <div className={styles.tileStatus}>{WORKDAY_STATUS_LABELS[saved.status]}</div>
           {saved.note?.trim() ? <div className={styles.tileStatus}>nota</div> : null}
         </>
       );
@@ -1065,54 +1034,15 @@ const Manager = () => {
         ]}
       />
 
-      <section className={styles.statsBar}>
-        <div className={styles.statsBarHeader}>
-          <div>
-            <h3>Statystyki zespołu</h3>
-            <p className={styles.statHint}>
-              Zatwierdzone wpisy w wybranym miesiącu — cały zespół.
-            </p>
-          </div>
-          <div className={styles.statsBarActions}>
-            <MonthPicker
-              id="manager-stats-month"
-              label="Wybierz miesiąc"
-              value={statsMonth}
-              onChange={setStatsMonth}
-              className={styles.managerMonthPicker}
-            />
-            <button type="button" className={styles.btnPrimary} onClick={handlePayrollDownload}>
-              Raport PDF
-            </button>
-          </div>
-        </div>
-        <div className={styles.statsGrid}>
-          <div className={styles.statCard}>
-            <span className={styles.statLabel}>Pracownicy</span>
-            <strong>{teamStats?.employee_count ?? employees.length}</strong>
-          </div>
-          <div className={styles.statCard}>
-            <span className={styles.statLabel}>Oczekujące deklaracje</span>
-            <strong>{pendingQueue.length}</strong>
-          </div>
-          <div className={styles.statCard}>
-            <span className={styles.statLabel}>Zamiany do zatwierdzenia</span>
-            <strong>{swapQueue.length}</strong>
-          </div>
-          <div className={styles.statCard}>
-            <span className={styles.statLabel}>Godziny</span>
-            <strong>{(teamStats?.total_hours ?? 0).toFixed(2)}</strong>
-          </div>
-          <div className={styles.statCard}>
-            <span className={styles.statLabel}>Wypłaty</span>
-            <strong>{(teamStats?.total_earnings ?? 0).toFixed(2)} zł</strong>
-          </div>
-          <div className={styles.statCard}>
-            <span className={styles.statLabel}>Zatwierdzone dni</span>
-            <strong>{teamStats?.approved_days ?? 0}</strong>
-          </div>
-        </div>
-      </section>
+      <TeamStatsBar
+        month={statsMonth}
+        onMonthChange={setStatsMonth}
+        onDownloadPayroll={handlePayrollDownload}
+        stats={teamStats}
+        employeeCount={employees.length}
+        pendingCount={pendingQueue.length}
+        swapCount={swapQueue.length}
+      />
 
       <section className={styles.teamOverviewSection}>
         <div className={styles.teamOverviewHeader}>
@@ -1213,85 +1143,7 @@ const Manager = () => {
         </div>
       </section>
 
-      <section className={styles.holesSection}>
-        <div className={styles.sectionCard}>
-          <div className={styles.sectionHeader}>
-            <div>
-              <h3>Braki w grafiku</h3>
-              <p className={styles.statHint}>
-                Wolne miejsca na aktywnych zmianach
-                {scheduleHoles.date_from && scheduleHoles.date_to
-                  ? ` · ${scheduleHoles.date_from} – ${scheduleHoles.date_to}`
-                  : ''}
-              </p>
-            </div>
-            <div className={styles.holesControls}>
-              <div className={styles.holesToggle}>
-                <button
-                  type="button"
-                  className={`${styles.btnSecondary}${holesDays === 7 ? ` ${styles.holesToggleActive}` : ''}`}
-                  onClick={() => changeHolesDays(7)}
-                >
-                  7 dni
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.btnSecondary}${holesDays === 14 ? ` ${styles.holesToggleActive}` : ''}`}
-                  onClick={() => changeHolesDays(14)}
-                >
-                  14 dni
-                </button>
-              </div>
-              <span className={styles.queueBadge}>{scheduleHoles.count ?? 0}</span>
-            </div>
-          </div>
-          {!sortedHoles.length ? (
-            <p className={styles.emptyQueue}>Brak dziur — wszystkie zaplanowane zmiany są obsadzone.</p>
-          ) : (
-            <>
-              <ul className={styles.holesList}>
-                {visibleHoles.map((hole) => (
-                  <li
-                    key={`${hole.date}-${hole.shift_template_id}`}
-                    className={styles.holesItem}
-                  >
-                    <div className={styles.holesItemMain}>
-                      <strong>{hole.date}</strong>
-                      <span className={styles.holesShiftName}>{hole.shift_template_name}</span>
-                      <span className={styles.holesHours}>
-                        {hole.start_time?.slice(0, 5)} – {hole.end_time?.slice(0, 5)}
-                      </span>
-                    </div>
-                    <div className={styles.holesItemMeta}>
-                      <span className={styles.holesNeeded}>
-                        brakuje {hole.needed} / {hole.max_slots}
-                      </span>
-                      <small>
-                        Obsada: {hole.filled}
-                        {hole.holders?.length
-                          ? ` · ${hole.holders.map((h) => h.name).join(', ')}`
-                          : ' · nikt'}
-                      </small>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-              {sortedHoles.length > HOLES_PREVIEW_COUNT ? (
-                <button
-                  type="button"
-                  className={`${styles.btnSecondary} ${styles.holesExpandBtn}`}
-                  onClick={() => setShowAllHoles((prev) => !prev)}
-                  aria-expanded={showAllHoles}
-                >
-                  {showAllHoles
-                    ? 'Zwiń'
-                    : `Pokaż więcej (${sortedHoles.length - HOLES_PREVIEW_COUNT})`}
-                </button>
-              ) : null}
-            </>
-          )}
-        </div>
-      </section>
+      <ScheduleHolesCard holes={scheduleHoles} days={holesDays} onDaysChange={setHolesDays} />
 
       <div className={styles.queuesRow}>
         <div className={styles.sectionCard}>
@@ -1872,7 +1724,7 @@ const Manager = () => {
                                   : styles.statusProposed
                             }`}
                           >
-                            {STATUS_LABELS[w.status]}
+                            {WORKDAY_STATUS_LABELS[w.status]}
                           </span>
                         </li>
                       ))}
