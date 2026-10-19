@@ -1,65 +1,59 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import Calendar from 'react-calendar';
-import 'react-calendar/dist/Calendar.css';
 import Auth from './Auth';
+import ToastStack from './ToastStack';
 import UserMenu from './UserMenu';
-import TeamStatsBar from './manager/TeamStatsBar';
-import CoverageLegend from './manager/CoverageLegend';
-import TeamWeekOverview from './manager/TeamWeekOverview';
-import ScheduleHolesCard from './manager/ScheduleHolesCard';
 import AccountsCard from './manager/AccountsCard';
-import { WORKDAY_STATUS_LABELS } from '../constants/statusLabels';
 import ApprovalQueue from './manager/ApprovalQueue';
-import RoleSelect from './manager/RoleSelect';
+import EmployeeScheduleEditor from './manager/EmployeeScheduleEditor';
+import ScheduleHolesCard from './manager/ScheduleHolesCard';
 import SwapQueue from './manager/SwapQueue';
+import TeamStatsBar from './manager/TeamStatsBar';
+import TeamWeekOverview from './manager/TeamWeekOverview';
 import styles from './Manager.module.css';
 import { getErrorMessage } from '../api/client';
-import { getUsers, createUser, updateUserProfile, deleteUser } from '../api/users';
+import { getNotifications } from '../api/notifications';
+import { getRejectionReasons } from '../api/rejectionReasons';
+import { getScheduleHoles } from '../api/scheduleHoles';
+import { getScheduleSettings, updateScheduleSettings } from '../api/scheduleSettings';
+import { createShiftTemplate, deleteShiftTemplate, getShiftTemplates, updateShiftTemplate } from '../api/shiftTemplates';
+import { downloadPayrollPdf, getTeamStats } from '../api/stats';
+import { approveSwap as approveSwapRequest, getSwaps, rejectSwap as rejectSwapRequest } from '../api/swaps';
+import { getTaskTypes } from '../api/taskTypes';
+import { createUser, deleteUser, getUsers, updateUserProfile } from '../api/users';
 import {
-  getWorkdays,
-  createWorkday,
-  updateWorkday,
-  deleteWorkday,
   approveWorkday,
   bulkApproveWorkdays,
-  rejectWorkday,
   copyWorkdays,
+  createWorkday,
+  deleteWorkday,
+  getWorkdays,
+  rejectWorkday,
+  updateWorkday,
 } from '../api/workdays';
-import { getSwaps, approveSwap as approveSwapRequest, rejectSwap as rejectSwapRequest } from '../api/swaps';
-import { getTaskTypes } from '../api/taskTypes';
-import {
-  getShiftTemplates,
-  createShiftTemplate,
-  updateShiftTemplate,
-  deleteShiftTemplate,
-} from '../api/shiftTemplates';
-import { downloadPayrollPdf, getTeamStats } from '../api/stats';
-import { getNotifications } from '../api/notifications';
-import { getScheduleSettings, updateScheduleSettings } from '../api/scheduleSettings';
-import {
-  getRejectionReasons,
-} from '../api/rejectionReasons';
-import { getScheduleHoles } from '../api/scheduleHoles';
 import { useApiResource } from '../hooks/useApiResource';
-import { useTheme } from '../hooks/useTheme';
 import { useAutoDismiss } from '../hooks/useAutoDismiss';
 import { useDismissibleList } from '../hooks/useDismissibleList';
-import ToastStack from './ToastStack';
-import {
-  buildWorkdayPayload,
-  toApiTime,
-  toDisplayTime,
-  resolveTemplateHours,
-  WEEKDAY_SHORT,
-  buildEmptyTemplateHours,
-} from '../utils/time';
-import { getDayShiftCoverage, monthBounds } from '../utils/shiftCoverage';
-import { formatDateStr, getMonday, getWeekDates, addDays, shiftMonth } from '../utils/dates';
+import { useTheme } from '../hooks/useTheme';
+import { addDays, formatDateStr, getMonday, getWeekDates, shiftMonth } from '../utils/dates';
 import { formatMonthYearPl } from '../utils/locale';
+import { monthBounds } from '../utils/shiftCoverage';
+import { buildEmptyTemplateHours, buildWorkdayPayload, toApiTime, toDisplayTime, WEEKDAY_SHORT } from '../utils/time';
 
 const currentMonthValue = () => {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+};
+
+/**
+ * Saves one day edited by the manager. Manager edits always end up approved:
+ * a pending proposal is approved with the manager's hours, an approved day is updated,
+ * and a rejected day is replaced by a new entry.
+ */
+const saveDay = async (existing, payload) => {
+  if (existing?.status === 'proposed') return approveWorkday(existing.id, payload);
+  if (existing?.status === 'approved') return updateWorkday(existing.id, payload);
+  if (existing?.status === 'rejected') await deleteWorkday(existing.id);
+  return createWorkday(payload);
 };
 
 const Manager = () => {
@@ -69,7 +63,6 @@ const Manager = () => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
   });
-  const [selectedShiftId, setSelectedShiftId] = useState('');
   const [templateForm, setTemplateForm] = useState({
     id: null,
     name: '',
@@ -78,19 +71,12 @@ const Manager = () => {
     hours: buildEmptyTemplateHours(),
   });
   const [weekStart, setWeekStart] = useState(() => formatDateStr(getMonday()));
-  const [selectedRoleId, setSelectedRoleId] = useState('');
-  const [selectedDate, setSelectedDate] = useState('');
-  const [timeFrom, setTimeFrom] = useState('12:00');
-  const [timeTo, setTimeTo] = useState('20:00');
-  const [selectedDates, setSelectedDates] = useState({});
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
-  const [dayNote, setDayNote] = useState('');
   const [showShiftTemplates, setShowShiftTemplates] = useState(false);
   const [declarationCloseWeekday, setDeclarationCloseWeekday] = useState('');
   const [declarationCloseTime, setDeclarationCloseTime] = useState('23:59');
-  const [copyBusy, setCopyBusy] = useState(false);
   const [holesDays, setHolesDays] = useState(7);
   const { darkMode, toggleTheme } = useTheme();
   useAutoDismiss(success, setSuccess, 7000);
@@ -257,197 +243,31 @@ const Manager = () => {
 
   const openManage = (employee) => {
     if (employee.id === selectedEmployee?.id) reloadEmployeeWorkdays();
-    setSelectedEmployee(employee);
-    setSelectedDates({});
-    setSelectedDate('');
+    setSelectedEmployee(employee); // the editor is keyed by employee, so its drafts reset on switch
   };
 
-  const setChosenDate = (e) => {
-    const year = e.getFullYear();
-    const month = String(e.getMonth() + 1).padStart(2, '0');
-    const day = String(e.getDate()).padStart(2, '0');
-    const dateStr = `${year}-${month}-${day}`;
-    setSelectedDate(dateStr);
-
-    const existing = workdays.find((d) => d.date === dateStr);
-    const pending = selectedDates[dateStr];
-
-    if (pending) {
-      setTimeFrom(pending.start_time.slice(0, 5));
-      setTimeTo(pending.end_time.slice(0, 5));
-      setSelectedRoleId(pending.role ? String(pending.role) : '');
-      setDayNote(pending.note || '');
-      setSelectedShiftId(pending.shift_template ? String(pending.shift_template) : '');
-    } else if (existing) {
-      setTimeFrom(existing.start_time.slice(0, 5));
-      setTimeTo(existing.end_time.slice(0, 5));
-      setSelectedRoleId(existing.role ? String(existing.role) : '');
-      setDayNote(existing.note || '');
-      setSelectedShiftId(existing.shift_template ? String(existing.shift_template) : '');
-    } else {
-      setTimeFrom('12:00');
-      setTimeTo('20:00');
-      setSelectedRoleId('');
-      setDayNote('');
-      setSelectedShiftId('');
-    }
-  };
-
-  const getTileClassName = ({ date: tileDate, view }) => {
-    if (view !== 'month') return null;
-
-    const dateStr = formatDateStr(tileDate);
-    const classes = [];
-
-    if (selectedDates[dateStr]) {
-      classes.push('custom-selected-day');
-    } else {
-      const saved = workdays.find((d) => d.date === dateStr);
-      if (saved) {
-        if (saved.status === 'approved') {
-          classes.push(saved.note?.trim() ? 'custom-approved-note-day' : 'custom-approved-day');
-        } else if (saved.status === 'rejected') {
-          classes.push('custom-rejected-day');
-        } else {
-          classes.push('custom-proposed-day');
-        }
-      }
-    }
-
-    const coverage = getCoverageForDate(dateStr);
-    if (coverage.status === 'closed') classes.push('day-coverage-closed');
-    else if (coverage.status === 'open') classes.push('day-coverage-open');
-    else classes.push('day-coverage-none');
-
-    return classes.length ? classes.join(' ') : null;
-  };
-
-  const getTileContent = ({ date: tileDate, view }) => {
-    if (view !== 'month') return null;
-
-    const dateStr = formatDateStr(tileDate);
-    const coverage = getCoverageForDate(dateStr);
-    const pending = selectedDates[dateStr];
-    const saved = workdays.find((d) => d.date === dateStr);
-
-    let body = null;
-    if (pending) {
-      body = (
-        <>
-          <div className={styles.tileHours}>
-            {pending.start_time.slice(0, 5)} - {pending.end_time.slice(0, 5)}
-          </div>
-          <div className={styles.tileStatus}>Do zapisu</div>
-          {pending.note?.trim() ? <div className={styles.tileStatus}>nota</div> : null}
-        </>
-      );
-    } else if (saved) {
-      body = (
-        <>
-          <div className={styles.tileHours}>
-            {saved.start_time.slice(0, 5)} - {saved.end_time.slice(0, 5)}
-          </div>
-          {saved.role_name ? <div className={styles.tileStatus}>{saved.role_name}</div> : null}
-          <div className={styles.tileStatus}>{WORKDAY_STATUS_LABELS[saved.status]}</div>
-          {saved.note?.trim() ? <div className={styles.tileStatus}>nota</div> : null}
-        </>
-      );
-    }
-
-    if (!body && coverage.status === 'none') return null;
-
-    return (
-      <div className={styles.tileContent} title={coverage.tooltip || undefined}>
-        {coverage.status !== 'none' ? (
-          <span
-            className={`${styles.coverageMark} ${
-              coverage.status === 'closed' ? styles.coverageClosed : styles.coverageOpen
-            }`}
-            aria-hidden="true"
-          />
-        ) : null}
-        {body}
-      </div>
-    );
-  };
-
-  const addShift = () => {
-    if (!selectedEmployee || !selectedDate) return;
-
-    let start = toApiTime(timeFrom);
-    let end = toApiTime(timeTo);
-    if (selectedShiftId) {
-      const template = shiftTemplates.find((t) => String(t.id) === String(selectedShiftId));
-      const hours = resolveTemplateHours(template, selectedDate);
-      if (!hours) {
-        setError('Wybrana zmiana nie ma godzin na ten dzień tygodnia.');
-        return;
-      }
-      start = toApiTime(hours.start_time);
-      end = toApiTime(hours.end_time);
-    }
-
-    setSelectedDates({
-      ...selectedDates,
-      [selectedDate]: {
-        start_time: start,
-        end_time: end,
-        role: selectedRoleId ? Number(selectedRoleId) : null,
-        note: dayNote.trim(),
-        shift_template: selectedShiftId ? Number(selectedShiftId) : null,
-      },
-    });
-    setSuccess('Zmiana dodana do zapisu.');
+  const notifySuccess = (message) => {
+    setSuccess(message);
     setError('');
   };
 
-  const saveShifts = async () => {
-    if (!selectedEmployee || Object.keys(selectedDates).length === 0) return;
-
+  /** Saves the editor drafts ({ date: shift }) of the selected employee; resolves to true on success. */
+  const saveSchedule = async (drafts) => {
     try {
-      const results = await Promise.all(
-        Object.entries(selectedDates).map(async ([date, times]) => {
-          const existing = workdays.find((d) => d.date === date);
-          const payload = buildWorkdayPayload({
-            date,
-            start_time: times.start_time,
-            end_time: times.end_time,
-            role: times.role,
-            employee: selectedEmployee.id,
-            note: times.note || '',
-            shift_template: times.shift_template,
-          });
-
-          if (existing?.status === 'proposed') {
-            await approveWorkday(existing.id, payload);
-            return true;
-          }
-
-          if (existing?.status === 'rejected') {
-            await deleteWorkday(existing.id);
-          }
-
-          if (existing?.status === 'approved') {
-            await updateWorkday(existing.id, payload);
-            return true;
-          }
-
-          const response = await createWorkday(payload);
-          return response.status === 201;
-        })
+      await Promise.all(
+        Object.entries(drafts).map(([date, draft]) =>
+          saveDay(
+            workdays.find((day) => day.date === date),
+            buildWorkdayPayload({ ...draft, date, employee: selectedEmployee.id, note: draft.note || '' }),
+          ),
+        ),
       );
-
-      if (results.every(Boolean)) {
-        setSelectedDates({});
-        setSelectedDate('');
-        setSuccess('Grafik pracownika zapisany.');
-        setError('');
-        await refreshData();
-      } else {
-        setError('Część zapisów nie powiodła się.');
-      }
+      notifySuccess('Grafik pracownika zapisany.');
+      await refreshData();
+      return true;
     } catch (e) {
       setError(getErrorMessage(e, 'Błąd połączenia z serwerem.'));
+      return false;
     }
   };
 
@@ -574,21 +394,6 @@ const Manager = () => {
     }
   };
 
-  const applySelectedTemplate = (templateId) => {
-    setSelectedShiftId(templateId);
-    if (!templateId || !selectedDate) return;
-    const template = shiftTemplates.find((t) => String(t.id) === String(templateId));
-    const hours = resolveTemplateHours(template, selectedDate);
-    if (hours) {
-      setTimeFrom(toDisplayTime(hours.start_time));
-      setTimeTo(toDisplayTime(hours.end_time));
-    }
-  };
-
-  const templatesForSelectedDate = selectedDate
-    ? shiftTemplates.filter((t) => resolveTemplateHours(t, selectedDate))
-    : [];
-
   // Queue callbacks resolve to true on success, so the queue knows whether to close its form.
   const approveProposal = async (item, changes) => {
     try {
@@ -661,24 +466,11 @@ const Manager = () => {
     Auth.logout();
   };
 
-  const getCoverageForDate = (dateStr) => getDayShiftCoverage(dateStr, shiftTemplates, coverageWorkdays);
-
-  const handleCopySchedule = async (mode) => {
-    if (!selectedEmployee) return;
+  /** Copy the previous week into this week, or the previous month into the stats month. */
+  const copySchedule = async (mode) => {
     const thisMonday = formatDateStr(getMonday());
     const targetStart = mode === 'week' ? thisMonday : `${statsMonth}-01`;
     const sourceStart = mode === 'week' ? addDays(thisMonday, -7) : shiftMonth(targetStart, -1);
-    const periodLabel = mode === 'week' ? 'tygodnia' : 'miesiąca';
-
-    if (
-      !window.confirm(
-        `Skopiować grafik ${selectedEmployee.first_name || selectedEmployee.username} z poprzedniego ${periodLabel}? Istniejące dni zostaną pominięte; nowe wpisy będą od razu zatwierdzone.`
-      )
-    ) {
-      return;
-    }
-
-    setCopyBusy(true);
     try {
       const result = await copyWorkdays({
         mode,
@@ -692,16 +484,15 @@ const Manager = () => {
       if (result.created_count) parts.push(`dodano ${result.created_count}`);
       if (result.skipped_count) parts.push(`pominięto ${result.skipped_count}`);
       if (result.updated_count) parts.push(`zaktualizowano ${result.updated_count}`);
-      setSuccess(
+      notifySuccess(
         parts.length
           ? `Skopiowano poprzedni ${mode === 'week' ? 'tydzień' : 'miesiąc'}: ${parts.join(', ')}.`
-          : `Brak dni do skopiowania z poprzedniego ${periodLabel}.`
+          : `Brak dni do skopiowania z poprzedniego ${mode === 'week' ? 'tygodnia' : 'miesiąca'}.`
       );
-      setError('');
+      return true;
     } catch (err) {
       setError(getErrorMessage(err, 'Nie udało się skopiować grafiku.'));
-    } finally {
-      setCopyBusy(false);
+      return false;
     }
   };
 
@@ -798,156 +589,20 @@ const Manager = () => {
                 Wybierz pracownika z listy kont (przycisk Grafik), aby zarządzać jego zmianami.
               </p>
             ) : (
-              <>
-                <div className={styles.empHeader}>
-                  {selectedEmployee.first_name} {selectedEmployee.last_name}
-                </div>
-                <div className={styles.empInfo}>
-                  <strong>E-mail:</strong> {selectedEmployee.email || '—'}
-                </div>
-                <div className={styles.empInfo}>
-                  <strong>Stawka:</strong> {selectedEmployee.hourly_rate ?? '—'} zł/h
-                </div>
-
-                <div className={styles.calendarContainer}>
-                  <Calendar
-                    locale="pl-PL"
-                    onChange={setChosenDate}
-                    value={null}
-                    tileClassName={getTileClassName}
-                    tileContent={getTileContent}
-                    onActiveStartDateChange={({ activeStartDate }) => {
-                      if (!activeStartDate) return;
-                      setCoverageMonth({
-                        year: activeStartDate.getFullYear(),
-                        month: activeStartDate.getMonth(),
-                      });
-                    }}
-                  />
-                </div>
-                <CoverageLegend />
-                <div className={styles.statusLegend}>
-                  <div className={styles.legendItem}>
-                    <span className={`${styles.legendDot} ${styles.legendProposed}`} />
-                    Oczekuje
-                  </div>
-                  <div className={styles.legendItem}>
-                    <span className={`${styles.legendDot} ${styles.legendApproved}`} />
-                    Zatwierdzony
-                  </div>
-                  <div className={styles.legendItem}>
-                    <span className={`${styles.legendDot} ${styles.legendApprovedNote}`} />
-                    Z notatką
-                  </div>
-                  <div className={styles.legendItem}>
-                    <span className={`${styles.legendDot} ${styles.legendRejected}`} />
-                    Odrzucony
-                  </div>
-                  <div className={styles.legendItem}>
-                    <span className={`${styles.legendDot} ${styles.legendSelected}`} />
-                    Do zapisu
-                  </div>
-                </div>
-
-                <div className={styles.copyScheduleRow}>
-                  <button
-                    type="button"
-                    className={styles.btnSecondary}
-                    disabled={copyBusy}
-                    onClick={() => handleCopySchedule('week')}
-                  >
-                    Kopiuj poprzedni tydzień
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.btnSecondary}
-                    disabled={copyBusy}
-                    onClick={() => handleCopySchedule('month')}
-                    title={`Na miesiąc ${formatMonthYearPl(statsMonth)}`}
-                  >
-                    Kopiuj poprzedni miesiąc
-                  </button>
-                </div>
-
-                <div className={styles.shiftControls}>
-                  <div>Wybrany dzień: {selectedDate || '—'}</div>
-                  <select
-                    className={styles.roleSelect}
-                    value={selectedShiftId}
-                    onChange={(e) => applySelectedTemplate(e.target.value)}
-                    disabled={!selectedDate}
-                  >
-                    <option value="">Szablon zmiany (opcjonalnie)</option>
-                    {templatesForSelectedDate.map((template) => {
-                      const hours = resolveTemplateHours(template, selectedDate);
-                      return (
-                        <option key={template.id} value={template.id}>
-                          {template.name}
-                          {hours
-                            ? ` (${toDisplayTime(hours.start_time)}-${toDisplayTime(hours.end_time)})`
-                            : ''}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  <input type="time" value={timeFrom} onChange={(e) => setTimeFrom(e.target.value)} />
-                  <input type="time" value={timeTo} onChange={(e) => setTimeTo(e.target.value)} />
-                  <RoleSelect taskTypes={taskTypes} value={selectedRoleId} onChange={setSelectedRoleId} />
-                  <textarea
-                    className={styles.noteInput}
-                    rows={2}
-                    maxLength={500}
-                    placeholder="Notatka (opcjonalnie)"
-                    value={dayNote}
-                    onChange={(e) => setDayNote(e.target.value)}
-                  />
-                  <button className={styles.btnPrimary} onClick={addShift}>
-                    Dodaj zmianę
-                  </button>
-                  <button className={styles.btnPrimary} onClick={saveShifts}>
-                    Zapisz zmiany
-                  </button>
-                </div>
-
-                <div className={styles.scheduleSection}>
-                  <h4>Aktualny grafik</h4>
-                  {workdays.length === 0 ? (
-                    <p className={styles.emptyQueue}>Brak wpisów w grafiku.</p>
-                  ) : (
-                    <ul className={styles.scheduleList}>
-                      {workdays.map((w) => (
-                        <li
-                          key={w.id}
-                          className={`${styles.scheduleItem} ${
-                            w.status === 'approved' && w.note?.trim() ? styles.scheduleItemWithNote : ''
-                          }`}
-                        >
-                          <span>
-                            {w.date} — {w.start_time.slice(0, 5)} - {w.end_time.slice(0, 5)}
-                            {w.role_name ? ` (${w.role_name})` : ''}
-                            {w.note?.trim() ? (
-                              <small className={styles.scheduleNote}> — {w.note}</small>
-                            ) : null}
-                          </span>
-                          <span
-                            className={`${styles.statusBadge} ${
-                              w.status === 'approved'
-                                ? w.note?.trim()
-                                  ? styles.statusApprovedNote
-                                  : styles.statusApproved
-                                : w.status === 'rejected'
-                                  ? styles.statusRejected
-                                  : styles.statusProposed
-                            }`}
-                          >
-                            {WORKDAY_STATUS_LABELS[w.status]}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </>
+              <EmployeeScheduleEditor
+                key={selectedEmployee.id}
+                employee={selectedEmployee}
+                workdays={workdays}
+                shiftTemplates={shiftTemplates}
+                taskTypes={taskTypes}
+                coverageWorkdays={coverageWorkdays}
+                copyMonth={statsMonth}
+                onMonthChange={setCoverageMonth}
+                onSave={saveSchedule}
+                onCopy={copySchedule}
+                onSuccess={notifySuccess}
+                onError={setError}
+              />
             )}
           </div>
         </div>
