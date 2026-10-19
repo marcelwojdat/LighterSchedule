@@ -8,7 +8,8 @@ import CoverageLegend from './manager/CoverageLegend';
 import TeamWeekOverview from './manager/TeamWeekOverview';
 import ScheduleHolesCard from './manager/ScheduleHolesCard';
 import { WORKDAY_STATUS_LABELS } from '../constants/statusLabels';
-import RejectionReasonPicker from './manager/RejectionReasonPicker';
+import ApprovalQueue from './manager/ApprovalQueue';
+import RoleSelect from './manager/RoleSelect';
 import SwapQueue from './manager/SwapQueue';
 import styles from './Manager.module.css';
 import { getErrorMessage } from '../api/client';
@@ -89,15 +90,10 @@ const Manager = () => {
   });
   const [weekStart, setWeekStart] = useState(() => formatDateStr(getMonday()));
   const [selectedRoleId, setSelectedRoleId] = useState('');
-  const [queueEditRole, setQueueEditRole] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
   const [timeFrom, setTimeFrom] = useState('12:00');
   const [timeTo, setTimeTo] = useState('20:00');
   const [selectedDates, setSelectedDates] = useState({});
-  const [editingQueueId, setEditingQueueId] = useState(null);
-  const [queueEditTimes, setQueueEditTimes] = useState({ start: '12:00', end: '20:00' });
-  const [rejectingId, setRejectingId] = useState(null);
-  const [rejectionReason, setRejectionReason] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
@@ -111,8 +107,6 @@ const Manager = () => {
   const [newUserForm, setNewUserForm] = useState(() => ({ ...EMPTY_USER_FORM }));
   const [copyBusy, setCopyBusy] = useState(false);
   const [holesDays, setHolesDays] = useState(7);
-  const [selectedApproveIds, setSelectedApproveIds] = useState([]);
-  const [bulkApproveBusy, setBulkApproveBusy] = useState(false);
   const { darkMode, toggleTheme } = useTheme();
   useAutoDismiss(success, setSuccess, 7000);
   useAutoDismiss(error, setError, 7000);
@@ -223,15 +217,6 @@ const Manager = () => {
       scheduleSettings.declaration_close_time ? String(scheduleSettings.declaration_close_time).slice(0, 5) : '23:59'
     );
   }, [scheduleSettings]);
-
-  useEffect(() => {
-    const validIds = new Set(
-      pendingQueue
-        .filter((item) => !item.shift_slots?.is_full)
-        .map((item) => item.id)
-    );
-    setSelectedApproveIds((prev) => prev.filter((id) => validIds.has(id)));
-  }, [pendingQueue]);
 
   const notificationKey = useCallback(
     (item, index) =>
@@ -699,54 +684,34 @@ const Manager = () => {
     ? shiftTemplates.filter((t) => resolveTemplateHours(t, selectedDate))
     : [];
 
-  const startQueueEdit = (item) => {
-    setEditingQueueId(item.id);
-    setQueueEditTimes({
-      start: item.start_time.slice(0, 5),
-      end: item.end_time.slice(0, 5),
-    });
-    setQueueEditRole(item.role ? String(item.role) : '');
-    setRejectingId(null);
-    setRejectionReason('');
-    setError('');
-  };
-
-  const beginRejectWorkday = (item) => {
-    setRejectingId(item.id);
-    setEditingQueueId(null);
-    setRejectionReason('');
-  };
-
-  const cancelQueueEdit = () => {
-    setEditingQueueId(null);
-    setRejectingId(null);
-    setRejectionReason('');
-    setQueueEditRole('');
-  };
-
-  const approvableQueueItems = pendingQueue.filter((item) => !item.shift_slots?.is_full);
-
-  const toggleApproveSelection = (itemId) => {
-    setSelectedApproveIds((prev) =>
-      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
-    );
-  };
-
-  const selectAllApprovable = () => {
-    setSelectedApproveIds(approvableQueueItems.map((item) => item.id));
-  };
-
-  const clearApproveSelection = () => setSelectedApproveIds([]);
-
-  const runBulkApprove = async (ids) => {
-    if (!ids.length) {
-      setError('Nie wybrano żadnych deklaracji do zatwierdzenia.');
-      return;
+  // Queue callbacks resolve to true on success, so the queue knows whether to close its form.
+  const approveProposal = async (item, changes) => {
+    try {
+      await approveWorkday(item.id, changes);
+      setSuccess(`Zatwierdzono grafik ${item.employee_name} na ${item.date}.`);
+      setError('');
+      await refreshData();
+      return true;
+    } catch (e) {
+      setError(getErrorMessage(e, 'Nie udało się zatwierdzić deklaracji.'));
+      return false;
     }
-    if (!window.confirm(`Zatwierdzić ${ids.length} deklaracji bez zmian godzin?`)) {
-      return;
+  };
+
+  const rejectProposal = async (item, reason) => {
+    try {
+      await rejectWorkday(item.id, reason ? { rejection_reason: reason } : {});
+      setSuccess(`Odrzucono deklarację ${item.employee_name} na ${item.date}.`);
+      setError('');
+      await refreshData();
+      return true;
+    } catch (e) {
+      setError(getErrorMessage(e, 'Nie udało się odrzucić deklaracji.'));
+      return false;
     }
-    setBulkApproveBusy(true);
+  };
+
+  const bulkApproveProposals = async (ids) => {
     try {
       const result = await bulkApproveWorkdays({ ids });
       const parts = [];
@@ -754,50 +719,11 @@ const Manager = () => {
       if (result.skipped_count) parts.push(`pominięto ${result.skipped_count}`);
       setSuccess(parts.length ? `Masowa akceptacja: ${parts.join(', ')}.` : 'Brak zmian.');
       setError('');
-      setSelectedApproveIds([]);
-      cancelQueueEdit();
       await refreshData();
+      return true;
     } catch (e) {
       setError(getErrorMessage(e, 'Nie udało się zatwierdzić zaznaczonych deklaracji.'));
-    } finally {
-      setBulkApproveBusy(false);
-    }
-  };
-
-  const approveQueueItem = async (item, times = null) => {
-    const startTime = toApiTime(times?.start_time || queueEditTimes.start);
-    const endTime = toApiTime(times?.end_time || queueEditTimes.end);
-    const role = editingQueueId === item.id
-      ? (queueEditRole ? Number(queueEditRole) : null)
-      : (item.role || null);
-
-    try {
-      await approveWorkday(item.id, {
-        start_time: startTime,
-        end_time: endTime,
-        role,
-      });
-
-      setSuccess(`Zatwierdzono grafik ${item.employee_name} na ${item.date}.`);
-      setError('');
-      cancelQueueEdit();
-      await refreshData();
-    } catch (e) {
-      setError(getErrorMessage(e, 'Nie udało się zatwierdzić deklaracji.'));
-    }
-  };
-
-  const rejectQueueItem = async (item) => {
-    try {
-      const reason = rejectionReason.trim();
-      await rejectWorkday(item.id, reason ? { rejection_reason: reason } : {});
-
-      setSuccess(`Odrzucono deklarację ${item.employee_name} na ${item.date}.`);
-      setError('');
-      cancelQueueEdit();
-      await refreshData();
-    } catch (e) {
-      setError(getErrorMessage(e, 'Nie udało się odrzucić deklaracji.'));
+      return false;
     }
   };
 
@@ -828,12 +754,6 @@ const Manager = () => {
 
   const handleLogout = () => {
     Auth.logout();
-  };
-
-  const getEmployeeName = (item) => {
-    const emp = employees.find((e) => e.id === item.employee);
-    if (emp) return `${emp.first_name} ${emp.last_name}`.trim() || emp.username;
-    return item.employee_name;
   };
 
   const getCoverageForDate = (dateStr) => getDayShiftCoverage(dateStr, shiftTemplates, coverageWorkdays);
@@ -879,17 +799,6 @@ const Manager = () => {
       setCopyBusy(false);
     }
   };
-
-  const renderRoleSelect = (value, onChange) => (
-    <select value={value} onChange={onChange} className={styles.roleSelect}>
-      <option value="">Stanowisko</option>
-      {taskTypes.map((type) => (
-        <option key={type.id} value={type.id}>
-          {type.name}
-        </option>
-      ))}
-    </select>
-  );
 
   return (
     <div className={`${styles.managerPage} lsFields`}>
@@ -945,169 +854,15 @@ const Manager = () => {
       <ScheduleHolesCard holes={scheduleHoles} days={holesDays} onDaysChange={setHolesDays} />
 
       <div className={styles.queuesRow}>
-        <div className={styles.sectionCard}>
-          <div className={styles.sectionHeader}>
-            <h3>Do akceptacji</h3>
-            <span className={styles.queueBadge}>{pendingQueue.length}</span>
-          </div>
-          {pendingQueue.length === 0 ? (
-            <p className={styles.emptyQueue}>Brak deklaracji oczekujących na akceptację.</p>
-          ) : (
-            <div className={styles.queueList}>
-              {approvableQueueItems.length > 0 ? (
-                <div className={styles.bulkApproveBar}>
-                  <div className={styles.bulkApproveActions}>
-                    <button
-                      type="button"
-                      className={styles.btnLink}
-                      onClick={selectAllApprovable}
-                      disabled={bulkApproveBusy}
-                    >
-                      Zaznacz dostępne ({approvableQueueItems.length})
-                    </button>
-                    {selectedApproveIds.length ? (
-                      <button
-                        type="button"
-                        className={styles.btnLink}
-                        onClick={clearApproveSelection}
-                        disabled={bulkApproveBusy}
-                      >
-                        Odznacz
-                      </button>
-                    ) : null}
-                  </div>
-                  <button
-                    type="button"
-                    className={styles.btnSuccess}
-                    disabled={bulkApproveBusy || selectedApproveIds.length === 0}
-                    onClick={() => runBulkApprove(selectedApproveIds)}
-                  >
-                    {bulkApproveBusy
-                      ? 'Zatwierdzanie…'
-                      : `Zatwierdź zaznaczone (${selectedApproveIds.length})`}
-                  </button>
-                </div>
-              ) : null}
-              {pendingQueue.map((item) => (
-                <div key={item.id} className={styles.queueItem}>
-                  <div className={styles.queueItemHeader}>
-                    <label className={styles.queueSelectLabel}>
-                      <input
-                        type="checkbox"
-                        checked={selectedApproveIds.includes(item.id)}
-                        disabled={Boolean(item.shift_slots?.is_full) || bulkApproveBusy}
-                        onChange={() => toggleApproveSelection(item.id)}
-                        aria-label={`Zaznacz ${getEmployeeName(item)} ${item.date}`}
-                      />
-                      <strong>{getEmployeeName(item)}</strong>
-                    </label>
-                    <span>{item.date}</span>
-                  </div>
-                  {editingQueueId === item.id ? (
-                    <div className={styles.queueEditRow}>
-                      <input
-                        type="time"
-                        value={queueEditTimes.start}
-                        onChange={(e) => setQueueEditTimes((prev) => ({ ...prev, start: e.target.value }))}
-                      />
-                      <input
-                        type="time"
-                        value={queueEditTimes.end}
-                        onChange={(e) => setQueueEditTimes((prev) => ({ ...prev, end: e.target.value }))}
-                      />
-                      {renderRoleSelect(queueEditRole, (e) => setQueueEditRole(e.target.value))}
-                    </div>
-                  ) : (
-                    <div className={styles.queueHours}>
-                      {item.start_time.slice(0, 5)} - {item.end_time.slice(0, 5)}
-                      {item.role_name ? ` (${item.role_name})` : ''}
-                    </div>
-                  )}
-                  {item.note?.trim() ? (
-                    <div className={styles.dayNoteBox}>Notatka: {item.note}</div>
-                  ) : null}
-                  {item.shift_template_name ? (
-                    <div className={styles.queueHours}>
-                      Zmiana: {item.shift_template_name}
-                      {item.shift_slots
-                        ? ` · ${item.shift_slots.filled}/${item.shift_slots.max_slots} miejsc`
-                        : ''}
-                    </div>
-                  ) : null}
-                  {item.shift_slots?.is_full ? (
-                    <div className={styles.slotFullHint}>
-                      Zmiana obsadzona
-                      {item.shift_slots.holders?.length
-                        ? `: ${item.shift_slots.holders.map((h) => h.name).join(', ')}`
-                        : ''}
-                    </div>
-                  ) : null}
-                  {rejectingId === item.id ? (
-                    <RejectionReasonPicker
-                      reasons={rejectionReasons}
-                      value={rejectionReason}
-                      onChange={setRejectionReason}
-                    />
-                  ) : null}
-                  <div className={styles.queueActions}>
-                    {rejectingId === item.id ? (
-                      <>
-                        <button className={styles.btnDanger} onClick={() => rejectQueueItem(item)}>
-                          Potwierdź odrzucenie
-                        </button>
-                        <button className={styles.btnSecondary} onClick={cancelQueueEdit}>
-                          Anuluj
-                        </button>
-                      </>
-                    ) : editingQueueId === item.id ? (
-                      <>
-                        <button
-                          className={styles.btnSuccess}
-                          onClick={() => approveQueueItem(item)}
-                          disabled={item.shift_slots?.is_full}
-                          title={
-                            item.shift_slots?.is_full
-                              ? `Zmiana ${item.shift_template_name || ''} jest już obsadzona`
-                              : undefined
-                          }
-                        >
-                          Zatwierdź
-                        </button>
-                        <button className={styles.btnSecondary} onClick={cancelQueueEdit}>
-                          Anuluj
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          className={styles.btnSuccess}
-                          onClick={() => approveQueueItem(item, item)}
-                          disabled={item.shift_slots?.is_full}
-                          title={
-                            item.shift_slots?.is_full
-                              ? `Zmiana ${item.shift_template_name || ''} jest już obsadzona`
-                              : undefined
-                          }
-                        >
-                          {item.shift_slots?.is_full ? 'Brak miejsc' : 'Zatwierdź'}
-                        </button>
-                        <button className={styles.btnSecondary} onClick={() => startQueueEdit(item)}>
-                          Edytuj godziny
-                        </button>
-                        <button
-                          className={styles.btnDanger}
-                          onClick={() => beginRejectWorkday(item)}
-                        >
-                          Odrzuć
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <ApprovalQueue
+          items={pendingQueue}
+          employees={employees}
+          taskTypes={taskTypes}
+          rejectionReasons={rejectionReasons}
+          onApprove={approveProposal}
+          onReject={rejectProposal}
+          onBulkApprove={bulkApproveProposals}
+        />
 
         <SwapQueue
           swaps={swapQueue}
@@ -1429,7 +1184,7 @@ const Manager = () => {
                   </select>
                   <input type="time" value={timeFrom} onChange={(e) => setTimeFrom(e.target.value)} />
                   <input type="time" value={timeTo} onChange={(e) => setTimeTo(e.target.value)} />
-                  {renderRoleSelect(selectedRoleId, (e) => setSelectedRoleId(e.target.value))}
+                  <RoleSelect taskTypes={taskTypes} value={selectedRoleId} onChange={setSelectedRoleId} />
                   <textarea
                     className={styles.noteInput}
                     rows={2}

@@ -156,6 +156,38 @@ test('approving a swap', async () => {
   await waitFor(() => expect(swapsApi.approveSwap).toHaveBeenCalledWith(20));
 });
 
+test('rejecting a swap with an own note', async () => {
+  swapsApi.rejectSwap.mockResolvedValue({});
+  await renderManager();
+  const queue = card('Zamiany do zatwierdzenia');
+
+  fireEvent.click(within(queue).getByRole('button', { name: 'Odrzuć' }));
+  fireEvent.click(within(queue).getByRole('button', { name: 'Dodaj uwagę' }));
+  fireEvent.change(within(queue).getByPlaceholderText(/Własna uwaga/), { target: { value: '  Brak zastępstwa  ' } });
+  fireEvent.click(within(queue).getByRole('button', { name: 'Potwierdź odrzucenie' }));
+
+  await waitFor(() => expect(swapsApi.rejectSwap).toHaveBeenCalledWith(20, { rejection_reason: 'Brak zastępstwa' }));
+  expect(await screen.findByText('Odrzucono zamianę zmiany z dnia 2030-01-08.')).toBeInTheDocument();
+});
+
+test('approving a proposal after editing its hours and role', async () => {
+  await renderManager();
+  const queue = card('Do akceptacji');
+
+  fireEvent.click(within(queue).getByRole('button', { name: 'Edytuj godziny' }));
+  const [start, end] = queue.querySelectorAll('input[type="time"]');
+  fireEvent.change(start, { target: { value: '09:30' } });
+  fireEvent.change(end, { target: { value: '15:00' } });
+  fireEvent.change(within(queue).getByRole('combobox'), { target: { value: '1' } });
+  fireEvent.click(within(queue).getByRole('button', { name: 'Zatwierdź' }));
+
+  await waitFor(() =>
+    expect(workdaysApi.approveWorkday).toHaveBeenCalledWith(10, {
+      start_time: '09:30:00', end_time: '15:00:00', role: 1,
+    }),
+  );
+});
+
 test('adding an employee', async () => {
   await renderManager();
   const accounts = card('Zarządzanie kontami');
