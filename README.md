@@ -1,5 +1,7 @@
 # ProstyGrafik
 
+[![CI](https://github.com/marcelwojdat/LighterSchedule/actions/workflows/ci.yml/badge.svg)](https://github.com/marcelwojdat/LighterSchedule/actions/workflows/ci.yml)
+
 Aplikacja webowa do układania grafiku pracy zmianowej dla małych firm. Pracownicy deklarują dyspozycyjność
 i wymieniają się zmianami, kierownik zatwierdza grafik, pilnuje obsady i pobiera raport wypłat.
 Wiele firm korzysta z jednej instancji, a dane każdej z nich są od siebie odizolowane.

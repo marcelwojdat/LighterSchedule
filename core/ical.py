@@ -78,7 +78,7 @@ def build_workdays_ics(workdays, calendar_name='ProstyGrafik'):
         end_dt = datetime.combine(workday.date, workday.end_time)
         summary = _ics_escape(workday_summary(workday))
         description = workday_description(workday)
-        uid = f'workday-{workday.id}@prostygrafik.pl'
+        uid = f'workday-{workday.id}@prostygrafik.com'
 
         lines.extend([
             'BEGIN:VEVENT',

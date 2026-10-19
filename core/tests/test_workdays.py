@@ -485,7 +485,7 @@ class CalendarExportTests(ScheduleTestCase):
         body = response.content.decode()
         self.assertIn('SUMMARY:Zmiana Poranna', body)
         self.assertIn('Notatka: Wyjdę o 13:00', body)
-        self.assertIn(f'UID:workday-{self.workday.id}@prostygrafik.pl', body)
+        self.assertIn(f'UID:workday-{self.workday.id}@prostygrafik.com', body)
 
     def test_export_skips_proposals_and_past_days(self):
         make_workday(self.employee, timezone.localdate() - timedelta(days=2))

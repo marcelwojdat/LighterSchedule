@@ -34,7 +34,7 @@ def send_notification_email(to_user, subject, body):
     if not email:
         return False
 
-    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', None) or 'noreply@prostygrafik.pl'
+    from_email = settings.DEFAULT_FROM_EMAIL
     try:
         send_mail(
             subject=subject,
