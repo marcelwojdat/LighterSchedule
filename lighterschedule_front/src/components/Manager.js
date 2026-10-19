@@ -7,6 +7,7 @@ import TeamStatsBar from './manager/TeamStatsBar';
 import CoverageLegend from './manager/CoverageLegend';
 import TeamWeekOverview from './manager/TeamWeekOverview';
 import ScheduleHolesCard from './manager/ScheduleHolesCard';
+import AccountsCard from './manager/AccountsCard';
 import { WORKDAY_STATUS_LABELS } from '../constants/statusLabels';
 import ApprovalQueue from './manager/ApprovalQueue';
 import RoleSelect from './manager/RoleSelect';
@@ -56,18 +57,6 @@ import { getDayShiftCoverage, monthBounds } from '../utils/shiftCoverage';
 import { formatDateStr, getMonday, getWeekDates, addDays, shiftMonth } from '../utils/dates';
 import { formatMonthYearPl } from '../utils/locale';
 
-const EMPTY_USER_FORM = {
-  username: '',
-  first_name: '',
-  last_name: '',
-  email: '',
-  password: '',
-  is_manager: false,
-  hourly_rate: '20',
-};
-
-const USERS_PREVIEW_COUNT = 5;
-
 const currentMonthValue = () => {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -101,10 +90,6 @@ const Manager = () => {
   const [showShiftTemplates, setShowShiftTemplates] = useState(false);
   const [declarationCloseWeekday, setDeclarationCloseWeekday] = useState('');
   const [declarationCloseTime, setDeclarationCloseTime] = useState('23:59');
-  const [showAddUserForm, setShowAddUserForm] = useState(false);
-  const [showAllUsers, setShowAllUsers] = useState(false);
-  const [moreOptionsUserId, setMoreOptionsUserId] = useState(null);
-  const [newUserForm, setNewUserForm] = useState(() => ({ ...EMPTY_USER_FORM }));
   const [copyBusy, setCopyBusy] = useState(false);
   const [holesDays, setHolesDays] = useState(7);
   const { darkMode, toggleTheme } = useTheme();
@@ -466,126 +451,46 @@ const Manager = () => {
     }
   };
 
-  const updateRate = async (employeeId, value) => {
-    if (value === '' || Number.isNaN(Number(value))) return;
-
+  const updateAccount = async (user, patch) => {
+    const isRate = 'hourly_rate' in patch;
     try {
-      const updated = await updateUserProfile(employeeId, { hourly_rate: value });
-      setAllUsers((prev) =>
-        prev.map((emp) => (emp.id === employeeId ? { ...emp, hourly_rate: updated.hourly_rate } : emp))
-      );
-      if (selectedEmployee?.id === employeeId) {
-        setSelectedEmployee((prev) => ({ ...prev, hourly_rate: updated.hourly_rate }));
+      const updated = await updateUserProfile(user.id, patch);
+      setAllUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, ...updated } : u)));
+      if (selectedEmployee?.id === user.id) {
+        // A manager or inactive account has no schedule to edit.
+        setSelectedEmployee(updated.is_manager || updated.is_active === false ? null : { ...selectedEmployee, ...updated });
       }
-      setSuccess('Stawka godzinowa zaktualizowana.');
+      setSuccess(isRate ? 'Stawka godzinowa zaktualizowana.' : 'Konto zaktualizowane.');
       setError('');
     } catch (e) {
-      setError(getErrorMessage(e, 'Nie udało się zaktualizować stawki'));
+      setError(getErrorMessage(e, isRate ? 'Nie udało się zaktualizować stawki' : 'Nie udało się zaktualizować konta.'));
     }
   };
 
-  const updateUserFlags = async (userId, patch) => {
+  /** Resolves to true on success, so the accounts card knows whether to close its form. */
+  const createAccount = async (payload) => {
     try {
-      const updated = await updateUserProfile(userId, patch);
-      setAllUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...updated } : u)));
-      if (selectedEmployee?.id === userId) {
-        if (updated.is_manager || updated.is_active === false) {
-          setSelectedEmployee(null);
-        } else {
-          setSelectedEmployee((prev) => ({ ...prev, ...updated }));
-        }
-      }
-      setSuccess('Konto zaktualizowane.');
+      await createUser(payload);
+      setSuccess(payload.is_manager ? 'Dodano kierownika.' : 'Dodano pracownika.');
       setError('');
       await reloadUsers();
-    } catch (e) {
-      setError(getErrorMessage(e, 'Nie udało się zaktualizować konta.'));
-    }
-  };
-
-  const handleCreateUser = async (e) => {
-    e.preventDefault();
-    const { username, first_name, last_name, email, password, is_manager, hourly_rate } = newUserForm;
-    if (!username.trim() || !first_name.trim() || !last_name.trim() || !email.trim() || !password) {
-      setError('Uzupełnij wszystkie pola formularza nowej osoby.');
-      return;
-    }
-    if (password.length < 8) {
-      setError('Hasło musi mieć co najmniej 8 znaków.');
-      return;
-    }
-
-    try {
-      await createUser({
-        username: username.trim(),
-        first_name: first_name.trim(),
-        last_name: last_name.trim(),
-        email: email.trim(),
-        password,
-        is_manager,
-        hourly_rate: hourly_rate === '' ? 0 : Number(hourly_rate),
-      });
-      setNewUserForm({ ...EMPTY_USER_FORM });
-      setShowAddUserForm(false);
-      setSuccess(is_manager ? 'Dodano kierownika.' : 'Dodano pracownika.');
-      setError('');
-      await reloadUsers();
+      return true;
     } catch (err) {
       setError(getErrorMessage(err, 'Nie udało się dodać użytkownika.'));
+      return false;
     }
   };
 
-  const cancelAddUserForm = () => {
-    setShowAddUserForm(false);
-    setNewUserForm({ ...EMPTY_USER_FORM });
-    setError('');
-  };
-
-  const deactivateUserAccount = async (user) => {
-    if (user.id === currentUser?.id) {
-      setError('Nie możesz dezaktywować własnego konta.');
-      return;
-    }
-    const label = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username;
-    if (!window.confirm(`Dezaktywować konto „${label}"? Osoba nie będzie mogła się logować, historia grafiku zostanie.`)) {
-      return;
-    }
+  const removeAccount = async (user, { permanent }) => {
+    const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username;
     try {
-      await deleteUser(user.id);
-      setSuccess(`Dezaktywowano konto „${label}".`);
+      await deleteUser(user.id, { permanent });
+      setSuccess(permanent ? `Usunięto konto „${name}".` : `Dezaktywowano konto „${name}".`);
       setError('');
-      if (selectedEmployee?.id === user.id) {
-        setSelectedEmployee(null);
-      }
+      if (selectedEmployee?.id === user.id) setSelectedEmployee(null);
       await reloadUsers();
     } catch (e) {
-      setError(getErrorMessage(e, 'Nie udało się dezaktywować konta.'));
-    }
-  };
-
-  const permanentlyDeleteUser = async (user) => {
-    if (user.id === currentUser?.id) {
-      setError('Nie możesz usunąć własnego konta.');
-      return;
-    }
-    const label = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username;
-    if (
-      !window.confirm(
-        `Trwale usunąć konto „${label}"?\n\nTo możliwe tylko bez historii grafiku/zamian. W przeciwnym razie użyj dezaktywacji.`
-      )
-    ) {
-      return;
-    }
-    try {
-      await deleteUser(user.id, { permanent: true });
-      setSuccess(`Usunięto konto „${label}".`);
-      setError('');
-      if (selectedEmployee?.id === user.id) {
-        setSelectedEmployee(null);
-      }
-      await reloadUsers();
-    } catch (e) {
-      setError(getErrorMessage(e, 'Nie udało się usunąć konta.'));
+      setError(getErrorMessage(e, permanent ? 'Nie udało się usunąć konta.' : 'Nie udało się dezaktywować konta.'));
     }
   };
 
@@ -874,212 +779,15 @@ const Manager = () => {
 
       <div className={styles.managerBody}>
         <div className={styles.leftCol}>
-          <div className={styles.sectionCard}>
-            <div className={styles.settingsToggleRow}>
-              <div>
-                <h3>Zarządzanie kontami</h3>
-                <p className={styles.statHint}>
-                  Lista kont zespołu — dodawaj pracowników i kierowników z panelu.
-                </p>
-              </div>
-              <button
-                type="button"
-                className={styles.btnPrimary}
-                onClick={() => {
-                  if (showAddUserForm) {
-                    cancelAddUserForm();
-                  } else {
-                    setShowAddUserForm(true);
-                  }
-                }}
-                aria-expanded={showAddUserForm}
-              >
-                {showAddUserForm ? 'Anuluj' : 'Dodaj pracownika'}
-              </button>
-            </div>
-
-            {showAddUserForm ? (
-              <form className={styles.userCreateForm} onSubmit={handleCreateUser}>
-                <div className={styles.userCreateGrid}>
-                  <input
-                    type="text"
-                    placeholder="Login"
-                    value={newUserForm.username}
-                    onChange={(e) => setNewUserForm((prev) => ({ ...prev, username: e.target.value }))}
-                    required
-                  />
-                  <input
-                    type="text"
-                    placeholder="Imię"
-                    value={newUserForm.first_name}
-                    onChange={(e) => setNewUserForm((prev) => ({ ...prev, first_name: e.target.value }))}
-                    required
-                  />
-                  <input
-                    type="text"
-                    placeholder="Nazwisko"
-                    value={newUserForm.last_name}
-                    onChange={(e) => setNewUserForm((prev) => ({ ...prev, last_name: e.target.value }))}
-                    required
-                  />
-                  <input
-                    type="email"
-                    placeholder="E-mail"
-                    value={newUserForm.email}
-                    onChange={(e) => setNewUserForm((prev) => ({ ...prev, email: e.target.value }))}
-                    required
-                  />
-                  <input
-                    type="password"
-                    placeholder="Hasło (min. 8 znaków)"
-                    value={newUserForm.password}
-                    onChange={(e) => setNewUserForm((prev) => ({ ...prev, password: e.target.value }))}
-                    minLength={8}
-                    required
-                  />
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="Stawka zł/h"
-                    value={newUserForm.hourly_rate}
-                    onChange={(e) => setNewUserForm((prev) => ({ ...prev, hourly_rate: e.target.value }))}
-                  />
-                </div>
-                <label className="checkboxRow">
-                  <input
-                    type="checkbox"
-                    checked={newUserForm.is_manager}
-                    onChange={(e) => setNewUserForm((prev) => ({ ...prev, is_manager: e.target.checked }))}
-                  />
-                  Konto kierownika
-                </label>
-                <div className={styles.queueActions}>
-                  <button type="submit" className={styles.btnPrimary}>
-                    Dodaj osobę
-                  </button>
-                  <button type="button" className={styles.btnSecondary} onClick={cancelAddUserForm}>
-                    Anuluj
-                  </button>
-                </div>
-              </form>
-            ) : null}
-
-            <div className={styles.tableWrap}>
-              <table className={styles.empTable}>
-                <thead>
-                  <tr>
-                    <th>Osoba</th>
-                    <th>Rola</th>
-                    <th>Stawka</th>
-                    <th>Aktywne</th>
-                    <th>Grafik</th>
-                    <th>Akcje</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(showAllUsers ? allUsers : allUsers.slice(0, USERS_PREVIEW_COUNT)).map((user) => (
-                    <tr key={user.id} className={user.is_active === false ? styles.inactiveRow : undefined}>
-                      <td>
-                        <div className={styles.empName}>
-                          {user.first_name} {user.last_name}
-                        </div>
-                        <small>{user.username}</small>
-                      </td>
-                      <td>
-                        <select
-                          value={user.is_manager ? 'manager' : 'employee'}
-                          onChange={(e) =>
-                            updateUserFlags(user.id, { is_manager: e.target.value === 'manager' })
-                          }
-                          disabled={user.id === currentUser?.id}
-                        >
-                          <option value="employee">Pracownik</option>
-                          <option value="manager">Kierownik</option>
-                        </select>
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          step="0.01"
-                          defaultValue={user.hourly_rate ?? ''}
-                          key={`rate-${user.id}-${user.hourly_rate}`}
-                          onBlur={(e) => updateRate(user.id, e.target.value)}
-                        />
-                      </td>
-                      <td className={styles.empActiveCell}>
-                        <input
-                          type="checkbox"
-                          checked={user.is_active !== false}
-                          disabled={user.id === currentUser?.id}
-                          onChange={(e) => updateUserFlags(user.id, { is_active: e.target.checked })}
-                          aria-label={`Aktywne: ${user.username}`}
-                        />
-                      </td>
-                      <td>
-                        {!user.is_manager && user.is_active !== false ? (
-                          <button type="button" className={styles.btnPrimary} onClick={() => openManage(user)}>
-                            Grafik
-                          </button>
-                        ) : (
-                          <span>—</span>
-                        )}
-                      </td>
-                      <td>
-                        {user.id === currentUser?.id ? (
-                          <span>—</span>
-                        ) : (
-                          <div className={styles.empActions}>
-                            <button
-                              type="button"
-                              className={styles.btnSecondary}
-                              onClick={() =>
-                                setMoreOptionsUserId((prev) => (prev === user.id ? null : user.id))
-                              }
-                              aria-expanded={moreOptionsUserId === user.id}
-                            >
-                              {moreOptionsUserId === user.id ? 'Ukryj opcje' : 'Więcej opcji'}
-                            </button>
-                            {moreOptionsUserId === user.id ? (
-                              <div className={styles.empMoreOptions}>
-                                {user.is_active !== false ? (
-                                  <button
-                                    type="button"
-                                    className={styles.btnSecondary}
-                                    onClick={() => deactivateUserAccount(user)}
-                                  >
-                                    Dezaktywuj
-                                  </button>
-                                ) : null}
-                                <button
-                                  type="button"
-                                  className={styles.btnDanger}
-                                  onClick={() => permanentlyDeleteUser(user)}
-                                >
-                                  Usuń
-                                </button>
-                              </div>
-                            ) : null}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {allUsers.length > USERS_PREVIEW_COUNT ? (
-              <button
-                type="button"
-                className={`${styles.btnSecondary} ${styles.usersExpandBtn}`}
-                onClick={() => setShowAllUsers((prev) => !prev)}
-                aria-expanded={showAllUsers}
-              >
-                {showAllUsers
-                  ? 'Zwiń listę'
-                  : `Pokaż wszystkich (${allUsers.length})`}
-              </button>
-            ) : null}
-          </div>
+          <AccountsCard
+            users={allUsers}
+            currentUserId={currentUser?.id}
+            onCreate={createAccount}
+            onUpdate={updateAccount}
+            onRemove={removeAccount}
+            onOpenSchedule={openManage}
+            onError={setError}
+          />
         </div>
 
         <div className={styles.rightCol}>

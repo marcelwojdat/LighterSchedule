@@ -210,6 +210,32 @@ test('adding an employee', async () => {
   );
 });
 
+test('changing an hourly rate saves it on blur', async () => {
+  usersApi.updateUserProfile.mockResolvedValue({ ...EMPLOYEE, hourly_rate: '25.00' });
+  await renderManager();
+  const row = within(card('Zarządzanie kontami')).getByText('anna').closest('tr');
+
+  const rate = within(row).getByRole('spinbutton');
+  fireEvent.change(rate, { target: { value: '25' } });
+  fireEvent.blur(rate);
+
+  await waitFor(() => expect(usersApi.updateUserProfile).toHaveBeenCalledWith(2, { hourly_rate: '25' }));
+  expect(await screen.findByText('Stawka godzinowa zaktualizowana.')).toBeInTheDocument();
+});
+
+test('deactivating an account after confirmation', async () => {
+  usersApi.deleteUser.mockResolvedValue({});
+  await renderManager();
+  const row = within(card('Zarządzanie kontami')).getByText('anna').closest('tr');
+
+  fireEvent.click(within(row).getByRole('button', { name: 'Więcej opcji' }));
+  fireEvent.click(within(row).getByRole('button', { name: 'Dezaktywuj' }));
+
+  expect(window.confirm).toHaveBeenCalled();
+  await waitFor(() => expect(usersApi.deleteUser).toHaveBeenCalledWith(2, { permanent: false }));
+  expect(await screen.findByText('Dezaktywowano konto „Anna Nowak".')).toBeInTheDocument();
+});
+
 test('switching schedule holes to 14 days refetches them', async () => {
   await renderManager();
 
