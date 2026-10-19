@@ -4,6 +4,8 @@ import 'react-calendar/dist/Calendar.css';
 import Auth from './Auth';
 import UserMenu from './UserMenu';
 import TeamStatsBar from './manager/TeamStatsBar';
+import CoverageLegend from './manager/CoverageLegend';
+import TeamWeekOverview from './manager/TeamWeekOverview';
 import ScheduleHolesCard from './manager/ScheduleHolesCard';
 import { SWAP_STATUS_LABELS, WORKDAY_STATUS_LABELS } from '../constants/statusLabels';
 import styles from './Manager.module.css';
@@ -50,8 +52,6 @@ import {
 import { getDayShiftCoverage, monthBounds } from '../utils/shiftCoverage';
 import { formatDateStr, getMonday, getWeekDates, addDays, shiftMonth } from '../utils/dates';
 import { formatMonthYearPl } from '../utils/locale';
-
-const DAY_LABELS = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Ndz'];
 
 const EMPTY_USER_FORM = {
   username: '',
@@ -905,48 +905,7 @@ const Manager = () => {
     return item.employee_name;
   };
 
-  const getEmployeeDisplayName = (employee) =>
-    `${employee.first_name || ''} ${employee.last_name || ''}`.trim() || employee.username;
-
-  const getShiftsForCell = (employeeId, dateStr) =>
-    teamWorkdays.filter((day) => day.employee === employeeId && day.date === dateStr);
-
-  const getCoverageForDate = (dateStr, approvedSource = coverageWorkdays) =>
-    getDayShiftCoverage(dateStr, shiftTemplates, approvedSource);
-
-  const coverageClass = (status, closedCls, openCls, noneCls) => {
-    if (status === 'closed') return closedCls;
-    if (status === 'open') return openCls;
-    return noneCls;
-  };
-
-  const renderCoverageLegend = (extraClass = '') => (
-    <div className={`${styles.coverageLegend} ${extraClass}`.trim()}>
-      <div className={styles.legendItem}>
-        <span className={`${styles.legendDot} ${styles.legendCoverageClosed}`} />
-        Dzień zamknięty (pełne obsadzenie)
-      </div>
-      <div className={styles.legendItem}>
-        <span className={`${styles.legendDot} ${styles.legendCoverageOpen}`} />
-        Dzień otwarty (brakuje osób)
-      </div>
-      <div className={styles.legendItem}>
-        <span className={`${styles.legendDot} ${styles.legendCoverageNone}`} />
-        Brak szablonów na ten dzień
-      </div>
-    </div>
-  );
-
-  const coverageSlotSummary = (coverage) => {
-    if (!coverage?.slots?.length) return '';
-    const filled = coverage.slots.reduce((sum, slot) => sum + slot.filled, 0);
-    const max = coverage.slots.reduce((sum, slot) => sum + slot.max, 0);
-    return `${filled}/${max}`;
-  };
-
-  const changeWeek = (offset) => {
-    setWeekStart(addDays(weekStart, offset * 7));
-  };
+  const getCoverageForDate = (dateStr) => getDayShiftCoverage(dateStr, shiftTemplates, coverageWorkdays);
 
   const handleCopySchedule = async (mode) => {
     if (!selectedEmployee) return;
@@ -1044,104 +1003,13 @@ const Manager = () => {
         swapCount={swapQueue.length}
       />
 
-      <section className={styles.teamOverviewSection}>
-        <div className={styles.teamOverviewHeader}>
-          <div>
-            <h3>Widok zbiorczy zespołu</h3>
-            <p className={styles.teamOverviewHint}>Zatwierdzone zmiany — tydzień od {weekDates[0]} do {weekDates[6]}</p>
-          </div>
-          <div className={styles.weekNav}>
-            <button type="button" className={styles.btnSecondary} onClick={() => changeWeek(-1)}>
-              Poprzedni tydzień
-            </button>
-            <button type="button" className={styles.btnSecondary} onClick={() => setWeekStart(formatDateStr(getMonday()))}>
-              Bieżący tydzień
-            </button>
-            <button type="button" className={styles.btnSecondary} onClick={() => changeWeek(1)}>
-              Następny tydzień
-            </button>
-          </div>
-        </div>
-        {renderCoverageLegend()}
-        <div className={styles.teamTableWrap}>
-          <table className={styles.teamTable}>
-            <thead>
-              <tr>
-                <th>Pracownik</th>
-                {weekDates.map((dateStr, index) => {
-                  const coverage = getCoverageForDate(dateStr, teamWorkdays);
-                  const summary = coverageSlotSummary(coverage);
-                  return (
-                    <th
-                      key={dateStr}
-                      className={`${styles.teamDayHeader} ${coverageClass(
-                        coverage.status,
-                        styles.teamDayHeaderClosed,
-                        styles.teamDayHeaderOpen,
-                        styles.teamDayHeaderNone
-                      )}`}
-                      title={coverage.tooltip || undefined}
-                    >
-                      <div>{DAY_LABELS[index]}</div>
-                      <small>{dateStr.slice(5)}</small>
-                      {summary ? <div className={styles.teamDayHeaderMeta}>{summary}</div> : null}
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {employees.map((employee) => (
-                <tr key={employee.id}>
-                  <th className={styles.teamEmployeeCell}>{getEmployeeDisplayName(employee)}</th>
-                  {weekDates.map((dateStr) => {
-                    const shifts = getShiftsForCell(employee.id, dateStr);
-                    const coverage = getCoverageForDate(dateStr, teamWorkdays);
-                    return (
-                      <td
-                        key={`${employee.id}-${dateStr}`}
-                        className={`${styles.teamDayCell} ${coverageClass(
-                          coverage.status,
-                          styles.teamDayCellClosed,
-                          styles.teamDayCellOpen,
-                          styles.teamDayCellNone
-                        )}`}
-                        title={coverage.tooltip || undefined}
-                      >
-                        {shifts.length === 0 ? (
-                          <span className={styles.teamEmptyCell}>—</span>
-                        ) : (
-                          shifts.map((shift) => {
-                            const slot = coverage.slots.find(
-                              (item) => Number(item.id) === Number(shift.shift_template)
-                            );
-                            const incomplete = slot && !slot.isFull;
-                            return (
-                              <div
-                                key={shift.id}
-                                className={`${styles.teamShift} ${incomplete ? styles.teamShiftIncomplete : ''}`}
-                              >
-                                <div>
-                                  {shift.start_time.slice(0, 5)}-{shift.end_time.slice(0, 5)}
-                                </div>
-                                {shift.shift_template_name ? (
-                                  <small>{shift.shift_template_name}</small>
-                                ) : null}
-                                {shift.role_name ? <small>{shift.role_name}</small> : null}
-                                {incomplete ? <span className={styles.teamShiftDot} aria-hidden="true" /> : null}
-                              </div>
-                            );
-                          })
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <TeamWeekOverview
+        weekStart={weekStart}
+        onWeekChange={setWeekStart}
+        employees={employees}
+        workdays={teamWorkdays}
+        shiftTemplates={shiftTemplates}
+      />
 
       <ScheduleHolesCard holes={scheduleHoles} days={holesDays} onDaysChange={setHolesDays} />
 
@@ -1609,7 +1477,7 @@ const Manager = () => {
                     }}
                   />
                 </div>
-                {renderCoverageLegend()}
+                <CoverageLegend />
                 <div className={styles.statusLegend}>
                   <div className={styles.legendItem}>
                     <span className={`${styles.legendDot} ${styles.legendProposed}`} />
