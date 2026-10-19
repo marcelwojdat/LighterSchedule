@@ -2,12 +2,12 @@ import React, { useEffect, useState } from 'react';
 import RejectionReasonPicker from './RejectionReasonPicker';
 import RoleSelect from './RoleSelect';
 import styles from '../Manager.module.css';
+import { displayName } from '../../utils/people';
 import { toApiTime } from '../../utils/time';
 
 const employeeName = (item, employees) => {
   const employee = employees.find((candidate) => candidate.id === item.employee);
-  if (!employee) return item.employee_name;
-  return `${employee.first_name} ${employee.last_name}`.trim() || employee.username;
+  return employee ? displayName(employee) : item.employee_name;
 };
 
 const fullShiftTitle = (item) =>

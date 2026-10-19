@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import CoverageLegend from './CoverageLegend';
 import styles from '../Manager.module.css';
 import { addDays, formatDateStr, getMonday, getWeekDates } from '../../utils/dates';
+import { displayName } from '../../utils/people';
 import { getDayShiftCoverage } from '../../utils/shiftCoverage';
 import { WEEKDAY_SHORT } from '../../utils/time';
 
@@ -15,9 +16,6 @@ const CELL_CLASS = {
   open: styles.teamDayCellOpen,
   none: styles.teamDayCellNone,
 };
-
-const displayName = (employee) =>
-  `${employee.first_name || ''} ${employee.last_name || ''}`.trim() || employee.username;
 
 /** "filled/max" across all shifts of the day, e.g. "3/4"; empty when the day has no shifts. */
 const slotSummary = (coverage) => {

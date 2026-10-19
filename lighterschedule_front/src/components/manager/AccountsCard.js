@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import AddUserForm from './AddUserForm';
 import styles from '../Manager.module.css';
+import { displayName } from '../../utils/people';
 
 const PREVIEW_COUNT = 5;
-
-const fullName = (user) => `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username;
 
 const REMOVE_CONFIRM = {
   deactivate: (name) => `Dezaktywować konto „${name}"? Osoba nie będzie mogła się logować, historia grafiku zostanie.`,
@@ -36,7 +35,7 @@ const AccountsCard = ({
   };
 
   const remove = (user, permanent) => {
-    const confirmText = REMOVE_CONFIRM[permanent ? 'delete' : 'deactivate'](fullName(user));
+    const confirmText = REMOVE_CONFIRM[permanent ? 'delete' : 'deactivate'](displayName(user));
     if (window.confirm(confirmText)) onRemove(user, { permanent });
   };
 
