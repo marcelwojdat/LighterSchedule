@@ -7,7 +7,9 @@ import TeamStatsBar from './manager/TeamStatsBar';
 import CoverageLegend from './manager/CoverageLegend';
 import TeamWeekOverview from './manager/TeamWeekOverview';
 import ScheduleHolesCard from './manager/ScheduleHolesCard';
-import { SWAP_STATUS_LABELS, WORKDAY_STATUS_LABELS } from '../constants/statusLabels';
+import { WORKDAY_STATUS_LABELS } from '../constants/statusLabels';
+import RejectionReasonPicker from './manager/RejectionReasonPicker';
+import SwapQueue from './manager/SwapQueue';
 import styles from './Manager.module.css';
 import { getErrorMessage } from '../api/client';
 import { getUsers, createUser, updateUserProfile, deleteUser } from '../api/users';
@@ -95,8 +97,6 @@ const Manager = () => {
   const [editingQueueId, setEditingQueueId] = useState(null);
   const [queueEditTimes, setQueueEditTimes] = useState({ start: '12:00', end: '20:00' });
   const [rejectingId, setRejectingId] = useState(null);
-  const [rejectingSwapId, setRejectingSwapId] = useState(null);
-  const [showRejectNote, setShowRejectNote] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -707,33 +707,19 @@ const Manager = () => {
     });
     setQueueEditRole(item.role ? String(item.role) : '');
     setRejectingId(null);
-    setRejectingSwapId(null);
-    setShowRejectNote(false);
     setRejectionReason('');
     setError('');
   };
 
   const beginRejectWorkday = (item) => {
     setRejectingId(item.id);
-    setRejectingSwapId(null);
     setEditingQueueId(null);
-    setShowRejectNote(false);
-    setRejectionReason('');
-  };
-
-  const beginRejectSwap = (swap) => {
-    setRejectingSwapId(swap.id);
-    setRejectingId(null);
-    setEditingQueueId(null);
-    setShowRejectNote(false);
     setRejectionReason('');
   };
 
   const cancelQueueEdit = () => {
     setEditingQueueId(null);
     setRejectingId(null);
-    setRejectingSwapId(null);
-    setShowRejectNote(false);
     setRejectionReason('');
     setQueueEditRole('');
   };
@@ -801,59 +787,6 @@ const Manager = () => {
     }
   };
 
-  const pickRejectionReason = (text) => {
-    setShowRejectNote(true);
-    setRejectionReason(text);
-  };
-
-  const renderRejectionReasonPicker = () => (
-    <div className={styles.rejectReasonBlock}>
-      {rejectionReasons.length ? (
-        <label className={styles.rejectReasonSelectLabel}>
-          Gotowy powód
-          <select
-            className={styles.rejectReasonSelect}
-            value={rejectionReasons.some((r) => r.text === rejectionReason) ? rejectionReason : ''}
-            onChange={(e) => {
-              const value = e.target.value;
-              if (value) {
-                pickRejectionReason(value);
-              } else {
-                setRejectionReason('');
-              }
-            }}
-            aria-label="Gotowy powód odrzucenia"
-          >
-            <option value="">Wybierz (opcjonalnie)</option>
-            {rejectionReasons.map((reason) => (
-              <option key={reason.id} value={reason.text}>
-                {reason.text}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
-      {showRejectNote ? (
-        <input
-          className={styles.rejectionInput}
-          type="text"
-          placeholder="Własna uwaga dla pracownika (opcjonalnie)"
-          value={rejectionReason}
-          onChange={(e) => setRejectionReason(e.target.value)}
-          maxLength={255}
-        />
-      ) : (
-        <button
-          type="button"
-          className={styles.btnLink}
-          onClick={() => setShowRejectNote(true)}
-        >
-          Dodaj uwagę
-        </button>
-      )}
-    </div>
-  );
-
   const rejectQueueItem = async (item) => {
     try {
       const reason = rejectionReason.trim();
@@ -873,25 +806,23 @@ const Manager = () => {
       await approveSwapRequest(swap.id);
       setSuccess(`Zatwierdzono zamianę zmiany z dnia ${swap.work_day_details?.date}.`);
       setError('');
-      setRejectingSwapId(null);
-      setShowRejectNote(false);
-      setRejectionReason('');
       await refreshData();
     } catch (e) {
       setError(getErrorMessage(e, 'Nie udało się zatwierdzić zamiany.'));
     }
   };
 
-  const rejectSwap = async (swap) => {
+  /** Resolves to true on success, so the queue knows whether to close its form. */
+  const rejectSwap = async (swap, reason) => {
     try {
-      const reason = rejectionReason.trim();
       await rejectSwapRequest(swap.id, reason ? { rejection_reason: reason } : {});
       setSuccess(`Odrzucono zamianę zmiany z dnia ${swap.work_day_details?.date}.`);
       setError('');
-      cancelQueueEdit();
       await refreshData();
+      return true;
     } catch (e) {
       setError(getErrorMessage(e, 'Nie udało się odrzucić zamiany.'));
+      return false;
     }
   };
 
@@ -1111,7 +1042,13 @@ const Manager = () => {
                         : ''}
                     </div>
                   ) : null}
-                  {rejectingId === item.id ? renderRejectionReasonPicker() : null}
+                  {rejectingId === item.id ? (
+                    <RejectionReasonPicker
+                      reasons={rejectionReasons}
+                      value={rejectionReason}
+                      onChange={setRejectionReason}
+                    />
+                  ) : null}
                   <div className={styles.queueActions}>
                     {rejectingId === item.id ? (
                       <>
@@ -1172,64 +1109,12 @@ const Manager = () => {
           )}
         </div>
 
-        <div className={styles.sectionCard}>
-          <div className={styles.sectionHeader}>
-            <h3>Zamiany do zatwierdzenia</h3>
-            <span className={styles.queueBadge}>{swapQueue.length}</span>
-          </div>
-          {swapQueue.length === 0 ? (
-            <p className={styles.emptyQueue}>Brak zamian oczekujących na zatwierdzenie.</p>
-          ) : (
-            <div className={styles.queueList}>
-              {swapQueue.map((swap) => (
-                <div key={swap.id} className={styles.swapQueueItem}>
-                  <div className={styles.queueItemHeader}>
-                    <strong>{swap.work_day_details?.date}</strong>
-                    <span>{SWAP_STATUS_LABELS[swap.status]}</span>
-                  </div>
-                  <div className={styles.queueHours}>
-                    {swap.work_day_details?.start_time?.slice(0, 5)} - {swap.work_day_details?.end_time?.slice(0, 5)}
-                    {swap.is_two_way ? ' · dwustronna' : ' · przekazanie'}
-                  </div>
-                  <div className={styles.swapTransfer}>
-                    <span>{swap.requested_by_name}</span>
-                    <span>{swap.is_two_way ? '⇄' : '→'}</span>
-                    <span>{swap.target_user_name}</span>
-                  </div>
-                  {swap.target_work_day_details ? (
-                    <div className={styles.queueHours}>
-                      Za: {swap.target_work_day_details.date}{' '}
-                      ({swap.target_work_day_details.start_time?.slice(0, 5)} -{' '}
-                      {swap.target_work_day_details.end_time?.slice(0, 5)})
-                    </div>
-                  ) : null}
-                  {rejectingSwapId === swap.id ? renderRejectionReasonPicker() : null}
-                  <div className={styles.queueActions}>
-                    {rejectingSwapId === swap.id ? (
-                      <>
-                        <button className={styles.btnDanger} onClick={() => rejectSwap(swap)}>
-                          Potwierdź odrzucenie
-                        </button>
-                        <button className={styles.btnSecondary} onClick={cancelQueueEdit}>
-                          Anuluj
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button className={styles.btnSuccess} onClick={() => approveSwap(swap)}>
-                          Zatwierdź zamianę
-                        </button>
-                        <button className={styles.btnDanger} onClick={() => beginRejectSwap(swap)}>
-                          Odrzuć
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <SwapQueue
+          swaps={swapQueue}
+          rejectionReasons={rejectionReasons}
+          onApprove={approveSwap}
+          onReject={rejectSwap}
+        />
       </div>
 
       <div className={styles.managerBody}>
