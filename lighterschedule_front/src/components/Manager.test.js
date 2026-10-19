@@ -21,7 +21,16 @@ import * as notificationsApi from '../api/notifications';
 import * as rejectionReasonsApi from '../api/rejectionReasons';
 
 // react-calendar ships ESM only (not transpiled by CRA's Jest); this test covers the panel, not the calendar.
-jest.mock('react-calendar', () => () => <div data-testid="calendar" />);
+// The stub offers one clickable day and renders that day's tile, so tile callbacks run too.
+const mockCalendarDay = new Date(2030, 0, 10);
+jest.mock('react-calendar', () => ({ onChange, tileClassName, tileContent }) => (
+  <div data-testid="calendar" className={tileClassName?.({ date: mockCalendarDay, view: 'month' }) || ''}>
+    <button type="button" onClick={() => onChange(mockCalendarDay)}>
+      Wybierz 2030-01-10
+    </button>
+    {tileContent?.({ date: mockCalendarDay, view: 'month' })}
+  </div>
+));
 jest.mock('react-calendar/dist/Calendar.css', () => ({}));
 jest.mock('./Auth', () => ({
   __esModule: true,
@@ -64,14 +73,18 @@ const HOLES = {
 
 const card = (heading) => screen.getByRole('heading', { name: heading }).closest('.sectionCard');
 
+let employeeDays = []; // schedule of the employee opened in the editor
+
 beforeEach(() => {
+  employeeDays = [];
   jest.spyOn(window, 'confirm').mockReturnValue(true);
   Auth.fetchCurrentUser.mockResolvedValue(MANAGER);
   usersApi.getUsers.mockResolvedValue([MANAGER, EMPLOYEE]);
   usersApi.createUser.mockResolvedValue({});
-  workdaysApi.getWorkdays.mockImplementation((params = {}) =>
-    Promise.resolve(params.status === 'proposed' ? [PROPOSAL] : []),
-  );
+  workdaysApi.getWorkdays.mockImplementation((params = {}) => {
+    if (params.employee) return Promise.resolve(employeeDays);
+    return Promise.resolve(params.status === 'proposed' ? [PROPOSAL] : []);
+  });
   workdaysApi.approveWorkday.mockResolvedValue({});
   workdaysApi.rejectWorkday.mockResolvedValue({});
   workdaysApi.bulkApproveWorkdays.mockResolvedValue({ approved_count: 1, skipped_count: 0 });
@@ -256,4 +269,74 @@ test('saving the weekly declaration deadline', async () => {
     }),
   );
   expect(await screen.findByText(/sobota 23:59/)).toBeInTheDocument();
+});
+
+describe('employee schedule editor', () => {
+  const openSchedule = async () => {
+    await renderManager();
+    const row = within(card('Zarządzanie kontami')).getByText('anna').closest('tr');
+    fireEvent.click(within(row).getByRole('button', { name: 'Grafik' }));
+    await waitFor(() => expect(workdaysApi.getWorkdays).toHaveBeenCalledWith({ employee: 2 }));
+    return card('Szczegóły pracownika');
+  };
+
+  const pickDayAndAdd = (editor, times) => {
+    fireEvent.click(within(editor).getByRole('button', { name: 'Wybierz 2030-01-10' }));
+    if (times) {
+      const [from, to] = editor.querySelectorAll('input[type="time"]');
+      fireEvent.change(from, { target: { value: times[0] } });
+      fireEvent.change(to, { target: { value: times[1] } });
+    }
+    fireEvent.click(within(editor).getByRole('button', { name: 'Dodaj zmianę' }));
+  };
+
+  test('a new day is created when saved', async () => {
+    workdaysApi.createWorkday.mockResolvedValue({ status: 201 });
+    const editor = await openSchedule();
+
+    pickDayAndAdd(editor, ['07:00', '15:00']);
+    expect(within(editor).getByText('Wybrany dzień: 2030-01-10')).toBeInTheDocument();
+    expect(await screen.findByText('Zmiana dodana do zapisu.')).toBeInTheDocument();
+    fireEvent.click(within(editor).getByRole('button', { name: 'Zapisz zmiany' }));
+
+    await waitFor(() =>
+      expect(workdaysApi.createWorkday).toHaveBeenCalledWith({
+        date: '2030-01-10', start_time: '07:00:00', end_time: '15:00:00', employee: 2, note: '',
+      }),
+    );
+    expect(await screen.findByText('Grafik pracownika zapisany.')).toBeInTheDocument();
+  });
+
+  test('saving over a pending proposal approves it with the existing hours', async () => {
+    employeeDays = [{
+      id: 30, employee: 2, date: '2030-01-10', start_time: '10:00:00', end_time: '18:00:00',
+      status: 'proposed', role: null, role_name: null, note: '', shift_template: null,
+    }];
+    const editor = await openSchedule();
+    expect(await within(editor).findByText(/2030-01-10 — 10:00 - 18:00/)).toBeInTheDocument();
+
+    pickDayAndAdd(editor);
+    fireEvent.click(within(editor).getByRole('button', { name: 'Zapisz zmiany' }));
+
+    await waitFor(() =>
+      expect(workdaysApi.approveWorkday).toHaveBeenCalledWith(30, {
+        date: '2030-01-10', start_time: '10:00:00', end_time: '18:00:00', employee: 2, note: '',
+      }),
+    );
+    expect(workdaysApi.createWorkday).not.toHaveBeenCalled();
+  });
+
+  test('copying the previous week', async () => {
+    workdaysApi.copyWorkdays.mockResolvedValue({ created_count: 2, skipped_count: 0, updated_count: 0 });
+    const editor = await openSchedule();
+
+    fireEvent.click(within(editor).getByRole('button', { name: 'Kopiuj poprzedni tydzień' }));
+
+    await waitFor(() =>
+      expect(workdaysApi.copyWorkdays).toHaveBeenCalledWith(
+        expect.objectContaining({ mode: 'week', employee: 2, on_conflict: 'skip' }),
+      ),
+    );
+    expect(await screen.findByText('Skopiowano poprzedni tydzień: dodano 2.')).toBeInTheDocument();
+  });
 });
