@@ -45,7 +45,7 @@ flowchart LR
 | Modele | `core/models.py` |
 | Izolacja firm | `core/tenancy.py` |
 | Walidacja i reguły biznesowe | `core/serializers.py` |
-| Endpointy API | `core/views.py`, `lighterschedule_backend/urls.py` |
+| Endpointy API | `core/views/`, `lighterschedule_backend/urls.py` |
 | Logika pomocnicza | `core/utils.py` (braki obsady, termin deklaracji), `core/schedule_copy.py`, `core/ical.py` |
 | Frontend | `lighterschedule_front/src/` (panel kierownika: `components/Manager.js`, pracownika: `components/Dashboard.js`) |
 
@@ -197,7 +197,8 @@ przyjmuje bieżący czas jako argument, dzięki czemu testuje się ją bez podmi
 
 ```
 ├── core/
-│   ├── models.py, serializers.py, views.py
+│   ├── models.py, serializers.py
+│   ├── views/                # endpointy API, moduł na obszar (accounts, users, workdays, swaps, …)
 │   ├── tenancy.py            # izolacja danych między firmami
 │   ├── utils.py, schedule_copy.py, ical.py, email_notify.py, approval.py, pdf_fonts.py
 │   ├── migrations/
