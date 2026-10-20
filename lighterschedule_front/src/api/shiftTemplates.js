@@ -10,4 +10,4 @@ export const updateShiftTemplate = (id, data) =>
   apiClient.put(`/shift-templates/${id}/`, data).then((response) => response.data);
 
 export const deleteShiftTemplate = (id) =>
-  apiClient.delete(`/shift-templates/${id}/`);
+  apiClient.delete(`/shift-templates/${id}/`).then((response) => response.data);

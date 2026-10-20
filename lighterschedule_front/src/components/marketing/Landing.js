@@ -76,8 +76,8 @@ const Landing = () => (
           niedomówień.
         </p>
         <div className={styles.heroCtas}>
-          <Link to="/pricing" className={styles.btnPrimary}>
-            Zobacz plany
+          <Link to="/register" className={styles.btnPrimary}>
+            Załóż konto firmy
           </Link>
           <Link to="/login" className={styles.btnGhost}>
             Zaloguj
@@ -199,8 +199,8 @@ const Landing = () => (
           </div>
         </div>
         <div className={styles.compareCta}>
-          <Link to="/pricing" className={styles.btnPrimary}>
-            Zobacz plany
+          <Link to="/register" className={styles.btnPrimary}>
+            Załóż konto firmy
           </Link>
         </div>
       </div>

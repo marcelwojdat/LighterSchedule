@@ -34,7 +34,7 @@ def send_notification_email(to_user, subject, body):
     if not email:
         return False
 
-    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', None) or 'noreply@prostygrafik.pl'
+    from_email = settings.DEFAULT_FROM_EMAIL
     try:
         send_mail(
             subject=subject,
@@ -49,11 +49,12 @@ def send_notification_email(to_user, subject, body):
         return False
 
 
-def active_managers():
+def active_managers(organization):
     return User.objects.filter(
         is_active=True,
+        profile__organization=organization,
         profile__is_manager=True,
-    ).exclude(email='').distinct()
+    ).exclude(email='')
 
 
 def notify_workday_approved(workday):
@@ -121,7 +122,7 @@ def notify_swap_accepted_by_target(swap):
         f'({_fmt_hours(day)}) czeka na zatwierdzenie.\n\n'
         f'— ProstyGrafik\n'
     )
-    for manager in active_managers():
+    for manager in active_managers(swap.requested_by.profile.organization):
         if send_notification_email(manager, subject_mgr, body_mgr):
             sent += 1
     return sent

@@ -44,17 +44,11 @@ const PublicLayout = () => {
             </NavLink>
             <a href="/#jak-dziala">Jak działa</a>
             <a href="/#funkcje">Funkcje</a>
-            <NavLink
-              to="/pricing"
-              className={({ isActive }) => (isActive ? styles.navActive : undefined)}
-            >
-              Cennik
-            </NavLink>
             <NavLink to="/login" className={({ isActive }) => (isActive ? styles.navActive : undefined)}>
               Zaloguj
             </NavLink>
-            <Link to="/pricing" className={styles.navCta}>
-              Wypróbuj
+            <Link to="/register" className={styles.navCta}>
+              Załóż konto firmy
             </Link>
             <button
               type="button"
@@ -79,11 +73,11 @@ const PublicLayout = () => {
             <p>Grafik zmianowy bez Excela i chaosu w wiadomościach.</p>
           </div>
           <div className={styles.footerLinks}>
-            <Link to="/pricing">Cennik</Link>
+            <Link to="/register">Załóż konto firmy</Link>
             <Link to="/login">Logowanie</Link>
             <Link to="/terms">Regulamin</Link>
             <Link to="/privacy">Prywatność</Link>
-            <a href="mailto:kontakt@prostygrafik.pl">Kontakt</a>
+            <a href="mailto:kontakt@prostygrafik.com">Kontakt</a>
           </div>
           <p className={styles.copyright}>
             © {new Date().getFullYear()} ProstyGrafik. Wszelkie prawa zastrzeżone.

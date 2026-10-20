@@ -23,7 +23,7 @@ cp .env.example .env
 
 python manage.py migrate
 python manage.py collectstatic --noinput
-python manage.py createsuperuser   # jednorazowo: potem is_manager=True w adminie / shellu
+python manage.py createsuperuser   # opcjonalnie: dostęp do panelu /admin
 ```
 
 ### 2a. Przykładowe `.env` produkcyjne
@@ -43,17 +43,12 @@ DB_PORT=5432
 CORS_ALLOWED_ORIGINS=https://twoja-domena.pl,https://www.twoja-domena.pl
 CSRF_TRUSTED_ORIGINS=https://twoja-domena.pl,https://www.twoja-domena.pl
 
-ALLOW_PUBLIC_REGISTRATION=False
-REGISTRATION_INVITE_CODE=
-
-# Płatności (Stripe Checkout)
-PAYMENTS_PROVIDER=stripe
-FRONTEND_URL=https://twoja-domena.pl
-STRIPE_SECRET_KEY=sk_live_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-# W Stripe Dashboard → Webhooks:
-# URL: https://twoja-domena.pl/api/payments/webhook/
-# Event: checkout.session.completed (oraz opcjonalnie expired / async_payment_failed)
+# Przy DJANGO_DEBUG=False e-maile wysyłane są przez SMTP
+EMAIL_HOST=smtp.example.com
+EMAIL_PORT=587
+EMAIL_HOST_USER=<login>
+EMAIL_HOST_PASSWORD=<haslo>
+DEFAULT_FROM_EMAIL=ProstyGrafik <noreply@prostygrafik.com>
 ```
 
 ### 2b. systemd — Gunicorn
@@ -155,14 +150,13 @@ sudo systemctl reload nginx
 - [ ] `DJANGO_DEBUG=False`
 - [ ] Silny `DJANGO_SECRET_KEY`
 - [ ] `CORS_ALLOWED_ORIGINS` i `CSRF_TRUSTED_ORIGINS` tylko na domenę frontendu
-- [ ] Rejestracja wyłączona (`ALLOW_PUBLIC_REGISTRATION=False`)
+- [ ] Skonfigurowany SMTP (`EMAIL_HOST`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`)
 - [ ] `python manage.py collectstatic --noinput`
 - [ ] Backup bazy (`pg_dump` / snapshot)
-- [ ] Pierwszy kierownik: `is_manager=True` (admin / shell) — potem konta z `/manager`
 
 ## 6. Smoke test po deployu
 
-1. `/register` pokazuje „Rejestracja niedostępna”
+1. `/register` zakłada firmę — po zalogowaniu kierownik trafia do `/manager`
 2. Kierownik w `/manager` definiuje **szablony zmian** (np. Poranna / Późniejsza)
 3. Kierownik dodaje pracownika w **Zarządzanie kontami**
 4. Logowanie pracownika i kierownika
