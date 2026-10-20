@@ -5,7 +5,7 @@ Checklist uruchomienia poza lokalnym środowiskiem deweloperskim.
 ## 1. Serwer i runtime
 
 - VPS / cloud z Ubuntu 22.04+ (lub równoważny)
-- Python 3.11+, Node.js 18+ (build frontendu)
+- Python 3.12+ (wymaga tego Django 6), Node.js 24 (build frontendu — lockfile zapisany przez npm 11)
 - PostgreSQL 14+
 - Nginx (reverse proxy) + Certbot (HTTPS)
 
