@@ -1,5 +1,5 @@
 # ---- Frontend build ----
-FROM node:20-alpine AS frontend
+FROM node:24-alpine AS frontend
 WORKDIR /frontend
 COPY lighterschedule_front/package.json lighterschedule_front/package-lock.json ./
 RUN npm ci

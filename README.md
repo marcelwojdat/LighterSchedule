@@ -87,7 +87,7 @@ filtrowania w mixinie testy faktycznie przestają przechodzić.
 
 ## Uruchomienie lokalne
 
-Wymagania: Python 3.12+, Node.js 20+, PostgreSQL 14+.
+Wymagania: Python 3.12+, Node.js 24+, PostgreSQL 14+.
 
 ### 1. Baza danych
 
