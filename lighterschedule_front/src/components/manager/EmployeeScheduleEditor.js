@@ -3,6 +3,7 @@ import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import CoverageLegend from './CoverageLegend';
 import RoleSelect from '../common/RoleSelect';
+import TimeSelect from '../common/TimeSelect';
 import styles from '../Manager.module.css';
 import { WORKDAY_STATUS_LABELS } from '../../constants/statusLabels';
 import { formatDateStr } from '../../utils/dates';
@@ -194,7 +195,7 @@ const EmployeeScheduleEditor = ({
         <strong>Stawka:</strong> {employee.hourly_rate ?? '—'} zł/h
       </div>
 
-      <div className={styles.calendarContainer}>
+      <div className={`${styles.calendarContainer} calendarScroll`}>
         <Calendar
           locale="pl-PL"
           onChange={selectDate}
@@ -252,8 +253,8 @@ const EmployeeScheduleEditor = ({
             );
           })}
         </select>
-        <input type="time" value={form.timeFrom} onChange={(event) => updateForm('timeFrom', event.target.value)} />
-        <input type="time" value={form.timeTo} onChange={(event) => updateForm('timeTo', event.target.value)} />
+        <TimeSelect label="Początek zmiany" value={form.timeFrom} onChange={(value) => updateForm('timeFrom', value)} />
+        <TimeSelect label="Koniec zmiany" value={form.timeTo} onChange={(value) => updateForm('timeTo', value)} />
         <RoleSelect
           taskTypes={taskTypes}
           value={form.roleId}

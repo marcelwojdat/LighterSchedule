@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import RoleSelect from '../common/RoleSelect';
+import TimeSelect from '../common/TimeSelect';
 import styles from '../Dashboard.module.css';
 import { getShiftTemplates } from '../../api/shiftTemplates';
 import { WORKDAY_STATUS_LABELS } from '../../constants/statusLabels';
@@ -91,8 +92,8 @@ const DayFields = ({ date, form, update, templates, templatesConfigured, taskTyp
           </>
         ) : (
           <div className={styles.popupField}>
-            <input type="time" value={form.timeFrom} onChange={(event) => update({ timeFrom: event.target.value })} />
-            <input type="time" value={form.timeTo} onChange={(event) => update({ timeTo: event.target.value })} />
+            <TimeSelect label="Początek" value={form.timeFrom} onChange={(timeFrom) => update({ timeFrom })} />
+            <TimeSelect label="Koniec" value={form.timeTo} onChange={(timeTo) => update({ timeTo })} />
             <p className={styles.popupInfo}>
               Kierownik nie zdefiniował jeszcze szablonów zmian — możesz podać godziny ręcznie.
             </p>

@@ -864,10 +864,8 @@
   width: 100%;
 }
 
-.popupField input {
-  width: calc(50% - 5px);
-  min-width: 0;
-  flex: 1 1 120px;
+.popupField :global(.timeSelect) {
+  flex: 1 1 140px;
 }
 
 .popupField select {
@@ -1097,30 +1095,6 @@
 
 :global([data-theme='dark']) .swapAcceptBtn:hover {
   filter: brightness(1.08);
-}
-
-:global([data-theme='dark']) .swapForm select,
-:global([data-theme='dark']) .roleSelect,
-:global([data-theme='dark']) .noteInput,
-:global([data-theme='dark']) .popupField input,
-:global([data-theme='dark']) .popupField select {
-  background: #0f172a;
-  border-color: #64748b;
-  color: #f1f5f9;
-}
-
-:global([data-theme='dark']) .swapForm select:hover,
-:global([data-theme='dark']) .roleSelect:hover,
-:global([data-theme='dark']) .noteInput:hover {
-  border-color: #94a3b8;
-}
-
-:global([data-theme='dark']) .swapForm select:focus,
-:global([data-theme='dark']) .roleSelect:focus,
-:global([data-theme='dark']) .noteInput:focus {
-  outline: 2px solid #3b82f6;
-  outline-offset: 1px;
-  border-color: #3b82f6;
 }
 
 :global([data-theme='dark']) .statusLegend {

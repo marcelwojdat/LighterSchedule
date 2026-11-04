@@ -80,6 +80,7 @@ const AccountsCard = ({
               const isSelf = user.id === currentUserId;
               const isActive = user.is_active !== false;
               const optionsOpen = optionsUserId === user.id;
+              const hasSchedule = !user.is_manager && isActive;
               return (
                 <tr key={user.id} className={isActive ? undefined : styles.inactiveRow}>
                   <td>
@@ -88,7 +89,7 @@ const AccountsCard = ({
                     </div>
                     <small>{user.username}</small>
                   </td>
-                  <td>
+                  <td data-label="Rola">
                     <select
                       value={user.is_manager ? 'manager' : 'employee'}
                       onChange={(event) => onUpdate(user, { is_manager: event.target.value === 'manager' })}
@@ -98,7 +99,7 @@ const AccountsCard = ({
                       <option value="manager">Kierownik</option>
                     </select>
                   </td>
-                  <td>
+                  <td data-label="Stawka">
                     <input
                       type="number"
                       step="0.01"
@@ -107,7 +108,7 @@ const AccountsCard = ({
                       onBlur={(event) => updateRate(user, event.target.value)}
                     />
                   </td>
-                  <td className={styles.empActiveCell}>
+                  <td className={styles.empActiveCell} data-label="Aktywne">
                     <input
                       type="checkbox"
                       checked={isActive}
@@ -116,8 +117,8 @@ const AccountsCard = ({
                       aria-label={`Aktywne: ${user.username}`}
                     />
                   </td>
-                  <td>
-                    {!user.is_manager && isActive ? (
+                  <td data-empty={hasSchedule ? undefined : true}>
+                    {hasSchedule ? (
                       <button type="button" className={styles.btnPrimary} onClick={() => onOpenSchedule(user)}>
                         Grafik
                       </button>
@@ -125,7 +126,7 @@ const AccountsCard = ({
                       <span>—</span>
                     )}
                   </td>
-                  <td>
+                  <td data-empty={isSelf || undefined}>
                     {isSelf ? (
                       <span>—</span>
                     ) : (

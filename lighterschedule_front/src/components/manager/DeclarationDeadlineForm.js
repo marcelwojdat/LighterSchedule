@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import TimeSelect from '../common/TimeSelect';
 import styles from '../Manager.module.css';
 
 const WEEKDAY_NAMES = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota', 'Niedziela'];
@@ -59,14 +60,7 @@ const DeclarationDeadlineForm = ({ settings, onSave, onClear }) => {
             </option>
           ))}
         </select>
-        <input
-          id="declaration-close-time"
-          type="time"
-          value={time}
-          onChange={(event) => setTime(event.target.value || DEFAULT_CLOSE_TIME)}
-          disabled={weekday === ''}
-          aria-label="Godzina zamknięcia"
-        />
+        <TimeSelect label="Godzina zamknięcia" value={time} onChange={setTime} disabled={weekday === ''} />
         <button type="submit" className={styles.btnPrimary}>
           Zapisz termin
         </button>

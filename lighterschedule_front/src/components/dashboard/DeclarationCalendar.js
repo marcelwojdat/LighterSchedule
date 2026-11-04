@@ -70,7 +70,7 @@ const DeclarationCalendar = ({ workdays, drafts, declarationsClosed, copyMonth, 
   return (
     <>
       <div className={styles.calendarWrapper}>
-        <div className={styles.calendarContainer}>
+        <div className={`${styles.calendarContainer} calendarScroll`}>
           <Calendar
             locale="pl-PL"
             onChange={(date) => onSelectDate(formatDateStr(date))}

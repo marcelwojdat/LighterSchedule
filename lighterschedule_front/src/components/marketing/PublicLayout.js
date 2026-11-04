@@ -20,7 +20,7 @@ const PublicLayout = () => {
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <Link to="/" className={styles.logo} aria-label="ProstyGrafik — strona główna">
-            <span className={styles.logoMark}>LS</span>
+            <img className={styles.logoMark} src={`${process.env.PUBLIC_URL}/prostygrafiklogo.svg`} alt="" />
             <span className={styles.logoText}>ProstyGrafik</span>
           </Link>
 

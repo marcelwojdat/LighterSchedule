@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import TimeSelect from '../common/TimeSelect';
 import styles from '../Manager.module.css';
 import { buildEmptyTemplateHours, toApiTime, toDisplayTime, WEEKDAY_SHORT } from '../../utils/time';
 
@@ -106,17 +107,17 @@ const ShiftTemplateEditor = ({ templates, onSave, onDelete, onError }) => {
                 />
                 {WEEKDAY_SHORT[row.weekday]}
               </label>
-              <input
-                type="time"
+              <TimeSelect
+                label={`${WEEKDAY_SHORT[row.weekday]} od`}
                 disabled={!row.enabled}
                 value={row.start}
-                onChange={(event) => updateDay(row.weekday, 'start', event.target.value)}
+                onChange={(value) => updateDay(row.weekday, 'start', value)}
               />
-              <input
-                type="time"
+              <TimeSelect
+                label={`${WEEKDAY_SHORT[row.weekday]} do`}
                 disabled={!row.enabled}
                 value={row.end}
-                onChange={(event) => updateDay(row.weekday, 'end', event.target.value)}
+                onChange={(value) => updateDay(row.weekday, 'end', value)}
               />
             </div>
           ))}

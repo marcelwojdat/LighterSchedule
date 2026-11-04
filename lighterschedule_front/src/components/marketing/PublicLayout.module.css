@@ -77,15 +77,9 @@
 }
 
 .logoMark {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  background: linear-gradient(135deg, var(--m-accent) 0%, var(--m-accent-strong) 100%);
-  color: #fff;
-  font-size: 0.75rem;
-  letter-spacing: 0.04em;
+  display: block;
+  width: 32px;
+  height: 32px;
 }
 
 .logoText {

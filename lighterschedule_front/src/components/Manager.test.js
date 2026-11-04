@@ -72,6 +72,12 @@ const HOLES = {
 };
 
 const card = (heading) => screen.getByRole('heading', { name: heading }).closest('.sectionCard');
+// TimeSelect renders two dropdowns: "<label> – godzina" and "<label> – minuty".
+const setTime = (container, label, value) => {
+  const [hour, minute] = value.split(':');
+  fireEvent.change(within(container).getByRole('combobox', { name: `${label} – godzina` }), { target: { value: hour } });
+  fireEvent.change(within(container).getByRole('combobox', { name: `${label} – minuty` }), { target: { value: minute } });
+};
 
 let employeeDays = []; // schedule of the employee opened in the editor
 
@@ -188,10 +194,9 @@ test('approving a proposal after editing its hours and role', async () => {
   const queue = card('Do akceptacji');
 
   fireEvent.click(within(queue).getByRole('button', { name: 'Edytuj godziny' }));
-  const [start, end] = queue.querySelectorAll('input[type="time"]');
-  fireEvent.change(start, { target: { value: '09:30' } });
-  fireEvent.change(end, { target: { value: '15:00' } });
-  fireEvent.change(within(queue).getByRole('combobox'), { target: { value: '1' } });
+  setTime(queue, 'Początek zmiany', '09:30');
+  setTime(queue, 'Koniec zmiany', '15:00');
+  fireEvent.change(within(queue).getByRole('combobox', { name: 'Stanowisko' }), { target: { value: '1' } });
   fireEvent.click(within(queue).getByRole('button', { name: 'Zatwierdź' }));
 
   await waitFor(() =>
@@ -283,9 +288,8 @@ describe('employee schedule editor', () => {
   const pickDayAndAdd = (editor, times) => {
     fireEvent.click(within(editor).getByRole('button', { name: 'Wybierz 2030-01-10' }));
     if (times) {
-      const [from, to] = editor.querySelectorAll('input[type="time"]');
-      fireEvent.change(from, { target: { value: times[0] } });
-      fireEvent.change(to, { target: { value: times[1] } });
+      setTime(editor, 'Początek zmiany', times[0]);
+      setTime(editor, 'Koniec zmiany', times[1]);
     }
     fireEvent.click(within(editor).getByRole('button', { name: 'Dodaj zmianę' }));
   };

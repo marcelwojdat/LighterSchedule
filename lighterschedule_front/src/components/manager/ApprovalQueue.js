@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import RejectionReasonPicker from './RejectionReasonPicker';
 import RoleSelect from '../common/RoleSelect';
+import TimeSelect from '../common/TimeSelect';
 import styles from '../Manager.module.css';
 import { displayName } from '../../utils/people';
 import { toApiTime } from '../../utils/time';
@@ -175,15 +176,15 @@ const ApprovalQueue = ({ items, employees, taskTypes, rejectionReasons, onApprov
 
                 {isActive(item, 'edit') ? (
                   <div className={styles.queueEditRow}>
-                    <input
-                      type="time"
+                    <TimeSelect
+                      label="Początek zmiany"
                       value={editTimes.start}
-                      onChange={(event) => setEditTimes((prev) => ({ ...prev, start: event.target.value }))}
+                      onChange={(start) => setEditTimes((prev) => ({ ...prev, start }))}
                     />
-                    <input
-                      type="time"
+                    <TimeSelect
+                      label="Koniec zmiany"
                       value={editTimes.end}
-                      onChange={(event) => setEditTimes((prev) => ({ ...prev, end: event.target.value }))}
+                      onChange={(end) => setEditTimes((prev) => ({ ...prev, end }))}
                     />
                     <RoleSelect taskTypes={taskTypes} value={editRole} onChange={setEditRole} className={styles.roleSelect} />
                   </div>

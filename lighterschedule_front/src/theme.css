@@ -10,6 +10,9 @@
   --field-font-size: 0.9rem;
   --field-focus-border: #3b82f6;
   --field-focus-ring: rgba(59, 130, 246, 0.28);
+  --option-hover-bg: rgba(59, 130, 246, 0.1);
+  --option-selected-bg: rgba(59, 130, 246, 0.18);
+  --picker-shadow: 0 14px 32px rgba(15, 23, 42, 0.18);
   --checkbox-size: 1.1rem;
   --checkbox-accent: #2563eb;
   --checkbox-border: #64748b;
@@ -50,6 +53,9 @@
   --field-placeholder: #64748b;
   --field-focus-border: #60a5fa;
   --field-focus-ring: rgba(96, 165, 250, 0.32);
+  --option-hover-bg: rgba(96, 165, 250, 0.14);
+  --option-selected-bg: rgba(96, 165, 250, 0.26);
+  --picker-shadow: 0 14px 32px rgba(0, 0, 0, 0.45);
   --checkbox-accent: #3b82f6;
   --checkbox-border: #64748b;
   --checkbox-check: #f8fafc;
@@ -375,6 +381,106 @@ input[type='time'] {
 
 .lsFields input[type='time']:disabled {
   opacity: 0.45;
+}
+
+/* —— Dropdown lists ——
+   Where the browser supports it (Chromium 135+), the opened list is part of the page and follows the theme.
+   Elsewhere the native list stays, which is the better choice on phones anyway. */
+@supports (appearance: base-select) {
+  .lsFields select,
+  .lsFields select::picker(select),
+  .fieldSelect,
+  .fieldSelect::picker(select) {
+    appearance: base-select;
+  }
+
+  /* The chevron comes from background-image, as in browsers without support. */
+  .lsFields select::picker-icon,
+  .fieldSelect::picker-icon {
+    display: none;
+  }
+
+  .lsFields select::picker(select),
+  .fieldSelect::picker(select) {
+    margin-block: 4px;
+    padding: 4px;
+    max-height: min(320px, 50vh);
+    border: 1px solid var(--field-border);
+    border-radius: var(--field-radius);
+    background: var(--field-bg);
+    color: var(--field-text);
+    box-shadow: var(--picker-shadow);
+  }
+
+  .lsFields option,
+  .fieldSelect option {
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: var(--field-font-size);
+  }
+
+  .lsFields option::checkmark,
+  .fieldSelect option::checkmark {
+    display: none;
+  }
+
+  .lsFields option:hover,
+  .lsFields option:focus-visible,
+  .fieldSelect option:hover,
+  .fieldSelect option:focus-visible {
+    background: var(--option-hover-bg);
+    outline: none;
+  }
+
+  .lsFields option:checked,
+  .fieldSelect option:checked {
+    background: var(--option-selected-bg);
+    font-weight: 600;
+  }
+
+  .lsFields option:disabled,
+  .fieldSelect option:disabled {
+    opacity: 0.5;
+  }
+}
+
+/* —— Time picker: hour + minute selects (TimeSelect.js) —— */
+.timeSelect {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.lsFields .timeSelect select {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 4.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.timeSelectColon {
+  font-weight: 700;
+  color: var(--field-placeholder);
+}
+
+/* —— Month calendars on phones: 4 days visible, swipe for the rest of the week —— */
+@media (max-width: 640px) {
+  .calendarScroll .react-calendar .react-calendar__viewContainer {
+    overflow-x: auto !important;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    padding-top: 2px; /* room for the tile hover lift inside the scroll box */
+  }
+
+  .calendarScroll .react-calendar .react-calendar__month-view {
+    width: calc(100% * 7 / 4);
+  }
+
+  .calendarScroll .react-calendar .react-calendar__tile,
+  .calendarScroll .react-calendar .react-calendar__month-view__weekdays__weekday {
+    scroll-snap-align: start;
+  }
 }
 
 /* —— React Calendar (kept from previous theme) —— */

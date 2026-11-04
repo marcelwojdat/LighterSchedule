@@ -325,7 +325,7 @@
 
 .empTable th:nth-child(1),
 .empTable td:nth-child(1) {
-  width: 26%;
+  width: 25%;
 }
 
 .empTable th:nth-child(2),
@@ -335,7 +335,7 @@
 
 .empTable th:nth-child(3),
 .empTable td:nth-child(3) {
-  width: 12%;
+  width: 16%;
 }
 
 .empTable th:nth-child(4),
@@ -351,7 +351,7 @@
 
 .empTable th:nth-child(6),
 .empTable td:nth-child(6) {
-  width: 22%;
+  width: 19%;
 }
 
 .empTable tbody tr:last-child td {
@@ -374,7 +374,7 @@
 
 .empTable input[type='number'] {
   width: 100%;
-  max-width: 72px;
+  max-width: 96px;
   font-size: 0.85rem;
   padding: 6px 8px;
 }
@@ -433,14 +433,13 @@
 
 .templateHourRow {
   display: grid;
-  grid-template-columns: minmax(70px, 0.6fr) 1fr 1fr;
+  grid-template-columns: 90px minmax(0, 220px) minmax(0, 220px);
   gap: 8px;
   align-items: center;
 }
 
-.templateHourRow input[type='time'] {
+.templateHourRow :global(.timeSelect) {
   width: 100%;
-  min-width: 0;
 }
 
 .templateList {
@@ -584,15 +583,11 @@
   line-height: 1.3;
 }
 
+/* Room for 3 digits plus padding and the spin buttons (border-box includes both). */
 .maxSlotsInput,
-.shiftTemplatesPanel .userCreateForm .maxSlotsInput {
-  width: 4.5ch;
-  min-width: 4.5ch;
-  max-width: 5.5ch;
+.shiftTemplatesPanel .userCreateForm input.maxSlotsInput {
+  width: 88px;
   flex: 0 0 auto;
-  padding-left: 8px;
-  padding-right: 8px;
-  text-align: center;
   font-variant-numeric: tabular-nums;
 }
 
@@ -656,9 +651,8 @@
   flex-wrap: wrap;
 }
 
-.queueEditRow input {
-  min-width: 0;
-  flex: 1 1 110px;
+.queueEditRow :global(.timeSelect) {
+  flex: 1 1 150px;
 }
 
 .rejectionInput {
@@ -1027,9 +1021,8 @@
   flex-wrap: wrap;
 }
 
-.shiftControls input[type='time'] {
-  min-width: 0;
-  flex: 1 1 110px;
+.shiftControls :global(.timeSelect) {
+  flex: 1 1 150px;
 }
 
 .empHeader {
@@ -1208,9 +1201,7 @@
   align-items: center;
 }
 
-.deadlineControls input[type='date'],
-.deadlineControls input[type='time'],
-.deadlineControls select {
+.deadlineControls > select {
   min-width: 160px;
 }
 
@@ -1400,6 +1391,111 @@
 
   .settingsToggleRow button {
     width: 100%;
+  }
+}
+
+/* Accounts on phones: each person becomes a card — name on top, controls in two rows below. */
+@media (max-width: 640px) {
+  .tableWrap {
+    border: none;
+  }
+
+  .empTable,
+  .empTable tbody {
+    display: block;
+  }
+
+  .empTable thead {
+    display: none;
+  }
+
+  .empTable tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      'name active'
+      'role rate'
+      'schedule actions';
+    gap: 10px 12px;
+    margin-bottom: 10px;
+    padding: 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+  }
+
+  .empTable tbody td:nth-child(n) {
+    width: auto;
+    padding: 0;
+    border: none;
+    text-align: left;
+  }
+
+  .empTable tbody td:nth-child(1) { grid-area: name; }
+  .empTable tbody td:nth-child(2) { grid-area: role; }
+  .empTable tbody td:nth-child(3) { grid-area: rate; }
+  .empTable tbody td:nth-child(4) { grid-area: active; }
+  .empTable tbody td:nth-child(5) { grid-area: schedule; }
+  .empTable tbody td:nth-child(6) { grid-area: actions; }
+
+  .empTable tbody td[data-empty] {
+    display: none;
+  }
+
+  /* Without the schedule button, the actions take the whole row. */
+  .empTable tbody tr:has(td:nth-child(5)[data-empty]) td:nth-child(6) {
+    grid-column: 1 / -1;
+  }
+
+  .empTable td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #64748b;
+  }
+
+  .empTable tbody td.empActiveCell {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    align-self: start;
+  }
+
+  .empTable tbody td.empActiveCell::before {
+    margin-bottom: 0;
+  }
+
+  .empName {
+    font-size: 0.95rem;
+  }
+
+  .empTable select,
+  .empTable input[type='number'] {
+    width: 100%;
+    max-width: none;
+    font-size: 0.9rem;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .empTable .btnPrimary,
+  .empTable .btnSecondary,
+  .empTable .btnDanger {
+    width: 100%;
+    padding: 9px 10px;
+    font-size: 0.85rem;
+  }
+
+  :global([data-theme='dark']) .empTable tbody tr {
+    border-color: #334155;
+  }
+
+  :global([data-theme='dark']) .empTable td[data-label]::before {
+    color: #94a3b8;
   }
 }
 
