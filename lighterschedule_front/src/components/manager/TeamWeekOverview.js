@@ -66,7 +66,7 @@ const TeamWeekOverview = ({ weekStart, onWeekChange, employees, workdays, shiftT
         <table className={styles.teamTable}>
           <thead>
             <tr>
-              <th>Pracownik</th>
+              <th className={styles.teamEmployeeCell}>Pracownik</th>
               {weekDates.map((date, index) => {
                 const coverage = coverageByDate[date];
                 const summary = slotSummary(coverage);

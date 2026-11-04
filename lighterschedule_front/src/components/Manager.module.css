@@ -1284,10 +1284,16 @@
   color: #334155;
 }
 
+/* Pinned while the week scrolls sideways. The background must be opaque so the days slide under it;
+   the right edge is a shadow because collapsed borders belong to the table and would scroll away. */
 .teamEmployeeCell {
+  position: sticky;
+  left: 0;
+  z-index: 1;
   text-align: left;
   min-width: 120px;
   background: #f8fafc;
+  box-shadow: inset -1px 0 0 #cbd5e1, 6px 0 8px -6px rgba(15, 23, 42, 0.25);
 }
 
 .teamDayCell {
@@ -1391,6 +1397,17 @@
 
   .settingsToggleRow button {
     width: 100%;
+  }
+}
+
+/* Team week on phones: the pinned names column takes less room, leaving space for more days beside it. */
+@media (max-width: 640px) {
+  .teamTable .teamEmployeeCell {
+    min-width: 0;
+    width: 104px;
+    padding-inline: 6px;
+    font-size: 0.82rem;
+    overflow-wrap: break-word;
   }
 }
 
@@ -1592,6 +1609,7 @@
 
 :global([data-theme='dark']) .teamEmployeeCell {
   background: #1e293b;
+  box-shadow: inset -1px 0 0 #334155, 6px 0 8px -6px rgba(0, 0, 0, 0.6);
 }
 
 :global([data-theme='dark']) .teamDayCell,
