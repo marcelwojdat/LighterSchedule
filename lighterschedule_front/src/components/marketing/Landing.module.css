@@ -158,6 +158,11 @@
   border-block: 1px solid var(--m-line, rgba(15, 23, 42, 0.16));
 }
 
+.sectionLead a {
+  color: var(--m-accent, #2563eb);
+  font-weight: 600;
+}
+
 .sectionInner {
   max-width: 1120px;
   margin: 0 auto;

@@ -128,16 +128,17 @@
   color: var(--m-ink) !important;
 }
 
-.navCta {
-  padding: 8px 14px !important;
+/* `.nav .navCta` (0,2,0) outranks `.nav a` (0,1,1), which would otherwise reset the background. */
+.nav .navCta {
+  padding: 8px 14px;
   border-radius: 999px;
   background: var(--m-accent);
-  color: #fff !important;
+  color: #fff;
 }
 
-.navCta:hover {
+.nav .navCta:hover {
   background: var(--m-accent-strong);
-  color: #fff !important;
+  color: #fff;
 }
 
 .themeBtn {

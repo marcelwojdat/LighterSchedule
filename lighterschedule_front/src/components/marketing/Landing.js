@@ -63,6 +63,34 @@ const AUDIENCES = [
   },
 ];
 
+// Each claim matches the code: settings.py (HTTPS, headers), password validators, tenancy tests, permissions.
+const SECURITY = [
+  {
+    title: 'Szyfrowane połączenie',
+    text: 'Cały ruch idzie przez HTTPS, a przeglądarka zapamiętuje to na rok (HSTS) — nikt po drodze nie podejrzy grafiku ani hasła.',
+  },
+  {
+    title: 'Hasła tylko jako skrót',
+    text: 'Nie przechowujemy haseł, tylko ich solony skrót (PBKDF2). Hasła krótsze niż 8 znaków, popularne lub z samych cyfr są odrzucane.',
+  },
+  {
+    title: 'Każda firma osobno',
+    text: 'Dane firm są od siebie odizolowane — nikt nie zobaczy grafiku innej organizacji. Pilnują tego testy automatyczne przy każdej zmianie kodu.',
+  },
+  {
+    title: 'Uprawnienia według roli',
+    text: 'Pracownik składa deklaracje i prośby o zamianę. Grafik, konta, stawki i ustawienia firmy zmienia wyłącznie kierownik.',
+  },
+  {
+    title: 'Krótkie sesje',
+    text: 'Logowanie opiera się na tokenach ważnych kilka minut, odnawianych w tle. Wylogowanie usuwa je z przeglądarki.',
+  },
+  {
+    title: 'Ochrona przed typowymi atakami',
+    text: 'Zapytania do bazy idą wyłącznie przez ORM, treści są escapowane, a nagłówki blokują osadzanie strony w ramce (clickjacking).',
+  },
+];
+
 const Landing = () => (
   <div className={styles.page}>
     <section className={styles.hero} aria-labelledby="hero-brand">
@@ -157,7 +185,26 @@ const Landing = () => (
       </div>
     </section>
 
-    <section id="opinie" className={`${styles.section} ${styles.sectionAlt}`}>
+    <section id="bezpieczenstwo" className={`${styles.section} ${styles.sectionAlt}`}>
+      <div className={styles.sectionInner}>
+        <p className={styles.eyebrow}>Bezpieczeństwo</p>
+        <h2 className={styles.sectionTitle}>Dane Twojego zespołu pod ochroną</h2>
+        <p className={styles.sectionLead}>
+          Grafik to dane osobowe — godziny pracy, stawki, kontakty. Tak je chronimy. Zasady przetwarzania opisuje{' '}
+          <Link to="/privacy">Polityka prywatności</Link>.
+        </p>
+        <div className={styles.featureGrid}>
+          {SECURITY.map((item) => (
+            <article key={item.title} className={styles.featureItem}>
+              <h3>{item.title}</h3>
+              <p>{item.text}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <section id="opinie" className={styles.section}>
       <div className={styles.sectionInner}>
         <p className={styles.eyebrow}>Opinie</p>
         <h2 className={styles.sectionTitle}>Co mówią zespoły</h2>
@@ -174,7 +221,7 @@ const Landing = () => (
       </div>
     </section>
 
-    <section id="porownanie" className={styles.section}>
+    <section id="porownanie" className={`${styles.section} ${styles.sectionAlt}`}>
       <div className={styles.sectionInner}>
         <p className={styles.eyebrow}>Dlaczego warto</p>
         <h2 className={styles.sectionTitle}>Excel i chaos vs ProstyGrafik</h2>

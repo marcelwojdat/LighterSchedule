@@ -44,6 +44,7 @@ const PublicLayout = () => {
             </NavLink>
             <a href="/#jak-dziala">Jak działa</a>
             <a href="/#funkcje">Funkcje</a>
+            <a href="/#bezpieczenstwo">Bezpieczeństwo</a>
             <NavLink to="/login" className={({ isActive }) => (isActive ? styles.navActive : undefined)}>
               Zaloguj
             </NavLink>
