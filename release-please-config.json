@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "511c6ed4d65fb54a0be01e22008f5a676df1125f",
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "package-name": "prostygrafik",
+      "include-component-in-tag": false,
+      "changelog-path": "CHANGELOG.md",
+      "changelog-sections": [
+        { "type": "feat", "section": "Nowe funkcje" },
+        { "type": "fix", "section": "Poprawki" },
+        { "type": "perf", "section": "Wydajność" },
+        { "type": "security", "section": "Bezpieczeństwo" },
+        { "type": "revert", "section": "Wycofane zmiany" },
+        { "type": "refactor", "section": "Refaktoryzacja", "hidden": true },
+        { "type": "docs", "section": "Dokumentacja", "hidden": true },
+        { "type": "test", "section": "Testy", "hidden": true },
+        { "type": "ci", "section": "CI", "hidden": true },
+        { "type": "build", "section": "Build", "hidden": true },
+        { "type": "chore", "section": "Inne", "hidden": true }
+      ]
+    }
+  }
+}

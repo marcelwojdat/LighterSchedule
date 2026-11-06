@@ -14,9 +14,14 @@ services:
       timeout: 5s
       retries: 10
 
+  # Production runs images built by the release workflow; deploy.sh sets APP_VERSION to the release tag.
+  # "local" is never pushed, so a forgotten APP_VERSION fails on pull instead of starting some other version.
+  # `docker compose build` still builds both images locally.
   web:
+    image: ghcr.io/marcelwojdat/lighterschedule-web:${APP_VERSION:-local}
     build:
       context: .
+      target: backend
       args:
         REACT_APP_API_URL: ${REACT_APP_API_URL:-/api}
     restart: unless-stopped
@@ -39,6 +44,17 @@ services:
     # and Docker's iptables rules bypass UFW, so the API would be open without HTTPS.
     ports:
       - "127.0.0.1:8000:8000"
+
+  frontend:
+    image: ghcr.io/marcelwojdat/lighterschedule-frontend:${APP_VERSION:-local}
+    build:
+      context: .
+      target: frontend-runtime
+      args:
+        REACT_APP_API_URL: ${REACT_APP_API_URL:-/api}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
 
 volumes:
   pgdata:

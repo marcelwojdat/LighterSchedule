@@ -8,3 +8,9 @@ node_modules/
 build/
 staticfiles/
 .DS_Store
+
+# Written on the server by deploy/deploy.sh
+backups/
+logs/
+.deployed_version
+.deploy.lock

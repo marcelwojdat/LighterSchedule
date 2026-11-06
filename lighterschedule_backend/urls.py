@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenBlacklistView, TokenRefreshView
 
 from core.throttling import LoginView
+from core.views.health import health
 
 from core.views import (
     RejectionReasonTemplateViewSet,
@@ -32,6 +33,7 @@ router.register(r'swaps', SwapRequestViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/health/', health, name='health'),
 
     # Authentication
     path('api/token/', LoginView.as_view(), name='token_obtain_pair'),

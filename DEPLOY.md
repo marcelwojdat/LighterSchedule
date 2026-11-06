@@ -182,3 +182,81 @@ sudo systemctl reload nginx
 5. Pracownik wybiera szablon + opcjonalną notatkę → deklaracja → akceptacja
 6. Zamiana (przekazanie / dwustronna)
 7. Raport PDF wypłat + powiadomienia w panelu
+
+## 7. Automatyczne releasy (GitHub Actions → GHCR → serwer)
+
+### Jak to działa
+
+1. Każdy push na `main` aktualizuje **Release PR** (release-please): nowy numer wersji + `CHANGELOG.md`.
+   Wersję wyznaczają commity: `feat:` → minor (1.**1**.0), `fix:` / `perf:` / `security:` → patch (1.0.**1**),
+   `feat!:` lub `BREAKING CHANGE:` w treści → major. `docs:`, `ci:`, `refactor:`, `test:`, `chore:` nie wydają wersji.
+2. Merge Release PR tworzy tag `vX.Y.Z`. W tym samym przebiegu: testy (`ci.yml`) → obrazy
+   `ghcr.io/marcelwojdat/lighterschedule-web:vX.Y.Z` i `...-frontend:vX.Y.Z` → job `deploy` **czeka na zatwierdzenie**.
+3. Po zatwierdzeniu GitHub łączy się przez SSH i uruchamia `deploy/deploy.sh vX.Y.Z`:
+   checkout taga → pull obrazów → backup bazy (`backups/`, 14 ostatnich) → `migrate` → nowe kontenery →
+   `/api/health/` musi zwrócić tę wersję → inaczej automatyczny powrót do poprzedniej.
+
+Migracje muszą być wstecznie kompatybilne (expand/contract): przez chwilę stary kod działa na nowym schemacie,
+a rollback nie cofa migracji. Usunięcie lub zmianę nazwy kolumny rozbij na dwa releasy.
+
+### Jednorazowo: GitHub
+
+- **Settings → Actions → General → Workflow permissions:** zaznacz *Allow GitHub Actions to create and approve pull requests*.
+- **Settings → Environments → New environment `production`:**
+  - *Required reviewers*: Ty; *Deployment branches and tags*: tylko `main`.
+  - *Environment secrets* (nie repository secrets — są dostępne dopiero po zatwierdzeniu):
+    - `DEPLOY_HOST` — IP lub domena serwera
+    - `DEPLOY_USER` — `ubuntu`
+    - `DEPLOY_SSH_KEY` — klucz prywatny wygenerowany niżej
+    - `DEPLOY_KNOWN_HOSTS` — linia z `ssh-keyscan` (niżej)
+- Po pierwszym releasie: **Packages → lighterschedule-web / lighterschedule-frontend → Package settings →
+  Change visibility → Public** (repo jest publiczne, obrazy nie zawierają sekretów — te są tylko w `.env` na serwerze).
+
+### Jednorazowo: serwer
+
+```bash
+# Lokalnie: osobny klucz tylko do deployu (bez hasła, bo używa go automat)
+ssh-keygen -t ed25519 -f prostygrafik_deploy -C github-deploy -N ""
+
+# Odcisk klucza hosta — porównaj z wynikiem na serwerze, zanim wkleisz do DEPLOY_KNOWN_HOSTS
+ssh-keyscan -t ed25519 <IP-serwera>
+# na serwerze: ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub   vs lokalnie: ssh-keyscan ... | ssh-keygen -lf -
+```
+
+Na serwerze dopisz do `~/.ssh/authorized_keys` użytkownika `ubuntu` **jedną linię** (treść `prostygrafik_deploy.pub`):
+
+```
+command="/bin/bash /opt/LighterSchedule/deploy/deploy.sh",restrict ssh-ed25519 AAAA... github-deploy
+```
+
+`command=` sprawia, że ten klucz może wyłącznie uruchomić skrypt (wysłana „komenda” trafia do niego jako numer wersji
+i jest walidowana), a `restrict` wyłącza przekierowania portów, agenta i terminal.
+
+```bash
+sudo usermod -aG docker ubuntu          # deploy.sh woła docker bez sudo; wyloguj się i zaloguj ponownie
+ls -ld /opt/LighterSchedule             # właścicielem musi być ubuntu, inaczej: sudo chown -R ubuntu:ubuntu /opt/LighterSchedule
+cd /opt/LighterSchedule && git pull     # ostatni ręczny pull: przynosi deploy/deploy.sh
+```
+
+### Pierwsze przełączenie (frontend z hosta do kontenera)
+
+Do tej pory frontend serwował proces `serve` uruchomiony na hoście. Kontener `frontend` zajmuje ten sam port 3000,
+więc przy pierwszym releasie (zamiast zatwierdzać deploy w GitHubie):
+
+```bash
+sudo ss -ltnp 'sport = :3000'           # znajdź proces serve
+sudo kill <PID>                         # (albo zatrzymaj usługę, jeśli działa przez systemd/pm2)
+bash deploy/deploy.sh v1.1.0            # numer z pierwszego Release PR
+```
+
+Jeśli to się nie powiedzie, nie ma poprzedniej wersji do powrotu — uruchom stary `serve` jak dotąd i sprawdź log
+wskazany przez skrypt. Kolejne releasy idą już przez zatwierdzenie w GitHubie.
+
+### Na co dzień
+
+- Ręczne komendy compose na serwerze poprzedzaj `export APP_VERSION=$(cat .deployed_version)` — bez tego compose
+  szuka obrazów z tagiem `local`, których nie ma w rejestrze.
+- Powrót do starszej wersji: `bash deploy/deploy.sh v1.0.3` (dowolny istniejący tag; migracje zostają).
+- Repo na serwerze jest w stanie *detached HEAD* na tagu ostatniego releasu — nie rób tam `git pull` ani zmian.
+- Backupy w `backups/` leżą na tym samym dysku co baza. To ochrona przed złą migracją, nie przed awarią serwera —
+  kopiuj je także poza VPS.
