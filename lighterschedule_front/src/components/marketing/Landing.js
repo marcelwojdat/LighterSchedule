@@ -63,15 +63,16 @@ const AUDIENCES = [
   },
 ];
 
-// Each claim matches the code: settings.py (HTTPS, headers), password validators, tenancy tests, permissions.
+// Each claim matches the code and core/tests/test_security.py: settings.py, public/serve.json,
+// core/throttling.py, tenancy tests, permissions.
 const SECURITY = [
   {
     title: 'Szyfrowane połączenie',
     text: 'Cały ruch idzie przez HTTPS, a przeglądarka zapamiętuje to na rok (HSTS) — nikt po drodze nie podejrzy grafiku ani hasła.',
   },
   {
-    title: 'Hasła tylko jako skrót',
-    text: 'Nie przechowujemy haseł, tylko ich solony skrót (PBKDF2). Hasła krótsze niż 8 znaków, popularne lub z samych cyfr są odrzucane.',
+    title: 'Ochrona haseł',
+    text: 'Przechowujemy tylko solony skrót hasła (PBKDF2). Po 10 nieudanych próbach logowania konto blokuje się na 15 minut.',
   },
   {
     title: 'Każda firma osobno',
@@ -79,15 +80,15 @@ const SECURITY = [
   },
   {
     title: 'Uprawnienia według roli',
-    text: 'Pracownik składa deklaracje i prośby o zamianę. Grafik, konta, stawki i ustawienia firmy zmienia wyłącznie kierownik.',
+    text: 'Grafik, konta i ustawienia zmienia wyłącznie kierownik. Pracownik nie widzi stawek ani kontaktów współpracowników.',
   },
   {
-    title: 'Krótkie sesje',
-    text: 'Logowanie opiera się na tokenach ważnych kilka minut, odnawianych w tle. Wylogowanie usuwa je z przeglądarki.',
+    title: 'Sesje pod kontrolą',
+    text: 'Tokeny logowania są ważne kilka minut. Wylogowanie i zmiana hasła unieważniają sesję na serwerze — także na innych urządzeniach.',
   },
   {
     title: 'Ochrona przed typowymi atakami',
-    text: 'Zapytania do bazy idą wyłącznie przez ORM, treści są escapowane, a nagłówki blokują osadzanie strony w ramce (clickjacking).',
+    text: 'Zapytania do bazy idą wyłącznie przez ORM, a polityka CSP blokuje obce skrypty i osadzanie strony w cudzej ramce (clickjacking).',
   },
 ];
 

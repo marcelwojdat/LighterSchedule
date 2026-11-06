@@ -7,6 +7,8 @@ variables (e.g. from docker-compose) always take precedence.
 """
 
 import os
+import sys
+from datetime import timedelta
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
@@ -51,6 +53,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'core.apps.CoreConfig',
 ]
@@ -101,6 +104,23 @@ DATABASES = {
 }
 
 
+# --- Cache (login throttling and lockouts) -------------------------------------
+
+# The counters must be shared by all gunicorn workers (process memory would count per worker),
+# so they live in PostgreSQL: concurrent writes are safe there, unlike cache files.
+# The table is created by migration core.0002. Tests get a private in-memory cache.
+TESTING = len(sys.argv) > 1 and sys.argv[1] == 'test'
+CACHE_TABLE = 'django_cache'
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+    } if TESTING else {
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': CACHE_TABLE,
+    },
+}
+
+
 # --- Authentication & API ----------------------------------------------------
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -118,6 +138,29 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    # Signed-in traffic is not throttled globally; the auth endpoints have their own scopes.
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '60/min',
+        'login': '20/min',
+        'register': '10/hour',
+        'password_change': '10/hour',
+    },
+    # Client IP = the last X-Forwarded-For entry, i.e. the one appended by our nginx.
+    # Without it the whole (spoofable) header would identify the client.
+    'NUM_PROXIES': int(os.environ.get('DJANGO_NUM_PROXIES', '1')),
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    # Every refresh issues a new refresh token and revokes the old one (token_blacklist app).
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    # Tokens carry a hash of the password, so changing it invalidates access tokens at once.
+    'CHECK_REVOKE_TOKEN': True,
 }
 
 CORS_ALLOWED_ORIGINS = _env_list('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000')

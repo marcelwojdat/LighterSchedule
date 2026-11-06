@@ -11,10 +11,18 @@ from ..permissions import IsManager
 
 MANAGER_WRITE_ACTIONS = ('create', 'update', 'partial_update', 'destroy')
 INVALID_MONTH_MESSAGE = 'Nieprawidłowy format miesiąca. Użyj YYYY-MM.'
+REJECTION_REASON_MAX_LENGTH = 255  # rejection_reason columns of WorkDay and SwapRequest
 
 
 def error_response(message, status_code=status.HTTP_400_BAD_REQUEST):
     return Response({'error': message}, status=status_code)
+
+
+def clean_rejection_reason(value):
+    """Request value as text that fits the column; anything not a string counts as no reason."""
+    if not isinstance(value, str):
+        return ''
+    return value.strip()[:REJECTION_REASON_MAX_LENGTH]
 
 
 def parse_month(value):

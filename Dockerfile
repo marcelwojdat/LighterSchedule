@@ -7,6 +7,8 @@ COPY lighterschedule_front/ ./
 # Na VPS ustaw przy buildzie, np. /api jeśli Nginx proxy'uje pod tą samą domeną
 ARG REACT_APP_API_URL=/api
 ENV REACT_APP_API_URL=$REACT_APP_API_URL
+# The startup script goes to a file instead of inline <script>, as the CSP in public/serve.json requires.
+ENV INLINE_RUNTIME_CHUNK=false
 RUN npm run build
 
 # ---- Backend ----
@@ -28,6 +30,10 @@ COPY --from=frontend /frontend/build ./lighterschedule_front/build
 
 # collectstatic only copies files, but importing settings requires these; real values come at runtime.
 RUN DJANGO_SECRET_KEY=build-only DB_PASSWORD=build-only python manage.py collectstatic --noinput
+
+# Run without root: a flaw in the app must not give root inside the container.
+RUN useradd --system --no-create-home --uid 10001 app
+USER app
 
 EXPOSE 8000
 

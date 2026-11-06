@@ -2,23 +2,35 @@
 
 from datetime import datetime, timezone as dt_timezone
 
+from django.contrib.auth.models import User
 from django.core.signing import BadSignature, Signer
 from django.utils import timezone
 
 CALENDAR_TOKEN_SALT = 'lighterschedule-calendar-feed'
 
 
-def make_calendar_token(user_id):
-    return Signer(salt=CALENDAR_TOKEN_SALT).sign(str(user_id))
+def _calendar_signer(user):
+    # The password hash is part of the key, so changing the password revokes old feed links.
+    return Signer(salt=f'{CALENDAR_TOKEN_SALT}:{user.password}')
+
+
+def make_calendar_token(user):
+    return _calendar_signer(user).sign(str(user.pk))
 
 
 def resolve_calendar_token(token):
-    if not token:
+    """The active user a feed token belongs to, or None."""
+    user_id, _separator, _signature = str(token or '').partition(':')
+    if not user_id.isdigit():
+        return None
+    user = User.objects.filter(pk=int(user_id), is_active=True).first()
+    if user is None:
         return None
     try:
-        return int(Signer(salt=CALENDAR_TOKEN_SALT).unsign(str(token)))
-    except (BadSignature, ValueError, TypeError):
+        _calendar_signer(user).unsign(str(token))
+    except BadSignature:
         return None
+    return user
 
 
 def _ics_escape(value):

@@ -122,8 +122,12 @@ server {
     }
 
     location /admin/ {
+        # Panel administratora nie ma limitu prób logowania — wpuszczaj tylko swoje IP.
+        allow 203.0.113.10;   # Twoje IP
+        deny all;
         proxy_pass http://127.0.0.1:8000/admin/;
         proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
@@ -134,9 +138,20 @@ server {
 
     location / {
         try_files $uri $uri/ /index.html;
+        # Te same nagłówki co w lighterschedule_front/public/serve.json (gdy frontend serwuje `serve`).
+        # Build musi mieć INLINE_RUNTIME_CHUNK=false, inaczej CSP zablokuje skrypt startowy.
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
     }
 }
 ```
+
+Logowanie jest chronione limitem prób na IP. Django bierze IP klienta z ostatniego wpisu
+`X-Forwarded-For` (`DJANGO_NUM_PROXIES=1`), dlatego `/api/` musi przekazywać ten nagłówek, jak wyżej.
 
 ```bash
 sudo ln -s /etc/nginx/sites-available/lighterschedule /etc/nginx/sites-enabled/
@@ -152,6 +167,10 @@ sudo systemctl reload nginx
 - [ ] `CORS_ALLOWED_ORIGINS` i `CSRF_TRUSTED_ORIGINS` tylko na domenę frontendu
 - [ ] Skonfigurowany SMTP (`EMAIL_HOST`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`)
 - [ ] `python manage.py collectstatic --noinput`
+- [ ] `python manage.py migrate` (tworzy też tabelę liczników logowania i czarnej listy tokenów)
+- [ ] Backend nasłuchuje tylko na `127.0.0.1:8000` (w docker-compose: `"127.0.0.1:8000:8000"` — Docker omija UFW)
+- [ ] `/admin/` dostępny tylko z Twojego IP
+- [ ] `curl -I https://twoja-domena.pl/login` pokazuje `Content-Security-Policy` i `X-Frame-Options`
 - [ ] Backup bazy (`pg_dump` / snapshot)
 
 ## 6. Smoke test po deployu

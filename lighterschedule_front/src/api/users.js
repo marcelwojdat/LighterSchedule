@@ -1,4 +1,4 @@
-import apiClient from './client';
+import apiClient, { storeTokens } from './client';
 
 export const getUsers = () =>
   apiClient.get('/users/').then((response) => response.data);
@@ -26,5 +26,9 @@ export const getSwappableWorkdays = (userId) =>
 export const updateCurrentUser = (data) =>
   apiClient.patch('/me/', data).then((response) => response.data);
 
+/** Other sessions are revoked by the server; this one continues with the returned token pair. */
 export const changePassword = (data) =>
-  apiClient.post('/me/change-password/', data).then((response) => response.data);
+  apiClient.post('/me/change-password/', data).then((response) => {
+    storeTokens(response.data);
+    return response.data;
+  });

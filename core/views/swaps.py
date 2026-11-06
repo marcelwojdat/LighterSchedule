@@ -13,7 +13,7 @@ from ..permissions import IsManager, is_manager
 from ..serializers import SwapRequestSerializer
 from ..tenancy import OrganizationScopedMixin
 from ..utils import remember_rejection_reason
-from .common import error_response
+from .common import clean_rejection_reason, error_response
 
 
 class SwapRequestViewSet(
@@ -79,7 +79,7 @@ class SwapRequestViewSet(
             raise PermissionDenied('Nie możesz odrzucić tej prośby.')
 
         swap.is_rejected = True
-        swap.rejection_reason = (request.data.get('rejection_reason') or '').strip()
+        swap.rejection_reason = clean_rejection_reason(request.data.get('rejection_reason'))
         swap.save(update_fields=['is_rejected', 'rejection_reason'])
         if manager_rejects:
             remember_rejection_reason(self.get_organization(), swap.rejection_reason)

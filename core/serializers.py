@@ -56,6 +56,21 @@ class OrganizationUniqueFieldMixin:
         return super().validate(attrs)
 
 
+# --- Visibility --------------------------------------------------------------
+
+# Colleagues are visible to employees (swaps need them), but not their pay, contact or notes.
+USER_PRIVATE_FIELDS = ('email', 'hourly_rate')
+WORKDAY_PRIVATE_FIELDS = ('rate_at_time', 'earnings', 'note', 'rejection_reason')
+
+
+def can_see_private_data(context, owner_id):
+    """Managers and the owner see everything. No request in context means internal use."""
+    request = context.get('request')
+    if request is None:
+        return True
+    return is_manager(request.user) or request.user.pk == owner_id
+
+
 # --- Users -------------------------------------------------------------------
 
 class UserSerializer(serializers.ModelSerializer):
@@ -71,6 +86,13 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'username', 'first_name', 'last_name', 'email',
             'hourly_rate', 'is_manager', 'is_active',
         ]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if not can_see_private_data(self.context, instance.pk):
+            for field in USER_PRIVATE_FIELDS:
+                data.pop(field, None)
+        return data
 
 
 class AccountCreateSerializer(serializers.Serializer):
@@ -93,12 +115,20 @@ class AccountCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError('Konto z tym adresem e-mail już istnieje.')
         return email
 
-    def validate_password(self, value):
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        # An unsaved user lets the similarity validator compare the password with login, name and e-mail.
+        candidate = User(
+            username=attrs['username'],
+            email=attrs['email'],
+            first_name=attrs['first_name'],
+            last_name=attrs['last_name'],
+        )
         try:
-            validate_password(value)
+            validate_password(attrs['password'], user=candidate)
         except DjangoValidationError as exc:
-            raise serializers.ValidationError(list(exc.messages))
-        return value
+            raise serializers.ValidationError({'password': list(exc.messages)})
+        return attrs
 
     def to_representation(self, instance):
         return UserSerializer(instance, context=self.context).data
@@ -174,6 +204,13 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['first_name', 'last_name', 'email']
+
+    def validate_email(self, value):
+        # Same rule as sign-up: one account per address, so notifications reach the right person.
+        email = value.lower()
+        if email and User.objects.filter(email__iexact=email).exclude(pk=self.instance.pk).exists():
+            raise serializers.ValidationError('Konto z tym adresem e-mail już istnieje.')
+        return email
 
 
 # --- Organization configuration ----------------------------------------------
@@ -370,6 +407,13 @@ class WorkDaySerializer(serializers.ModelSerializer):
             'note': {'required': False, 'allow_blank': True},
         }
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if not can_see_private_data(self.context, instance.employee_id):
+            for field in WORKDAY_PRIVATE_FIELDS:
+                data.pop(field, None)
+        return data
+
     def get_shift_slots(self, obj):
         return get_shift_slots_info(obj.shift_template, obj.date)
 
@@ -564,6 +608,8 @@ class SwapRequestSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'target_user': 'Nie możesz wysłać prośby do siebie.'})
         if is_manager(target_user):
             raise serializers.ValidationError({'target_user': 'Nie można wysłać prośby do kierownika.'})
+        if not target_user.is_active:
+            raise serializers.ValidationError({'target_user': 'To konto jest nieaktywne.'})
 
         active_swap_exists = SwapRequest.objects.filter(
             work_day=work_day,

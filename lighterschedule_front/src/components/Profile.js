@@ -74,7 +74,7 @@ const Profile = () => {
     }
 
     try {
-      await changePassword({
+      const result = await changePassword({
         current_password: passwordData.current_password,
         new_password: passwordData.new_password,
       });
@@ -83,7 +83,7 @@ const Profile = () => {
         new_password: '',
         confirm_password: '',
       });
-      setSuccess('Hasło zostało zmienione.');
+      setSuccess(result.message);
     } catch (err) {
       setError(getErrorMessage(err));
     }

@@ -1,11 +1,13 @@
 """Schedule entries: declarations, approvals, copying and calendar export."""
+from datetime import date
+
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
@@ -18,7 +20,7 @@ from ..schedule_copy import copy_workdays, parse_iso_date
 from ..serializers import WorkDaySerializer
 from ..tenancy import OrganizationScopedMixin, organization_users
 from ..utils import DECLARATION_DEADLINE_MESSAGE, declaration_deadline_passed, remember_rejection_reason
-from .common import INVALID_MONTH_MESSAGE, error_response, parse_month
+from .common import INVALID_MONTH_MESSAGE, clean_rejection_reason, error_response, parse_month
 
 
 class WorkDayViewSet(OrganizationScopedMixin, viewsets.ModelViewSet):
@@ -34,20 +36,38 @@ class WorkDayViewSet(OrganizationScopedMixin, viewsets.ModelViewSet):
     serializer_class = WorkDaySerializer
     organization_lookup = 'employee__profile__organization'
 
+    def _date_param(self, name):
+        raw = self.request.query_params.get(name)
+        if not raw:
+            return None
+        try:
+            return date.fromisoformat(raw)
+        except ValueError:
+            raise ValidationError({name: 'Nieprawidłowa data. Użyj formatu YYYY-MM-DD.'})
+
     def get_queryset(self):
         queryset = super().get_queryset()
         params = self.request.query_params
 
+        # Filters are validated, so malformed input is a 400, not an unhandled database error.
+        employee = params.get('employee')
+        if employee and not employee.isdigit():
+            raise ValidationError({'employee': 'Id pracownika musi być liczbą.'})
+        status_value = params.get('status')
+        if status_value and status_value not in WorkDay.Status.values:
+            raise ValidationError({'status': 'Nieznany status.'})
+        date_from, date_to = self._date_param('date_from'), self._date_param('date_to')
+
         if not is_manager(self.request.user):
             queryset = queryset.filter(employee=self.request.user)
-        if params.get('employee'):
-            queryset = queryset.filter(employee_id=params['employee'])
-        if params.get('status'):
-            queryset = queryset.filter(status=params['status'])
-        if params.get('date_from'):
-            queryset = queryset.filter(date__gte=params['date_from'])
-        if params.get('date_to'):
-            queryset = queryset.filter(date__lte=params['date_to'])
+        if employee:
+            queryset = queryset.filter(employee_id=int(employee))
+        if status_value:
+            queryset = queryset.filter(status=status_value)
+        if date_from:
+            queryset = queryset.filter(date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(date__lte=date_to)
         return queryset
 
     def _ensure_declarations_open(self):
@@ -91,8 +111,7 @@ class WorkDayViewSet(OrganizationScopedMixin, viewsets.ModelViewSet):
         if request.user.is_authenticated:
             user = request.user
         else:
-            user_id = resolve_calendar_token(request.query_params.get('token'))
-            user = User.objects.filter(pk=user_id).first() if user_id else None
+            user = resolve_calendar_token(request.query_params.get('token'))
         if user is None:
             return error_response('Wymagane logowanie lub poprawny token kalendarza.', status.HTTP_401_UNAUTHORIZED)
 
@@ -125,7 +144,7 @@ class WorkDayViewSet(OrganizationScopedMixin, viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='calendar-feed')
     def calendar_feed(self, request):
         """Stable subscription URL (signed token) for Google / Apple Calendar."""
-        token = make_calendar_token(request.user.id)
+        token = make_calendar_token(request.user)
         url = request.build_absolute_uri(f'/api/workdays/export.ics/?token={token}')
         webcal_url = url.replace('https://', 'webcal://').replace('http://', 'webcal://')
         return Response({'token': token, 'url': url, 'webcal_url': webcal_url})
@@ -241,7 +260,7 @@ class WorkDayViewSet(OrganizationScopedMixin, viewsets.ModelViewSet):
             return error_response('Można odrzucić tylko wpisy oczekujące na akceptację.')
 
         workday.status = WorkDay.Status.REJECTED
-        workday.rejection_reason = (request.data.get('rejection_reason') or '').strip()
+        workday.rejection_reason = clean_rejection_reason(request.data.get('rejection_reason'))
         workday.approved_by = None
         workday.approved_at = None
         workday.save()
