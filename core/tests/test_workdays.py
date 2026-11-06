@@ -14,6 +14,7 @@ from core.tests.factories import (
     future_date,
     make_organization,
     make_shift_template,
+    make_task_type,
     make_user,
     make_workday,
 )
@@ -194,6 +195,36 @@ class ShiftTemplateTests(ScheduleTestCase):
         self.login(self.employee)
 
         self.assertEqual(self.client.get('/api/shift-templates/').data, [])
+
+
+class TaskTypeTests(ScheduleTestCase):
+    def test_employee_can_list_but_not_change_task_types(self):
+        task_type = make_task_type(self.org, 'Kasa')
+        self.login(self.employee)
+
+        self.assertEqual([row['name'] for row in self.client.get('/api/task-types/').data], ['Kasa'])
+        self.assertEqual(self.client.post('/api/task-types/', {'name': 'Bar'}).status_code, 403)
+        self.assertEqual(self.client.patch(f'/api/task-types/{task_type.id}/', {'name': 'Bar'}).status_code, 403)
+        self.assertEqual(self.client.delete(f'/api/task-types/{task_type.id}/').status_code, 403)
+
+    def test_renaming_task_type_shows_on_saved_workdays(self):
+        task_type = make_task_type(self.org, 'Magazyn')
+        workday = make_workday(self.employee, role=task_type)
+        self.login(self.manager)
+
+        response = self.client.patch(f'/api/task-types/{task_type.id}/', {'name': 'Dostawy'}, format='json')
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(self.client.get(f'/api/workdays/{workday.id}/').data['role_name'], 'Dostawy')
+
+    def test_deleting_task_type_keeps_workdays_without_role(self):
+        task_type = make_task_type(self.org, 'Magazyn')
+        workday = make_workday(self.employee, role=task_type)
+        self.login(self.manager)
+
+        self.assertEqual(self.client.delete(f'/api/task-types/{task_type.id}/').status_code, 204)
+        workday.refresh_from_db()
+        self.assertIsNone(workday.role)
 
 
 class ShiftSlotLimitTests(ScheduleTestCase):

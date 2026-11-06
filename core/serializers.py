@@ -202,7 +202,7 @@ class ScheduleSettingsSerializer(serializers.ModelSerializer):
 
 
 class TaskTypeSerializer(OrganizationUniqueFieldMixin, serializers.ModelSerializer):
-    unique_error = 'Typ zadania o tej nazwie już istnieje.'
+    unique_error = 'Stanowisko o tej nazwie już istnieje.'
 
     class Meta:
         model = TaskType

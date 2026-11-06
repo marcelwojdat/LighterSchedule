@@ -1,9 +1,16 @@
 import React, { useState } from 'react';
 import DeclarationDeadlineForm from './DeclarationDeadlineForm';
 import ShiftTemplateEditor from './ShiftTemplateEditor';
+import TaskTypeEditor from './TaskTypeEditor';
 import styles from '../Manager.module.css';
 
-/** Organization settings: the weekly declaration deadline and (collapsible) shift templates. */
+// Collapsible panels; at most one is open at a time.
+const PANELS = [
+  { key: 'templates', label: 'Szablony zmian', hideLabel: 'Ukryj szablony zmian' },
+  { key: 'taskTypes', label: 'Stanowiska', hideLabel: 'Ukryj stanowiska' },
+];
+
+/** Organization settings: the weekly declaration deadline, shift templates and roles (task types). */
 const ScheduleSettingsCard = ({
   settings,
   onSaveDeadline,
@@ -11,32 +18,49 @@ const ScheduleSettingsCard = ({
   templates,
   onSaveTemplate,
   onDeleteTemplate,
+  taskTypes,
+  onSaveTaskType,
+  onDeleteTaskType,
   onError,
 }) => {
-  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [openPanel, setOpenPanel] = useState(null);
+  const toggle = (key) => setOpenPanel((open) => (open === key ? null : key));
 
   return (
     <section className={styles.settingsSection}>
       <div className={styles.sectionCard}>
         <div className={styles.settingsToggleRow}>
           <h3>Ustawienia</h3>
-          <button
-            type="button"
-            className={styles.btnSecondary}
-            onClick={() => setTemplatesOpen((open) => !open)}
-            aria-expanded={templatesOpen}
-          >
-            {templatesOpen ? 'Ukryj szablony zmian' : 'Szablony zmian'}
-          </button>
+          <div className={styles.settingsToggleButtons}>
+            {PANELS.map(({ key, label, hideLabel }) => (
+              <button
+                key={key}
+                type="button"
+                className={styles.btnSecondary}
+                onClick={() => toggle(key)}
+                aria-expanded={openPanel === key}
+              >
+                {openPanel === key ? hideLabel : label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <DeclarationDeadlineForm settings={settings} onSave={onSaveDeadline} onClear={onClearDeadline} />
 
-        {templatesOpen ? (
+        {openPanel === 'templates' ? (
           <ShiftTemplateEditor
             templates={templates}
             onSave={onSaveTemplate}
             onDelete={onDeleteTemplate}
+            onError={onError}
+          />
+        ) : null}
+        {openPanel === 'taskTypes' ? (
+          <TaskTypeEditor
+            taskTypes={taskTypes}
+            onSave={onSaveTaskType}
+            onDelete={onDeleteTaskType}
             onError={onError}
           />
         ) : null}

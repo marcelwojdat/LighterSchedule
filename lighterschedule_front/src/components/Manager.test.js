@@ -418,3 +418,45 @@ describe('settings: deadline and shift templates', () => {
     );
   });
 });
+
+describe('settings: roles (task types)', () => {
+  const openRoles = async () => {
+    await renderManager();
+    const settings = card('Ustawienia');
+    fireEvent.click(within(settings).getByRole('button', { name: 'Stanowiska' }));
+    return settings;
+  };
+
+  test('adding a role', async () => {
+    taskTypesApi.createTaskType.mockResolvedValue({});
+    const settings = await openRoles();
+
+    fireEvent.change(within(settings).getByRole('textbox', { name: 'Nazwa stanowiska' }), { target: { value: ' Bar ' } });
+    fireEvent.click(within(settings).getByRole('button', { name: 'Dodaj stanowisko' }));
+
+    await waitFor(() => expect(taskTypesApi.createTaskType).toHaveBeenCalledWith({ name: 'Bar' }));
+    expect(await screen.findByText('Dodano stanowisko „Bar".')).toBeInTheDocument();
+  });
+
+  test('renaming a role', async () => {
+    taskTypesApi.updateTaskType.mockResolvedValue({});
+    const settings = await openRoles();
+
+    fireEvent.click(within(settings).getByRole('button', { name: 'Edytuj stanowisko Kasa' }));
+    fireEvent.change(within(settings).getByRole('textbox', { name: 'Nazwa stanowiska' }), { target: { value: 'Kasa główna' } });
+    fireEvent.click(within(settings).getByRole('button', { name: 'Zapisz nazwę' }));
+
+    await waitFor(() => expect(taskTypesApi.updateTaskType).toHaveBeenCalledWith(1, { name: 'Kasa główna' }));
+  });
+
+  test('deleting a role after confirmation', async () => {
+    taskTypesApi.deleteTaskType.mockResolvedValue({});
+    const settings = await openRoles();
+
+    fireEvent.click(within(settings).getByRole('button', { name: 'Usuń stanowisko Kasa' }));
+
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('zostaną, ale bez stanowiska'));
+    await waitFor(() => expect(taskTypesApi.deleteTaskType).toHaveBeenCalledWith(1));
+    expect(await screen.findByText('Usunięto stanowisko „Kasa".')).toBeInTheDocument();
+  });
+});

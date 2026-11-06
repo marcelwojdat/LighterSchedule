@@ -15,6 +15,7 @@ import { updateScheduleSettings } from '../api/scheduleSettings';
 import { createShiftTemplate, deleteShiftTemplate, updateShiftTemplate } from '../api/shiftTemplates';
 import { downloadPayrollPdf } from '../api/stats';
 import { approveSwap as approveSwapRequest, rejectSwap as rejectSwapRequest } from '../api/swaps';
+import { createTaskType, deleteTaskType, updateTaskType } from '../api/taskTypes';
 import { createUser, deleteUser, updateUserProfile } from '../api/users';
 import {
   approveWorkday,
@@ -296,6 +297,19 @@ const Manager = () => {
       after: reloadShiftTemplates,
     });
 
+  // Renaming or deleting a role changes `role_name` on saved shifts, so these reload everything.
+  const saveTaskType = (payload, id) =>
+    runAction(() => (id ? updateTaskType(id, payload) : createTaskType(payload)), {
+      success: id ? `Zmieniono nazwę stanowiska na „${payload.name}".` : `Dodano stanowisko „${payload.name}".`,
+      failure: 'Nie udało się zapisać stanowiska.',
+    });
+
+  const removeTaskType = (taskType) =>
+    runAction(() => deleteTaskType(taskType.id), {
+      success: `Usunięto stanowisko „${taskType.name}".`,
+      failure: 'Nie udało się usunąć stanowiska.',
+    });
+
   return (
     <div className={`${styles.managerPage} lsFields`}>
       <div className={styles.pageHeader}>
@@ -409,6 +423,9 @@ const Manager = () => {
         templates={shiftTemplates}
         onSaveTemplate={saveTemplate}
         onDeleteTemplate={deleteTemplate}
+        taskTypes={taskTypes}
+        onSaveTaskType={saveTaskType}
+        onDeleteTaskType={removeTaskType}
         onError={setError}
       />
     </div>

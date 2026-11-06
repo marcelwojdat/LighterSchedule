@@ -1171,6 +1171,29 @@
   margin: 0;
 }
 
+.settingsToggleButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.taskTypeForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 0;
+}
+
+.taskTypeForm > input {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.taskTypeForm + .templateList .templateListItem {
+  align-items: center;
+}
+
 .shiftTemplatesPanel {
   margin-top: 12px;
   padding-top: 12px;
@@ -1397,6 +1420,10 @@
 
   .settingsToggleRow button {
     width: 100%;
+  }
+
+  .settingsToggleButtons button {
+    flex: 1 1 0;
   }
 }
 
