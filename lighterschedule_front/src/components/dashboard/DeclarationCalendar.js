@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
+import { Clock } from 'lucide-react';
 import styles from '../Dashboard.module.css';
 import { WORKDAY_STATUS_LABELS } from '../../constants/statusLabels';
 import { formatDateStr } from '../../utils/dates';
@@ -23,8 +24,18 @@ const savedTileClass = (day) => {
 /**
  * Month calendar of the employee's declarations plus "copy previous period" and "send" actions.
  * `drafts` are declarations prepared in the day popup but not sent yet.
+ * `deadlineNote` is a short line about the weekly deadline, shown under the send button.
  */
-const DeclarationCalendar = ({ workdays, drafts, declarationsClosed, copyMonth, onSelectDate, onCopy, onSend }) => {
+const DeclarationCalendar = ({
+  workdays,
+  drafts,
+  declarationsClosed,
+  deadlineNote,
+  copyMonth,
+  onSelectDate,
+  onCopy,
+  onSend,
+}) => {
   const [copyBusy, setCopyBusy] = useState(false);
   const savedDay = (date) => workdays.find((day) => day.date === date);
 
@@ -114,6 +125,12 @@ const DeclarationCalendar = ({ workdays, drafts, declarationsClosed, copyMonth, 
         disabled={declarationsClosed}
         className={`${styles.scheduleSetBtn} ${styles.saveScheduleBtn}`}
       />
+      {deadlineNote ? (
+        <p className={`${styles.deadlineNote} ${declarationsClosed ? styles.deadlineNoteClosed : ''}`}>
+          <Clock size={13} aria-hidden="true" />
+          {deadlineNote}
+        </p>
+      ) : null}
     </>
   );
 };

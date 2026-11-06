@@ -23,26 +23,23 @@
   color: #0f172a;
 }
 
-.deadlineBanner {
-  margin-top: 12px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: #fff7ed;
-  border: 1px solid #fed7aa;
-  color: #9a3412;
-  font-size: 0.92rem;
-  font-weight: 600;
+/* Quiet line under the send button about the weekly deadline. */
+.deadlineNote {
+  margin: 6px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #64748b;
+  text-align: center;
 }
 
-.deadlineInfo {
-  margin-top: 12px;
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  color: #1e40af;
-  font-size: 0.9rem;
-  font-weight: 600;
+/* Inline icon, so a wrapped note stays centered with the clock before its first word. */
+.deadlineNote svg {
+  margin-right: 5px;
+  vertical-align: -2px;
+}
+
+.deadlineNoteClosed {
+  color: #b45309;
 }
 
 .dashboardBody {
@@ -813,7 +810,7 @@
   transform: translateY(-1px); 
 }
 .saveScheduleBtn {
-  max-width: 20%;
+  max-width: 100%;
   justify-content: center;
   align-self: center;
 }
@@ -943,16 +940,12 @@
   box-shadow: 0 14px 32px rgba(0, 0, 0, 0.25);
 }
 
-:global([data-theme='dark']) .deadlineBanner {
-  background: #431407;
-  border-color: #9a3412;
-  color: #fdba74;
+:global([data-theme='dark']) .deadlineNote {
+  color: #94a3b8;
 }
 
-:global([data-theme='dark']) .deadlineInfo {
-  background: #1e3a8a;
-  border-color: #1d4ed8;
-  color: #bfdbfe;
+:global([data-theme='dark']) .deadlineNoteClosed {
+  color: #fdba74;
 }
 
 :global([data-theme='dark']) .calendarExportToggle,

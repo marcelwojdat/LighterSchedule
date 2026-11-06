@@ -36,15 +36,22 @@ const currentMonthValue = () => formatDateStr(new Date()).slice(0, 7);
 const notificationKey = (item, index) =>
   `${item.type}|${item.shift_template_id || ''}|${item.date || ''}|${item.message || ''}|${index}`;
 
-/** Banner texts for the weekly declaration window (`closed` blocks all employee edits). */
+/**
+ * Texts for the weekly declaration window (`closed` blocks all employee edits).
+ * `closedMessage` explains a blocked action; `note` is the short line under the send button.
+ */
 const deadlineInfo = (settings) => {
   const label = settings?.declaration_close_label;
+  const closed = Boolean(settings?.declarations_closed);
+  const closedNote = label
+    ? `Termin minął (${label}) — do poniedziałku grafik zmienia kierownik.`
+    : 'Termin minął — do poniedziałku grafik zmienia kierownik.';
   return {
-    closed: Boolean(settings?.declarations_closed),
+    closed,
     closedMessage: label
       ? `Okno deklaracji jest zamknięte (termin: ${label}). Grafik może zmieniać tylko kierownik.`
       : 'Okno deklaracji jest zamknięte. Grafik może zmieniać tylko kierownik.',
-    openMessage: label ? `Deklaracje można składać do ${label} włącznie (powtarza się co tydzień).` : null,
+    note: closed ? closedNote : label ? `Deklaracje wysyłasz do: ${label}` : null,
   };
 };
 
@@ -284,12 +291,6 @@ const Dashboard = () => {
           { key: 'success', message: success, variant: 'success', onClose: () => setSuccess('') },
         ]}
       />
-      {deadline.closed ? (
-        <div className={styles.deadlineBanner}>{deadline.closedMessage}</div>
-      ) : deadline.openMessage ? (
-        <div className={styles.deadlineInfo}>{deadline.openMessage}</div>
-      ) : null}
-
       <div className={styles.dashboardBody}>
         <div className={styles.statsWrapper}>
           <WeekSummaryCard workdays={workdays} weekStart={weekStart} onWeekChange={setWeekStart} />
@@ -308,6 +309,7 @@ const Dashboard = () => {
             workdays={workdays}
             drafts={drafts}
             declarationsClosed={deadline.closed}
+            deadlineNote={deadline.note}
             copyMonth={statsMonth}
             onSelectDate={openDay}
             onCopy={copySchedule}

@@ -187,12 +187,20 @@ test('accepting and rejecting a received swap', async () => {
   await waitFor(() => expect(swapsApi.rejectSwap).toHaveBeenCalledWith(50));
 });
 
+test('open declaration window shows the deadline as a short note', async () => {
+  settings = { declarations_closed: false, declaration_close_label: 'sobota 23:59' };
+  await renderDashboard();
+
+  expect(await screen.findByText('Deklaracje wysyłasz do: sobota 23:59')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Wyślij deklaracje' })).toBeEnabled();
+});
+
 test('closed declaration window blocks sending', async () => {
   settings = { declarations_closed: true, declaration_close_label: 'sobota 23:59' };
   await renderDashboard();
 
   expect(
-    await screen.findByText('Okno deklaracji jest zamknięte (termin: sobota 23:59). Grafik może zmieniać tylko kierownik.'),
+    await screen.findByText('Termin minął (sobota 23:59) — do poniedziałku grafik zmienia kierownik.'),
   ).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Termin deklaracji minął' })).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Kopiuj poprzedni tydzień' })).toBeDisabled();
