@@ -17,6 +17,9 @@ const EMPTY_FORM = {
   passwordConfirm: '',
 };
 
+/** Logins are lowercase without spaces (the server stores them the same way). */
+const normalizeLogin = (value) => value.toLowerCase().replace(/\s/g, '');
+
 /** Returns an error message, or null when the form can be sent. */
 const validate = (form) => {
   const requiredFilled = Object.entries(form)
@@ -46,7 +49,8 @@ const Register = () => {
   }, [status, navigate]);
 
   const updateField = (name) => (event) => {
-    setForm((prev) => ({ ...prev, [name]: event.target.value }));
+    const { value } = event.target;
+    setForm((prev) => ({ ...prev, [name]: name === 'username' ? normalizeLogin(value) : value }));
   };
 
   const handleSubmit = async (event) => {
@@ -106,10 +110,12 @@ const Register = () => {
             <input
               id="username"
               type="text"
-              placeholder="Wpisz nazwę użytkownika"
+              placeholder="np. jan.kowalski"
               value={form.username}
               onChange={updateField('username')}
               autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
             />
           </div>
 

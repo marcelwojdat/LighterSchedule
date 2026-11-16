@@ -1,5 +1,6 @@
 """Hardening: private fields, brute-force limits, session revocation, calendar links, input validation."""
 
+from django.contrib.auth.models import User
 from django.core.cache import cache
 from rest_framework.test import APITestCase
 
@@ -90,6 +91,61 @@ class BruteForceTests(SecurityTestCase):
             self.obtain_tokens('employee', 'zle-haslo')
 
         self.assertEqual(self.obtain_tokens('colleague').status_code, 200)
+
+    def test_changing_letter_case_does_not_bypass_lockout(self):
+        for attempt in range(MAX_FAILED_LOGINS):
+            self.obtain_tokens('EMPLOYEE' if attempt % 2 else 'employee', 'zle-haslo')
+
+        self.assertEqual(self.obtain_tokens('Employee').status_code, 429)
+
+
+class UsernameCaseTests(SecurityTestCase):
+    """Logins are stored lowercase, so one person can't end up with two accounts."""
+
+    REGISTRATION = {
+        'password': 'Bardzo-Trudne-77', 'first_name': 'Jan', 'last_name': 'Kowalski',
+        'organization_name': 'Firma',
+    }
+
+    def register(self, username, email):
+        payload = {**self.REGISTRATION, 'username': username, 'email': email}
+        return self.client.post('/api/register/', payload, format='json')
+
+    def test_registration_stores_trimmed_lowercase_login(self):
+        self.assertEqual(self.register('  JanK ', 'jan@example.com').status_code, 201)
+
+        self.assertTrue(User.objects.filter(username='jank').exists())
+
+    def test_login_differing_only_by_case_is_taken(self):
+        self.register('jank', 'jan@example.com')
+
+        response = self.register('JANK', 'inny@example.com')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('username', response.data)
+
+    def test_manager_created_account_gets_lowercase_login(self):
+        self.client.force_authenticate(self.manager)
+
+        response = self.client.post('/api/users/', {
+            'username': 'Nowa.Osoba', 'password': 'Bardzo-Trudne-77', 'first_name': 'Nowa',
+            'last_name': 'Osoba', 'email': 'nowa@example.com',
+        }, format='json')
+
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data['username'], 'nowa.osoba')
+
+    def test_login_ignores_letter_case(self):
+        self.assertEqual(self.obtain_tokens('EMPLOYEE').status_code, 200)
+
+    def test_older_mixed_case_account_still_signs_in(self):
+        make_user(self.org, 'Legacy')
+
+        for typed in ('Legacy', 'legacy', 'LEGACY'):
+            self.assertEqual(self.obtain_tokens(typed).status_code, 200, typed)
+
+    def test_wrong_password_fails_whatever_the_case(self):
+        self.assertEqual(self.obtain_tokens('EMPLOYEE', 'zle-haslo').status_code, 401)
 
 
 class SessionRevocationTests(SecurityTestCase):
