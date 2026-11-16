@@ -345,6 +345,24 @@ describe('employee schedule editor', () => {
     expect(workdaysApi.approveWorkday).not.toHaveBeenCalled();
   });
 
+  test('the manager plans their own shifts with "Mój grafik"', async () => {
+    workdaysApi.saveWorkdaysBatch.mockResolvedValue({ saved: [], saved_count: 1 });
+    await renderManager();
+    const ownRow = within(card('Zarządzanie kontami')).getByText('szef').closest('tr');
+
+    fireEvent.click(within(ownRow).getByRole('button', { name: 'Mój grafik' }));
+    await waitFor(() => expect(workdaysApi.getWorkdays).toHaveBeenCalledWith({ employee: 1 }));
+    const editor = card('Szczegóły pracownika');
+    pickDayAndAdd(editor, ['07:00', '15:00']);
+    fireEvent.click(within(editor).getByRole('button', { name: 'Zapisz zmiany' }));
+
+    await waitFor(() =>
+      expect(workdaysApi.saveWorkdaysBatch).toHaveBeenCalledWith([
+        { date: '2030-01-10', start_time: '07:00:00', end_time: '15:00:00', employee: 1, note: '' },
+      ]),
+    );
+  });
+
   describe('switching to another employee', () => {
     const PIOTR = { ...EMPLOYEE, id: 3, username: 'piotr', first_name: 'Piotr', last_name: 'Lis', email: 'piotr@example.com' };
     const openPiotr = () => {

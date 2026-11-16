@@ -171,8 +171,8 @@ const Manager = () => {
         const updated = await updateUserProfile(user.id, patch);
         setAllUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, ...updated } : u)));
         if (selectedEmployee?.id === user.id) {
-          // A manager or inactive account has no schedule to edit.
-          const keepsSchedule = !updated.is_manager && updated.is_active !== false;
+          // Only an inactive account has no schedule to edit (managers have one too).
+          const keepsSchedule = updated.is_active !== false;
           setSelectedEmployee(keepsSchedule ? { ...selectedEmployee, ...updated } : null);
         }
       },
@@ -408,7 +408,8 @@ const Manager = () => {
             <h3>Szczegóły pracownika</h3>
             {!selectedEmployee ? (
               <p className={styles.emptyQueue}>
-                Wybierz pracownika z listy kont (przycisk Grafik), aby zarządzać jego zmianami.
+                Wybierz osobę z listy kont (przycisk Grafik), aby zarządzać jej zmianami. Swoje zmiany dodasz
+                przyciskiem „Mój grafik”.
               </p>
             ) : (
               <EmployeeScheduleEditor

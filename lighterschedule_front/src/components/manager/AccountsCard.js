@@ -80,7 +80,8 @@ const AccountsCard = ({
               const isSelf = user.id === currentUserId;
               const isActive = user.is_active !== false;
               const optionsOpen = optionsUserId === user.id;
-              const hasSchedule = !user.is_manager && isActive;
+              // Managers work shifts too, so every active account (the manager's own as well) has a schedule.
+              const hasSchedule = isActive;
               return (
                 <tr key={user.id} className={isActive ? undefined : styles.inactiveRow}>
                   <td>
@@ -120,7 +121,7 @@ const AccountsCard = ({
                   <td data-empty={hasSchedule ? undefined : true}>
                     {hasSchedule ? (
                       <button type="button" className={styles.btnPrimary} onClick={() => onOpenSchedule(user)}>
-                        Grafik
+                        {isSelf ? 'Mój grafik' : 'Grafik'}
                       </button>
                     ) : (
                       <span>—</span>
