@@ -57,12 +57,36 @@ def active_managers(organization):
     ).exclude(email='')
 
 
+def _fmt_previous_hours(workday):
+    return f'{_fmt_time(workday.previous_start_time)}-{_fmt_time(workday.previous_end_time)}'
+
+
 def notify_workday_approved(workday):
     name = employee_display_name(workday.employee)
     subject = f'Grafik zatwierdzony — {workday.date}'
+    # Approved with other hours than proposed: one e-mail says both, no separate "changed" one.
+    changed_line = (
+        f'Kierownik zmienił godziny: było {_fmt_previous_hours(workday)}, jest {_fmt_hours(workday)}.\n\n'
+        if workday.has_unseen_hours_change else ''
+    )
     body = (
         f'Cześć {name},\n\n'
         f'Twoja deklaracja na {workday.date} ({_fmt_hours(workday)}) została zatwierdzona.\n\n'
+        f'{changed_line}'
+        f'— ProstyGrafik\n'
+    )
+    return send_notification_email(workday.employee, subject, body)
+
+
+def notify_hours_changed(workday):
+    """A manager moved the hours of an already approved shift."""
+    name = employee_display_name(workday.employee)
+    subject = f'Zmieniono godziny Twojej zmiany — {workday.date}'
+    body = (
+        f'Cześć {name},\n\n'
+        f'Kierownik zmienił godziny Twojej zmiany {workday.date}: '
+        f'było {_fmt_previous_hours(workday)}, jest {_fmt_hours(workday)}.\n\n'
+        f'Szczegóły zobaczysz w kalendarzu w aplikacji.\n\n'
         f'— ProstyGrafik\n'
     )
     return send_notification_email(workday.employee, subject, body)

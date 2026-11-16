@@ -8,7 +8,7 @@ from django.test import SimpleTestCase
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
-from core.models import SwapRequest, WorkDay
+from core.models import ScheduleSettings, SwapRequest, WorkDay
 from core.tests.factories import future_date, make_organization, make_shift_template, make_user, make_workday
 from core.utils import format_shortage_message, shortage_day_label
 
@@ -139,6 +139,45 @@ class NotificationTests(ReportTestCase):
         self.assertEqual(shortages[0]['message'], 'Jutro brakuje 2 osób na zmianę: wieczorna.')
         self.assertEqual(data['total'], 3)  # 1 proposal + 2 missing people
 
+    def changed_shift(self, days_ahead=3, **fields):
+        return make_workday(
+            self.employee, timezone.localdate() + timedelta(days=days_ahead),
+            previous_start_time=time(6), previous_end_time=time(14), hours_changed_at=timezone.now(), **fields,
+        )
+
+    def hours_notice(self):
+        self.login(self.employee)
+        data = self.client.get('/api/notifications/').data
+        return data, [item for item in data['items'] if item['type'] == 'hours_changed']
+
+    def test_employee_is_told_about_unseen_hour_changes(self):
+        self.changed_shift(3)
+        self.changed_shift(4)
+
+        data, notices = self.hours_notice()
+
+        self.assertEqual(notices[0]['message'], 'Kierownik zmienił godziny 2 Twoich zmian — sprawdź kalendarz.')
+        self.assertEqual(data['total'], 2)
+
+    def test_seen_and_past_changes_are_not_announced(self):
+        self.changed_shift(3, hours_change_seen_at=timezone.now())
+        self.changed_shift(-2)
+
+        _data, notices = self.hours_notice()
+
+        self.assertEqual(notices, [])
+
+    def test_manager_can_turn_the_notice_off(self):
+        self.changed_shift(3)
+        self.login(self.manager)
+
+        response = self.client.patch('/api/schedule-settings/', {'notify_hour_changes': False}, format='json')
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual((response.data['notify_hour_changes'], response.data['email_hour_changes']), (False, True))
+        _data, notices = self.hours_notice()
+        self.assertEqual(notices, [])
+
     def test_no_shortage_when_shift_is_full(self):
         self.template.max_slots = 1
         self.template.save()
@@ -219,6 +258,74 @@ class EmailNotificationTests(ReportTestCase):
 
         self.assertEqual(mail.outbox[0].to, ['colleague@example.com'])
         self.assertIn('zamian', mail.outbox[0].subject.lower())
+
+    def test_approval_with_other_hours_mentions_them_in_one_email(self):
+        self.client.post(f'/api/workdays/{self.proposal.id}/approve/', {'start_time': '10:00'}, format='json')
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('było 08:00-16:00, jest 10:00-16:00', mail.outbox[0].body)
+
+
+class HoursChangeEmailTests(ReportTestCase):
+    """E-mails about a manager moving the hours of an approved shift (sent after commit)."""
+
+    def setUp(self):
+        self.shift = make_workday(self.employee, future_date(4))  # approved 08:00-16:00
+        self.login(self.manager)
+
+    def move_shift(self, start='10:00'):
+        with self.captureOnCommitCallbacks(execute=True):
+            return self.client.patch(f'/api/workdays/{self.shift.id}/', {'start_time': start}, format='json')
+
+    def batch(self, *entries):
+        with self.captureOnCommitCallbacks(execute=True):
+            return self.client.post('/api/workdays/batch/', {'entries': list(entries)}, format='json')
+
+    def test_editing_an_approved_shift_emails_old_and_new_hours(self):
+        self.move_shift()
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['employee@example.com'])
+        self.assertIn('Zmieniono godziny', mail.outbox[0].subject)
+        self.assertIn('było 08:00-16:00, jest 10:00-16:00', mail.outbox[0].body)
+
+    def test_unchanged_hours_send_nothing(self):
+        self.move_shift(start='08:00')
+
+        self.assertEqual(mail.outbox, [])
+
+    def test_email_can_be_turned_off_but_the_marker_stays(self):
+        ScheduleSettings.objects.create(organization=self.org, email_hour_changes=False)
+
+        self.move_shift()
+
+        self.assertEqual(mail.outbox, [])
+        self.shift.refresh_from_db()
+        self.assertTrue(self.shift.has_unseen_hours_change)
+
+    def test_batch_emails_once_it_is_saved(self):
+        response = self.batch({
+            'date': self.shift.date.isoformat(), 'employee': self.employee.id,
+            'start_time': '10:00', 'end_time': '16:00',
+        })
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_failed_batch_sends_no_email(self):
+        response = self.batch(
+            {'date': self.shift.date.isoformat(), 'employee': self.employee.id, 'start_time': '10:00', 'end_time': '16:00'},
+            {'date': future_date(5).isoformat(), 'employee': self.employee.id, 'start_time': '17:00', 'end_time': '09:00'},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(mail.outbox, [])
+
+
+class EmailNotificationEdgeTests(ReportTestCase):
+    def setUp(self):
+        self.proposal = make_workday(self.employee, future_date(4), status=WorkDay.Status.PROPOSED)
+        self.login(self.manager)
 
     def test_no_email_when_user_has_no_address(self):
         self.employee.email = ''

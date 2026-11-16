@@ -12,7 +12,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from ..approval import approve_proposed_workday
-from ..email_notify import notify_workday_approved, notify_workday_rejected
+from ..email_notify import notify_hours_changed, notify_workday_approved, notify_workday_rejected
 from ..ical import build_workdays_ics, make_calendar_token, resolve_calendar_token
 from ..models import ScheduleSettings, WorkDay
 from ..permissions import IsManager, is_manager
@@ -95,9 +95,24 @@ class WorkDayViewSet(OrganizationScopedMixin, viewsets.ModelViewSet):
         self._ensure_declarations_open()
         serializer.save(status=WorkDay.Status.PROPOSED)
 
+    def _email_hours_change(self, serializer):
+        """
+        E-mail the employee when a manager moved the hours of an approved shift.
+
+        on_commit sends at once outside a transaction, waits for the commit inside one
+        (batch save) and drops the e-mail on rollback. Approving a proposal is not handled
+        here: the approval e-mail itself mentions the changed hours.
+        """
+        workday = serializer.instance
+        if not (getattr(serializer, 'hours_changed', False) and workday.status == WorkDay.Status.APPROVED):
+            return
+        if ScheduleSettings.for_organization(self.get_organization()).email_hour_changes:
+            transaction.on_commit(lambda: notify_hours_changed(workday))
+
     def perform_update(self, serializer):
         if is_manager(self.request.user):
             serializer.save()
+            self._email_hours_change(serializer)
             return
 
         self._ensure_declarations_open()
