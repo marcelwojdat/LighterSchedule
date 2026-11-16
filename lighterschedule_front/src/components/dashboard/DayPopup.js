@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import RoleSelect from '../common/RoleSelect';
+import ShiftPicker, { useDayShiftTemplates } from '../common/ShiftPicker';
 import TimeSelect from '../common/TimeSelect';
 import styles from '../Dashboard.module.css';
-import { getShiftTemplates } from '../../api/shiftTemplates';
 import { WORKDAY_STATUS_LABELS } from '../../constants/statusLabels';
-import { useApiResource } from '../../hooks/useApiResource';
 import { isPastDate } from '../../utils/dates';
 import { resolveTemplateHours, toApiTime, toDisplayTime } from '../../utils/time';
 
@@ -83,19 +82,13 @@ const DayFields = ({ date, form, update, templates, templatesConfigured, taskTyp
       <div className={styles.popupField}>
         {templatesConfigured ? (
           <>
-            <select className={styles.roleSelect} value={form.shiftId} onChange={(event) => pickTemplate(event.target.value)}>
-              <option value="">Wybierz zmianę</option>
-              {templates.map((template) => {
-                const hours = resolveTemplateHours(template, date);
-                return (
-                  <option key={template.id} value={template.id} disabled={template.is_full === true}>
-                    {template.name}
-                    {hours ? ` (${toDisplayTime(hours.start_time)}-${toDisplayTime(hours.end_time)})` : ''}
-                    {template.is_full ? ' — brak miejsc' : ''}
-                  </option>
-                );
-              })}
-            </select>
+            <ShiftPicker
+              date={date}
+              templates={templates}
+              value={form.shiftId}
+              onChange={pickTemplate}
+              className={styles.roleSelect}
+            />
             <p className={styles.popupInfo}>{hint}</p>
           </>
         ) : (
@@ -152,12 +145,10 @@ const DayPopup = ({
 }) => {
   const [form, setForm] = useState(() => formFrom(draft || existing));
   const [pastWarning, setPastWarning] = useState(false);
-  // Templates for this exact day include slot usage (is_full); until loaded, filter the general list.
-  const { data: dayTemplates } = useApiResource(getShiftTemplates, { active: '1', date }, { initial: null });
+  const templates = useDayShiftTemplates(date, shiftTemplates); // with slot usage for this day
 
   const update = (changes) => setForm((prev) => ({ ...prev, ...changes }));
   const templatesConfigured = shiftTemplates.length > 0;
-  const templates = dayTemplates ?? shiftTemplates.filter((template) => resolveTemplateHours(template, date));
 
   const submit = () => {
     if (blockedMessage) return onError(blockedMessage);
