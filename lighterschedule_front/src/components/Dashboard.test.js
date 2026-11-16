@@ -256,3 +256,63 @@ test('the pending declaration shows in its calendar tile', async () => {
   expect(tile).toHaveClass('custom-proposed-day');
   expect(within(tile).getByText('Oczekuje')).toBeInTheDocument();
 });
+
+describe('hours changed by the manager', () => {
+  const CHANGED = day({
+    id: 40, date: '2030-01-08', status: 'approved', start_time: '14:00:00', end_time: '20:00:00',
+    previous_start_time: '12:00:00', previous_end_time: '20:00:00',
+    hours_changed_at: '2030-01-01T10:00:00Z', hours_change_seen_at: null,
+  });
+  const SEEN = { ...CHANGED, hours_change_seen_at: '2030-01-02T08:00:00Z' };
+  const changeDot = () => screen.queryByRole('img', { name: /było 12:00–20:00/ });
+
+  test('opening the day shows the old and new hours and shrinks the marker', async () => {
+    workdaysApi.getWorkdays.mockResolvedValue([CHANGED, PROPOSED, THIS_MONTH]);
+    workdaysApi.markHoursChangeSeen.mockResolvedValue(SEEN);
+    await renderDashboard();
+    expect(screen.getByText('zmiana godzin')).toBeInTheDocument();
+    expect(changeDot()).not.toBeInTheDocument();
+
+    openDay(8);
+
+    expect(screen.getByText(/Kierownik zmienił godziny: było 12:00 - 20:00, jest 14:00 - 20:00/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText('zmiana godzin')).not.toBeInTheDocument());
+    expect(workdaysApi.markHoursChangeSeen).toHaveBeenCalledWith(40);
+    expect(changeDot()).toBeInTheDocument();
+    await waitFor(() => expect(notificationsApi.getNotifications).toHaveBeenCalledTimes(2)); // the notice is refreshed
+  });
+
+  test('an already seen change keeps a small dot and is not confirmed again', async () => {
+    workdaysApi.getWorkdays.mockResolvedValue([SEEN, PROPOSED, THIS_MONTH]);
+    await renderDashboard();
+
+    expect(changeDot()).toBeInTheDocument();
+    expect(screen.queryByText('zmiana godzin')).not.toBeInTheDocument();
+    openDay(8);
+
+    // findBy waits until the popup has also loaded its shift templates (no update after the test).
+    expect(await screen.findByText(/było 12:00 - 20:00, jest 14:00 - 20:00/)).toBeInTheDocument();
+    expect(workdaysApi.markHoursChangeSeen).not.toHaveBeenCalled();
+  });
+
+  test('a day without changed hours is not confirmed', async () => {
+    await renderDashboard();
+
+    openDay(9);
+
+    expect(await screen.findByRole('heading', { name: 'Oczekująca deklaracja' })).toBeInTheDocument();
+    expect(workdaysApi.markHoursChangeSeen).not.toHaveBeenCalled();
+  });
+
+  test('when confirming fails, the big marker simply stays and no error is shown', async () => {
+    workdaysApi.getWorkdays.mockResolvedValue([CHANGED, PROPOSED, THIS_MONTH]);
+    workdaysApi.markHoursChangeSeen.mockRejectedValue(new Error('Network Error'));
+    await renderDashboard();
+
+    openDay(8);
+
+    await waitFor(() => expect(workdaysApi.markHoursChangeSeen).toHaveBeenCalled());
+    expect(screen.getByText('zmiana godzin')).toBeInTheDocument();
+    expect(screen.queryByText('Network Error')).not.toBeInTheDocument();
+  });
+});

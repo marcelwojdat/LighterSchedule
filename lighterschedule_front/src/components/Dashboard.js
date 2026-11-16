@@ -17,6 +17,7 @@ import {
   deleteWorkday,
   downloadWorkdaysIcs,
   getCalendarFeedInfo,
+  markHoursChangeSeen,
   saveWorkdaysBatch,
 } from '../api/workdays';
 import { useDismissibleList } from '../hooks/useDismissibleList';
@@ -247,9 +248,24 @@ const Dashboard = () => {
       after: reloadSwaps,
     });
 
+  /**
+   * Opening a day with hours changed by the manager counts as seeing the change: the calendar
+   * marker shrinks and the notice goes away. Done here, on the click, not in an effect, which
+   * would also run on every reload of the data.
+   */
+  const markChangeSeen = (day) =>
+    markHoursChangeSeen(day.id)
+      .then((updated) => {
+        setWorkdays((prev) => prev.map((entry) => (entry.id === updated.id ? updated : entry)));
+        return reloadNotifications();
+      })
+      .catch(() => {}); // the marker just stays big; the employee didn't ask for this, so no error
+
   const openDay = (date) => {
     setSelectedDate(date);
     setError('');
+    const day = workdayFor(date);
+    if (day?.hours_changed_at && !day.hours_change_seen_at) markChangeSeen(day);
   };
 
   const selectedWorkday = selectedDate ? workdayFor(selectedDate) : undefined;

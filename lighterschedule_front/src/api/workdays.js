@@ -13,6 +13,10 @@ export const updateWorkday = (id, data) =>
 export const saveWorkdaysBatch = (entries) =>
   apiClient.post('/workdays/batch/', { entries }).then((response) => response.data);
 
+/** The employee has seen that the manager changed this day's hours; returns the updated day. */
+export const markHoursChangeSeen = (id) =>
+  apiClient.post(`/workdays/${id}/seen-hours-change/`).then((response) => response.data);
+
 export const deleteWorkday = (id) =>
   apiClient.delete(`/workdays/${id}/`).then((response) => response.data);
 
