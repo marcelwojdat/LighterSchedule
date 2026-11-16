@@ -105,9 +105,14 @@ class AccountCreateSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
     def validate_username(self, value):
-        if User.objects.filter(username=value).exists():
+        # Logins are stored lowercase, so "Jan" and "jan" can't become two accounts.
+        # iexact also catches older accounts created before this rule.
+        username = value.strip().lower()
+        if not username:
+            raise serializers.ValidationError('Podaj login.')
+        if User.objects.filter(username__iexact=username).exists():
             raise serializers.ValidationError('Użytkownik o tym loginie już istnieje.')
-        return value
+        return username
 
     def validate_email(self, value):
         email = value.lower()

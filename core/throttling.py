@@ -7,6 +7,7 @@ spread over many IP addresses.
 """
 import hashlib
 
+from django.contrib.auth.models import User
 from django.core.cache import cache
 from rest_framework import status
 from rest_framework.exceptions import AuthenticationFailed
@@ -58,3 +59,16 @@ class LoginView(TokenObtainPairView):
 
         cache.delete(key)
         return response
+
+    def get_serializer(self, *args, **kwargs):
+        """Logins are case-insensitive: "Jan" signs in the account stored as "jan"."""
+        data = kwargs.get('data')
+        if data is not None:
+            typed = str(data.get('username') or '').strip()
+            matches = list(User.objects.filter(username__iexact=typed).values_list('username', flat=True)[:2])
+            if len(matches) == 1:
+                # request.data may be an immutable QueryDict, so work on a plain copy.
+                payload = data.dict() if hasattr(data, 'dict') else dict(data)
+                payload['username'] = matches[0]
+                kwargs['data'] = payload
+        return super().get_serializer(*args, **kwargs)
