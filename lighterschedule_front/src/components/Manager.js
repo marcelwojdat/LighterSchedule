@@ -21,10 +21,8 @@ import {
   approveWorkday,
   bulkApproveWorkdays,
   copyWorkdays,
-  createWorkday,
-  deleteWorkday,
   rejectWorkday,
-  updateWorkday,
+  saveWorkdaysBatch,
 } from '../api/workdays';
 import { useMessages } from '../hooks/useMessages';
 import { useDismissibleList } from '../hooks/useDismissibleList';
@@ -55,18 +53,6 @@ const describeCounts = (labels, result) =>
     .filter(([key]) => result[key])
     .map(([key, label]) => `${label} ${result[key]}`)
     .join(', ');
-
-/**
- * Saves one day edited by the manager. Manager edits always end up approved:
- * a pending proposal is approved with the manager's hours, an approved day is updated,
- * and a rejected day is replaced by a new entry.
- */
-const saveDay = async (existing, payload) => {
-  if (existing?.status === 'proposed') return approveWorkday(existing.id, payload);
-  if (existing?.status === 'approved') return updateWorkday(existing.id, payload);
-  if (existing?.status === 'rejected') await deleteWorkday(existing.id);
-  return createWorkday(payload);
-};
 
 /**
  * Manager panel: loads the organization's data, runs the actions of every section
@@ -215,14 +201,13 @@ const Manager = () => {
 
   /** Saves the editor drafts ({ date: shift }) of the selected employee. */
   const saveSchedule = (drafts) =>
+    // One request, all or nothing. Manager edits always end up approved: the server approves
+    // a pending proposal with these hours and replaces a rejected day with a new entry.
     runAction(
       () =>
-        Promise.all(
+        saveWorkdaysBatch(
           Object.entries(drafts).map(([date, draft]) =>
-            saveDay(
-              workdays.find((day) => day.date === date),
-              buildWorkdayPayload({ ...draft, date, employee: selectedEmployee.id, note: draft.note || '' }),
-            ),
+            buildWorkdayPayload({ ...draft, date, employee: selectedEmployee.id, note: draft.note || '' }),
           ),
         ),
       { success: 'Grafik pracownika zapisany.', failure: 'Błąd połączenia z serwerem.' },

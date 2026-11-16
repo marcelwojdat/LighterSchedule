@@ -294,8 +294,8 @@ describe('employee schedule editor', () => {
     fireEvent.click(within(editor).getByRole('button', { name: 'Dodaj zmianę' }));
   };
 
-  test('a new day is created when saved', async () => {
-    workdaysApi.createWorkday.mockResolvedValue({ id: 60 }); // the API returns the created entry
+  test('a new day is saved in one batch request', async () => {
+    workdaysApi.saveWorkdaysBatch.mockResolvedValue({ saved: [], saved_count: 1 });
     const editor = await openSchedule();
 
     pickDayAndAdd(editor, ['07:00', '15:00']);
@@ -304,14 +304,28 @@ describe('employee schedule editor', () => {
     fireEvent.click(within(editor).getByRole('button', { name: 'Zapisz zmiany' }));
 
     await waitFor(() =>
-      expect(workdaysApi.createWorkday).toHaveBeenCalledWith({
-        date: '2030-01-10', start_time: '07:00:00', end_time: '15:00:00', employee: 2, note: '',
-      }),
+      expect(workdaysApi.saveWorkdaysBatch).toHaveBeenCalledWith([
+        { date: '2030-01-10', start_time: '07:00:00', end_time: '15:00:00', employee: 2, note: '' },
+      ]),
     );
     expect(await screen.findByText('Grafik pracownika zapisany.')).toBeInTheDocument();
   });
 
-  test('saving over a pending proposal approves it with the existing hours', async () => {
+  test('a failed batch shows the day and reason from the server', async () => {
+    workdaysApi.saveWorkdaysBatch.mockRejectedValue({
+      response: { data: { error: '2030-01-10: Zmiana Poranna jest już obsadzona. Nic nie zostało zapisane.' } },
+    });
+    const editor = await openSchedule();
+
+    pickDayAndAdd(editor, ['07:00', '15:00']);
+    fireEvent.click(within(editor).getByRole('button', { name: 'Zapisz zmiany' }));
+
+    expect(await screen.findByText(/2030-01-10: Zmiana Poranna jest już obsadzona/)).toBeInTheDocument();
+    expect(screen.queryByText('Grafik pracownika zapisany.')).not.toBeInTheDocument();
+  });
+
+  test('saving over a pending proposal sends its hours for the server to approve', async () => {
+    workdaysApi.saveWorkdaysBatch.mockResolvedValue({ saved: [], saved_count: 1 });
     employeeDays = [{
       id: 30, employee: 2, date: '2030-01-10', start_time: '10:00:00', end_time: '18:00:00',
       status: 'proposed', role: null, role_name: null, note: '', shift_template: null,
@@ -322,12 +336,13 @@ describe('employee schedule editor', () => {
     pickDayAndAdd(editor);
     fireEvent.click(within(editor).getByRole('button', { name: 'Zapisz zmiany' }));
 
+    // Approving a pending day (and replacing a rejected one) is the server's job now.
     await waitFor(() =>
-      expect(workdaysApi.approveWorkday).toHaveBeenCalledWith(30, {
-        date: '2030-01-10', start_time: '10:00:00', end_time: '18:00:00', employee: 2, note: '',
-      }),
+      expect(workdaysApi.saveWorkdaysBatch).toHaveBeenCalledWith([
+        { date: '2030-01-10', start_time: '10:00:00', end_time: '18:00:00', employee: 2, note: '' },
+      ]),
     );
-    expect(workdaysApi.createWorkday).not.toHaveBeenCalled();
+    expect(workdaysApi.approveWorkday).not.toHaveBeenCalled();
   });
 
   test('copying the previous week', async () => {
