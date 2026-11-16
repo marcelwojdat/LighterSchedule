@@ -232,6 +232,8 @@ class ScheduleSettingsSerializer(serializers.ModelSerializer):
             'declaration_close_time',
             'declaration_close_label',
             'declarations_closed',
+            'notify_hour_changes',
+            'email_hour_changes',
             'updated_at',
         ]
         read_only_fields = ['updated_at']

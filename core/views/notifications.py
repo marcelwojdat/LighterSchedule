@@ -6,7 +6,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from ..models import SwapRequest, WorkDay
+from ..models import ScheduleSettings, SwapRequest, WorkDay
 from ..permissions import is_manager
 from ..tenancy import get_user_organization
 from ..utils import find_shift_shortages, format_shortage_message
@@ -64,7 +64,23 @@ def _employee_notifications(user):
         date__gte=timezone.localdate(),
     ).count()
 
+    # Counted from the day markers, so the notice disappears by itself once the days are seen.
+    changed_hours = 0
+    if ScheduleSettings.for_organization(get_user_organization(user)).notify_hour_changes:
+        changed_hours = WorkDay.objects.filter(
+            employee=user,
+            hours_changed_at__isnull=False,
+            hours_change_seen_at__isnull=True,
+            date__gte=timezone.localdate(),
+        ).count()
+
     items = []
+    if changed_hours:
+        items.append({
+            'type': 'hours_changed',
+            'count': changed_hours,
+            'message': f'Kierownik zmienił godziny {changed_hours} Twoich zmian — sprawdź kalendarz.',
+        })
     if pending_received:
         items.append({
             'type': 'swaps_received',
@@ -77,7 +93,7 @@ def _employee_notifications(user):
             'count': rejected_days,
             'message': f'Masz {rejected_days} odrzuconych deklaracji — możesz złożyć je ponownie.',
         })
-    return pending_received + rejected_days, items
+    return changed_hours + pending_received + rejected_days, items
 
 
 @api_view(['GET'])
