@@ -4,6 +4,7 @@ from datetime import datetime, time, timedelta
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.core import mail
 from django.test import SimpleTestCase
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -466,6 +467,59 @@ class BatchSaveTests(ScheduleTestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(WorkDay.objects.get(employee=self.employee).status, 'approved')
         self.assertTrue(WorkDay.objects.filter(employee=self.manager).exists())
+
+    def test_manager_saving_a_pending_proposal_approves_it_with_edits(self):
+        proposal = make_workday(self.employee, future_date(10), status=WorkDay.Status.PROPOSED)
+        self.login(self.manager)
+
+        response = self.save(self.day(10, employee=self.employee.id, start_time='12:00', end_time='20:00'))
+
+        self.assertEqual(response.status_code, 200, response.data)
+        proposal.refresh_from_db()
+        self.assertEqual((proposal.status, proposal.approved_by, proposal.start_time), ('approved', self.manager, time(12)))
+        self.assertEqual(len(mail.outbox), 1)  # sent once the batch is committed
+
+    def test_manager_saving_a_rejected_day_replaces_it_with_an_approved_one(self):
+        make_workday(self.employee, future_date(10), status=WorkDay.Status.REJECTED, rejection_reason='Za dużo osób')
+        self.login(self.manager)
+
+        response = self.save(self.day(10, employee=self.employee.id))
+
+        self.assertEqual(response.status_code, 200, response.data)
+        replacement = WorkDay.objects.get(employee=self.employee)
+        self.assertEqual((replacement.status, replacement.rejection_reason), ('approved', ''))
+
+    def test_failed_manager_batch_changes_nothing_and_sends_no_email(self):
+        proposal = make_workday(self.employee, future_date(10), status=WorkDay.Status.PROPOSED)
+        rejected = make_workday(self.employee, future_date(11), status=WorkDay.Status.REJECTED)
+        self.login(self.manager)
+
+        response = self.save(
+            self.day(10, employee=self.employee.id),
+            self.day(11, employee=self.employee.id),
+            self.day(12, employee=self.employee.id, start_time='17:00', end_time='09:00'),
+        )
+
+        self.assertEqual(response.status_code, 400)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, 'proposed')
+        self.assertTrue(WorkDay.objects.filter(pk=rejected.pk, status='rejected').exists())
+        self.assertEqual(mail.outbox, [])
+
+    def test_manager_cannot_approve_a_proposal_into_a_full_shift(self):
+        template = make_shift_template(self.org, max_slots=1)
+        make_workday(self.other, future_date(10), shift_template=template)
+        proposal = make_workday(
+            self.employee, future_date(10), status=WorkDay.Status.PROPOSED, shift_template=template,
+        )
+        self.login(self.manager)
+
+        response = self.save({'date': future_date(10).isoformat(), 'employee': self.employee.id})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('obsadzona', response.data['error'])
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, 'proposed')
 
     def test_closed_declaration_window_blocks_employee_batch(self):
         ScheduleSettings.objects.create(organization=self.org, declaration_close_weekday=5)

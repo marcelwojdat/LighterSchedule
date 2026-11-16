@@ -7,10 +7,13 @@ from .models import WorkDay
 from .utils import assert_shift_slot_available
 
 
-def approve_proposed_workday(workday, manager_user):
+def approve_proposed_workday(workday, manager_user, notify=True):
     """
     Approve a proposed workday as-is (no time/role edits).
     Raises ValueError with a Polish message when approval is not possible.
+
+    Pass notify=False inside a transaction that may still roll back, and send the
+    e-mail yourself after it commits, so nobody hears about an approval that never happened.
     """
     if workday is None:
         raise ValueError('Nie znaleziono wpisu.')
@@ -26,5 +29,6 @@ def approve_proposed_workday(workday, manager_user):
     workday.rejection_reason = ''
     workday.save()
     workday.refresh_from_db()
-    notify_workday_approved(workday)
+    if notify:
+        notify_workday_approved(workday)
     return workday

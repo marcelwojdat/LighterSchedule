@@ -12,7 +12,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from ..approval import approve_proposed_workday
-from ..email_notify import notify_workday_rejected
+from ..email_notify import notify_workday_approved, notify_workday_rejected
 from ..ical import build_workdays_ics, make_calendar_token, resolve_calendar_token
 from ..models import ScheduleSettings, WorkDay
 from ..permissions import IsManager, is_manager
@@ -210,7 +210,13 @@ class WorkDayViewSet(OrganizationScopedMixin, viewsets.ModelViewSet):
         return Response(result)
 
     def _save_batch_entry(self, entry):
-        """Create or update one day of a batch with the same rules as a single save."""
+        """
+        Create or update one day of a batch with the same rules as a single save.
+
+        A manager's save always ends approved: a pending proposal is approved with the
+        manager's edits, a rejected one is replaced by a new entry.
+        Returns (workday, approved_proposal) — the caller e-mails approvals after commit.
+        """
         if not isinstance(entry, dict):
             raise ValidationError('Każdy wpis musi być obiektem z datą.')
         try:
@@ -224,13 +230,26 @@ class WorkDayViewSet(OrganizationScopedMixin, viewsets.ModelViewSet):
 
         # The server, not the browser, decides create vs update, so a stale page can't create a duplicate.
         existing = self.get_queryset().filter(employee_id=int(employee_id), date=work_date).first()
+        manager = is_manager(self.request.user)
+        if manager and existing is not None and existing.status == WorkDay.Status.REJECTED:
+            existing.delete()  # rolled back with the batch if a later day fails
+            existing = None
+
         serializer = self.get_serializer(existing, data=entry, partial=existing is not None)
         serializer.is_valid(raise_exception=True)
         if existing is None:
             self.perform_create(serializer)
-        else:
-            self.perform_update(serializer)
-        return serializer.instance
+            return serializer.instance, False
+
+        self.perform_update(serializer)
+        workday = serializer.instance
+        if not (manager and workday.status == WorkDay.Status.PROPOSED):
+            return workday, False
+        try:
+            approve_proposed_workday(workday, self.request.user, notify=False)
+        except ValueError as exc:  # e.g. the shift is already full
+            raise ValidationError({'shift_template': str(exc)})
+        return workday, True
 
     @action(detail=False, methods=['post'])
     def batch(self, request):
@@ -246,11 +265,14 @@ class WorkDayViewSet(OrganizationScopedMixin, viewsets.ModelViewSet):
         if len(entries) > MAX_BATCH_ENTRIES:
             return error_response(f'Jednorazowo można zapisać najwyżej {MAX_BATCH_ENTRIES} dni.')
 
-        saved, entry = [], None
+        saved, approved, entry = [], [], None
         try:
             with transaction.atomic():
                 for entry in entries:
-                    saved.append(self._save_batch_entry(entry))
+                    workday, approved_proposal = self._save_batch_entry(entry)
+                    saved.append(workday)
+                    if approved_proposal:
+                        approved.append(workday)
         except APIException as exc:
             day = entry.get('date') if isinstance(entry, dict) else None
             prefix = f'{day}: ' if day else ''
@@ -264,6 +286,9 @@ class WorkDayViewSet(OrganizationScopedMixin, viewsets.ModelViewSet):
                 status=exc.status_code,
             )
 
+        # Only now is the batch committed, so the approval e-mails describe what is really saved.
+        for workday in approved:
+            notify_workday_approved(workday)
         return Response({'saved': self.get_serializer(saved, many=True).data, 'saved_count': len(saved)})
 
     @action(detail=False, methods=['post'], url_path='bulk-approve', permission_classes=[IsAuthenticated, IsManager])
