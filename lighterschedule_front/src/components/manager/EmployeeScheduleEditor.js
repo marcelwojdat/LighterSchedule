@@ -6,6 +6,7 @@ import RoleSelect from '../common/RoleSelect';
 import TimeSelect from '../common/TimeSelect';
 import styles from '../Manager.module.css';
 import { WORKDAY_STATUS_LABELS } from '../../constants/statusLabels';
+import { useUnsavedChangesWarning } from '../../hooks/useUnsavedChangesWarning';
 import { formatDateStr } from '../../utils/dates';
 import { formatMonthYearPl } from '../../utils/locale';
 import { getDayShiftCoverage } from '../../utils/shiftCoverage';
@@ -68,6 +69,7 @@ const EmployeeScheduleEditor = ({
 }) => {
   const [selectedDate, setSelectedDate] = useState('');
   const [drafts, setDrafts] = useState({}); // { 'YYYY-MM-DD': { start_time, end_time, role, note, shift_template } }
+  useUnsavedChangesWarning(Object.keys(drafts).length > 0);
   const [form, setForm] = useState(DEFAULT_FORM);
   const [copyBusy, setCopyBusy] = useState(false);
 

@@ -23,6 +23,7 @@ import { useDismissibleList } from '../hooks/useDismissibleList';
 import { useEmployeeData } from '../hooks/useEmployeeData';
 import { useMessages } from '../hooks/useMessages';
 import { useTheme } from '../hooks/useTheme';
+import { useUnsavedChangesWarning } from '../hooks/useUnsavedChangesWarning';
 import { addDays, formatDateStr, getMonday, isPastDate, shiftMonth } from '../utils/dates';
 import { formatMonthYearPl } from '../utils/locale';
 import { buildWorkdayPayload } from '../utils/time';
@@ -68,6 +69,7 @@ const describeCounts = (labels, result) =>
 const Dashboard = () => {
   const [selectedDate, setSelectedDate] = useState('');
   const [drafts, setDrafts] = useState({}); // { 'YYYY-MM-DD': declaration not sent yet }
+  useUnsavedChangesWarning(Object.keys(drafts).length > 0);
   const [statsMonth, setStatsMonth] = useState(currentMonthValue);
   const [weekStart, setWeekStart] = useState(() => formatDateStr(getMonday()));
   const [giveAway, setGiveAway] = useState({ workDayId: '', key: 0 }); // preselects the swap form
