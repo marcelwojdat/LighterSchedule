@@ -362,6 +362,23 @@ class WorkDayViewSet(OrganizationScopedMixin, viewsets.ModelViewSet):
             return error_response(str(exc))
         return Response(self.get_serializer(workday).data)
 
+    @action(detail=True, methods=['post'], url_path='seen-hours-change')
+    def seen_hours_change(self, request, pk=None):
+        """
+        The employee has seen that a manager changed the hours of this day: the calendar marker
+        shrinks and the notice goes away. Only the owner may confirm; repeating it changes nothing.
+        """
+        workday = self.get_object()
+        if workday.employee_id != request.user.pk:
+            raise PermissionDenied('Zmianę godzin potwierdza tylko pracownik, którego dotyczy.')
+        if workday.hours_changed_at is None:
+            return error_response('Godziny tego dnia nie były zmieniane.')
+        if workday.hours_change_seen_at is None:
+            workday.hours_change_seen_at = timezone.now()
+            # Only this field, so a manager's edit saved at the same moment is not overwritten.
+            workday.save(update_fields=['hours_change_seen_at'])
+        return Response(self.get_serializer(workday).data)
+
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsManager])
     def reject(self, request, pk=None):
         workday = self.get_object()

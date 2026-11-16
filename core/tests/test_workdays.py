@@ -632,6 +632,57 @@ class HourChangeTests(ScheduleTestCase):
         self.assertIsNone(workday.hours_changed_at)
         self.assertIsNone(workday.previous_start_time)
 
+    def changed_day(self, employee=None):
+        return make_workday(
+            employee or self.employee, start=time(14), end=time(20),
+            previous_start_time=time(12), previous_end_time=time(20), hours_changed_at=timezone.now(),
+        )
+
+    def mark_seen(self, workday):
+        return self.client.post(f'/api/workdays/{workday.id}/seen-hours-change/')
+
+    def test_employee_marks_the_change_as_seen(self):
+        workday = self.changed_day()
+        self.login(self.employee)
+
+        response = self.mark_seen(workday)
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertIsNotNone(response.data['hours_change_seen_at'])
+        workday.refresh_from_db()
+        self.assertFalse(workday.has_unseen_hours_change)
+        self.assertEqual(workday.previous_start_time, time(12))  # the small marker keeps the details
+
+    def test_seeing_it_again_keeps_the_first_time(self):
+        workday = self.changed_day()
+        self.login(self.employee)
+        first = self.mark_seen(workday).data['hours_change_seen_at']
+
+        second = self.mark_seen(workday)
+
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(second.data['hours_change_seen_at'], first)
+
+    def test_manager_cannot_confirm_for_the_employee(self):
+        workday = self.changed_day()
+        self.login(self.manager)
+
+        self.assertEqual(self.mark_seen(workday).status_code, 403)
+        workday.refresh_from_db()
+        self.assertTrue(workday.has_unseen_hours_change)
+
+    def test_colleagues_day_is_not_found(self):
+        workday = self.changed_day(employee=self.other)
+        self.login(self.employee)
+
+        self.assertEqual(self.mark_seen(workday).status_code, 404)
+
+    def test_day_without_a_change_is_a_bad_request(self):
+        workday = make_workday(self.employee)
+        self.login(self.employee)
+
+        self.assertEqual(self.mark_seen(workday).status_code, 400)
+
     def test_marker_fields_cannot_be_set_through_the_api(self):
         workday = make_workday(self.employee, start=time(12), end=time(20))
         self.login(self.manager)
