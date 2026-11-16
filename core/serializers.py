@@ -406,8 +406,12 @@ class WorkDaySerializer(serializers.ModelSerializer):
             'shift_template', 'shift_template_name', 'shift_slots',
             'status', 'approved_by', 'approved_by_name', 'approved_at',
             'rejection_reason', 'note', 'rate_at_time', 'total_hours', 'earnings',
+            'previous_start_time', 'previous_end_time', 'hours_changed_at', 'hours_change_seen_at',
         ]
-        read_only_fields = ['status', 'approved_by', 'approved_at', 'rejection_reason', 'rate_at_time']
+        read_only_fields = [
+            'status', 'approved_by', 'approved_at', 'rejection_reason', 'rate_at_time',
+            'previous_start_time', 'previous_end_time', 'hours_changed_at', 'hours_change_seen_at',
+        ]
         extra_kwargs = {
             'note': {'required': False, 'allow_blank': True},
         }
@@ -520,6 +524,20 @@ class WorkDaySerializer(serializers.ModelSerializer):
 
         self._validate_slot_capacity(user, template, work_date)
         return attrs
+
+    def update(self, instance, validated_data):
+        """
+        A manager moving someone else's hours (edit, approval with other hours, batch save)
+        leaves a marker for the employee. `hours_changed` tells the view to notify them.
+        """
+        user = self.context['request'].user
+        self.hours_changed = False
+        if is_manager(user) and instance.employee_id != user.pk:
+            old_hours = (instance.start_time, instance.end_time)
+            instance.start_time = validated_data.get('start_time', instance.start_time)
+            instance.end_time = validated_data.get('end_time', instance.end_time)
+            self.hours_changed = instance.record_hours_change(*old_hours)
+        return super().update(instance, validated_data)
 
 
 class SwapRequestSerializer(serializers.ModelSerializer):

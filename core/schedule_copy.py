@@ -130,8 +130,11 @@ def copy_workdays(
                 skipped.append({'date': target_date.isoformat(), 'reason': 'approved'})
                 continue
 
+            old_hours = (existing.start_time, existing.end_time)
             existing.start_time = start_time
             existing.end_time = end_time
+            if as_manager:
+                existing.record_hours_change(*old_hours)  # the employee sees what moved
             existing.role = source.role
             existing.shift_template = template
             existing.note = source.note or ''

@@ -545,6 +545,103 @@ class BatchSaveTests(ScheduleTestCase):
                 self.assertEqual(self.client.post(self.URL, body, format='json').status_code, 400)
 
 
+class HourChangeTests(ScheduleTestCase):
+    """A manager moving an employee's hours leaves a marker with the hours the employee knew."""
+
+    def patch(self, workday, **fields):
+        return self.client.patch(f'/api/workdays/{workday.id}/', fields, format='json')
+
+    def test_manager_edit_of_approved_day_is_recorded(self):
+        workday = make_workday(self.employee, start=time(12), end=time(20))
+        self.login(self.manager)
+
+        response = self.patch(workday, start_time='14:00')
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual((response.data['previous_start_time'], response.data['previous_end_time']), ('12:00:00', '20:00:00'))
+        self.assertIsNotNone(response.data['hours_changed_at'])
+        self.assertIsNone(response.data['hours_change_seen_at'])
+
+    def test_approving_with_other_hours_records_the_proposed_ones(self):
+        proposal = make_workday(self.employee, start=time(12), end=time(20), status=WorkDay.Status.PROPOSED)
+        self.login(self.manager)
+
+        self.client.post(f'/api/workdays/{proposal.id}/approve/', {'start_time': '10:00'}, format='json')
+
+        proposal.refresh_from_db()
+        self.assertEqual((proposal.previous_start_time, proposal.start_time), (time(12), time(10)))
+        self.assertTrue(proposal.has_unseen_hours_change)
+
+    def test_batch_save_by_manager_is_recorded(self):
+        make_workday(self.employee, future_date(10), start=time(12), end=time(20))
+        self.login(self.manager)
+
+        self.client.post('/api/workdays/batch/', {'entries': [{
+            'date': future_date(10).isoformat(), 'employee': self.employee.id,
+            'start_time': '06:00', 'end_time': '14:00',
+        }]}, format='json')
+
+        self.assertTrue(WorkDay.objects.get(employee=self.employee).has_unseen_hours_change)
+
+    def test_manager_edit_without_new_hours_leaves_no_marker(self):
+        workday = make_workday(self.employee, start=time(12), end=time(20))
+        self.login(self.manager)
+
+        self.patch(workday, note='Klucze u ochrony', start_time='12:00')
+
+        workday.refresh_from_db()
+        self.assertIsNone(workday.hours_changed_at)
+
+    def test_employee_editing_own_proposal_leaves_no_marker(self):
+        proposal = make_workday(self.employee, start=time(12), end=time(20), status=WorkDay.Status.PROPOSED)
+        self.login(self.employee)
+
+        self.patch(proposal, start_time='14:00')
+
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.start_time, time(14))
+        self.assertIsNone(proposal.hours_changed_at)
+
+    def test_manager_moving_own_day_leaves_no_marker(self):
+        workday = make_workday(self.manager, start=time(12), end=time(20))
+        self.login(self.manager)
+
+        self.patch(workday, start_time='14:00')
+
+        workday.refresh_from_db()
+        self.assertIsNone(workday.hours_changed_at)
+
+    def test_several_changes_before_seen_keep_the_hours_the_employee_knew(self):
+        workday = make_workday(self.employee, start=time(12), end=time(20))
+        self.login(self.manager)
+
+        self.patch(workday, start_time='14:00')
+        self.patch(workday, start_time='16:00')
+
+        workday.refresh_from_db()
+        self.assertEqual((workday.previous_start_time, workday.start_time), (time(12), time(16)))
+
+    def test_moving_back_to_the_known_hours_clears_the_marker(self):
+        workday = make_workday(self.employee, start=time(12), end=time(20))
+        self.login(self.manager)
+
+        self.patch(workday, start_time='14:00')
+        self.patch(workday, start_time='12:00')
+
+        workday.refresh_from_db()
+        self.assertIsNone(workday.hours_changed_at)
+        self.assertIsNone(workday.previous_start_time)
+
+    def test_marker_fields_cannot_be_set_through_the_api(self):
+        workday = make_workday(self.employee, start=time(12), end=time(20))
+        self.login(self.manager)
+
+        self.patch(workday, previous_start_time='08:00', hours_changed_at='2030-01-01T00:00:00Z')
+
+        workday.refresh_from_db()
+        self.assertEqual((workday.previous_start_time, workday.hours_changed_at), (None, None))
+
+
 class DeclarationDeadlineRuleTests(SimpleTestCase):
     """The weekly window: open until Saturday 23:59, closed until Monday 00:00."""
 
@@ -642,6 +739,16 @@ class CopyScheduleTests(ScheduleTestCase):
 
         self.assertEqual((response.data['created_count'], response.data['skipped_count']), (1, 1))
         self.assertEqual(WorkDay.objects.get(employee=self.employee, date=self.target_monday).start_time, time(8))
+
+    def test_manager_overwriting_other_hours_leaves_a_marker(self):
+        make_workday(self.employee, self.target_monday, start=time(14), end=time(22))
+        self.login(self.manager)
+
+        self.copy_week(employee=self.employee.id, on_conflict='overwrite')
+
+        day = WorkDay.objects.get(employee=self.employee, date=self.target_monday)
+        self.assertEqual((day.previous_start_time, day.start_time), (time(14), time(9)))
+        self.assertTrue(day.has_unseen_hours_change)
 
     def test_manager_copies_employee_week_as_approved(self):
         self.login(self.manager)
