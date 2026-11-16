@@ -9,6 +9,10 @@ export const createWorkday = (data) =>
 export const updateWorkday = (id, data) =>
   apiClient.patch(`/workdays/${id}/`, data).then((response) => response.data);
 
+/** Saves many days at once, all or nothing; the server decides whether each day is new or an edit. */
+export const saveWorkdaysBatch = (entries) =>
+  apiClient.post('/workdays/batch/', { entries }).then((response) => response.data);
+
 export const deleteWorkday = (id) =>
   apiClient.delete(`/workdays/${id}/`).then((response) => response.data);
 

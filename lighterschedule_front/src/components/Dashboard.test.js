@@ -70,8 +70,7 @@ beforeEach(() => {
   jest.spyOn(window, 'confirm').mockReturnValue(true);
   Auth.fetchCurrentUser.mockResolvedValue(ME);
   workdaysApi.getWorkdays.mockResolvedValue([APPROVED, PROPOSED, THIS_MONTH]);
-  workdaysApi.createWorkday.mockResolvedValue({ id: 60 }); // the API returns the created entry
-  workdaysApi.updateWorkday.mockResolvedValue({});
+  workdaysApi.saveWorkdaysBatch.mockResolvedValue({ saved: [], saved_count: 1 });
   workdaysApi.deleteWorkday.mockResolvedValue({});
   workdaysApi.copyWorkdays.mockResolvedValue({ created_count: 3, skipped_count: 0, updated_count: 0 });
   workdaysApi.getCalendarFeedInfo.mockResolvedValue({ url: 'https://example.com/feed.ics', webcal_url: 'webcal://example.com/feed.ics' });
@@ -121,11 +120,33 @@ test('declaring a new day with a shift template and sending it', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Wyślij deklaracje' }));
 
   await waitFor(() =>
-    expect(workdaysApi.createWorkday).toHaveBeenCalledWith({
-      date: '2030-01-10', shift_template: 7, start_time: '06:00:00', end_time: '14:00:00', note: '',
-    }),
+    expect(workdaysApi.saveWorkdaysBatch).toHaveBeenCalledWith([
+      { date: '2030-01-10', shift_template: 7, start_time: '06:00:00', end_time: '14:00:00', note: '' },
+    ]),
   );
   expect(await screen.findByText('Deklaracje zostały wysłane.')).toBeInTheDocument();
+});
+
+test('an edit and a new day go in one request, and a failed batch keeps them to be fixed', async () => {
+  workdaysApi.saveWorkdaysBatch.mockRejectedValue({
+    response: { data: { error: '2030-01-10: Zmiana Poranna jest już obsadzona. Nic nie zostało zapisane.' } },
+  });
+  await renderDashboard();
+
+  openDay(9);
+  fireEvent.click(screen.getByRole('button', { name: 'Edytuj' }));
+  openDay(10);
+  fireEvent.change(shiftSelect(), { target: { value: '7' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Dodaj deklarację' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Wyślij deklaracje' }));
+
+  expect(await screen.findByText(/2030-01-10: Zmiana Poranna jest już obsadzona/)).toBeInTheDocument();
+  expect(workdaysApi.saveWorkdaysBatch).toHaveBeenCalledTimes(1);
+  expect(workdaysApi.saveWorkdaysBatch.mock.calls[0][0].map((entry) => entry.date)).toEqual(['2030-01-09', '2030-01-10']);
+  // The drafts were not cleared, so sending again retries both days.
+  fireEvent.click(screen.getByRole('button', { name: 'Wyślij deklaracje' }));
+  await waitFor(() => expect(workdaysApi.saveWorkdaysBatch).toHaveBeenCalledTimes(2));
+  expect(workdaysApi.saveWorkdaysBatch.mock.calls[1][0]).toHaveLength(2);
 });
 
 test('a shift template must be chosen when the organization has templates', async () => {
@@ -137,7 +158,7 @@ test('a shift template must be chosen when the organization has templates', asyn
   expect(await screen.findByText('Wybierz zmianę zdefiniowaną przez kierownika.')).toBeInTheDocument();
 });
 
-test('editing a pending declaration updates it', async () => {
+test('editing a pending declaration sends that day again', async () => {
   await renderDashboard();
 
   openDay(9);
@@ -145,12 +166,12 @@ test('editing a pending declaration updates it', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Edytuj' }));
   fireEvent.click(screen.getByRole('button', { name: 'Wyślij deklaracje' }));
 
+  // The server finds the existing entry by date and updates it instead of adding a second one.
   await waitFor(() =>
-    expect(workdaysApi.updateWorkday).toHaveBeenCalledWith(41, {
-      date: '2030-01-09', shift_template: 7, start_time: '06:00:00', end_time: '14:00:00', note: '',
-    }),
+    expect(workdaysApi.saveWorkdaysBatch).toHaveBeenCalledWith([
+      { date: '2030-01-09', shift_template: 7, start_time: '06:00:00', end_time: '14:00:00', note: '' },
+    ]),
   );
-  expect(workdaysApi.createWorkday).not.toHaveBeenCalled();
 });
 
 test('deleting a pending declaration', async () => {

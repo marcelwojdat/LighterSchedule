@@ -14,11 +14,10 @@ import { acceptSwap, createSwap, rejectSwap } from '../api/swaps';
 import { getSwappableWorkdays } from '../api/users';
 import {
   copyWorkdays,
-  createWorkday,
   deleteWorkday,
   downloadWorkdaysIcs,
   getCalendarFeedInfo,
-  updateWorkday,
+  saveWorkdaysBatch,
 } from '../api/workdays';
 import { useDismissibleList } from '../hooks/useDismissibleList';
 import { useEmployeeData } from '../hooks/useEmployeeData';
@@ -61,10 +60,6 @@ const describeCounts = (labels, result) =>
     .filter(([key]) => result[key])
     .map(([key, label]) => `${label} ${result[key]}`)
     .join(', ');
-
-/** An employee edits a pending/rejected day in place; a new day becomes a new proposal. */
-const saveDeclaration = (existing, payload) =>
-  existing ? updateWorkday(existing.id, payload) : createWorkday(payload);
 
 /**
  * Employee dashboard: weekly and monthly summary, the declaration calendar, calendar export and swaps.
@@ -149,13 +144,10 @@ const Dashboard = () => {
       setError('Dodaj przynajmniej jedną deklarację przed wysłaniem.');
       return;
     }
+    // One request, all or nothing: on an error nothing is saved and the drafts stay to be fixed.
+    // A new day becomes a proposal; an edited pending/rejected day is resubmitted (decided by the server).
     const sent = await runAction(
-      () =>
-        Promise.all(
-          entries.map(([date, draft]) =>
-            saveDeclaration(workdayFor(date), buildWorkdayPayload({ ...draft, date, note: draft.note || '' })),
-          ),
-        ),
+      () => saveWorkdaysBatch(entries.map(([date, draft]) => buildWorkdayPayload({ ...draft, date, note: draft.note || '' }))),
       { success: 'Deklaracje zostały wysłane.', failure: 'Błąd połączenia z serwerem.', after: reloadWorkdays },
     );
     if (sent) setDrafts({});
