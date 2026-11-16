@@ -384,6 +384,113 @@ class BulkApproveTests(ScheduleTestCase):
         self.assertEqual(response.status_code, 403)
 
 
+class BatchSaveTests(ScheduleTestCase):
+    """POST /api/workdays/batch/ saves all drafts or none of them."""
+
+    URL = '/api/workdays/batch/'
+
+    def day(self, days_ahead, **fields):
+        return {'date': future_date(days_ahead).isoformat(), 'start_time': '09:00', 'end_time': '17:00', **fields}
+
+    def save(self, *entries):
+        return self.client.post(self.URL, {'entries': list(entries)}, format='json')
+
+    def test_employee_saves_several_days_as_proposals(self):
+        self.login(self.employee)
+
+        response = self.save(self.day(10), self.day(11))
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data['saved_count'], 2)
+        statuses = WorkDay.objects.filter(employee=self.employee).values_list('status', flat=True)
+        self.assertEqual(list(statuses), ['proposed', 'proposed'])
+
+    def test_existing_day_is_updated_not_duplicated(self):
+        existing = make_workday(self.employee, future_date(10), status=WorkDay.Status.PROPOSED)
+        self.login(self.employee)
+
+        response = self.save(self.day(10, start_time='12:00', end_time='20:00'))
+
+        self.assertEqual(response.status_code, 200, response.data)
+        existing.refresh_from_db()
+        self.assertEqual(existing.start_time, time(12))
+        self.assertEqual(WorkDay.objects.filter(employee=self.employee).count(), 1)
+
+    def test_one_invalid_day_saves_nothing(self):
+        self.login(self.employee)
+        bad_day = self.day(11, start_time='17:00', end_time='09:00')
+
+        response = self.save(self.day(10), bad_day)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data['date'], bad_day['date'])
+        self.assertIn('Nic nie zostało zapisane', response.data['error'])
+        self.assertFalse(WorkDay.objects.filter(employee=self.employee).exists())
+
+    def test_shift_slots_count_days_saved_earlier_in_the_same_batch(self):
+        template = make_shift_template(self.org, max_slots=1)
+        work_date = future_date(10).isoformat()
+        self.login(self.manager)
+
+        response = self.save(
+            {'date': work_date, 'employee': self.employee.id, 'shift_template': template.id},
+            {'date': work_date, 'employee': self.other.id, 'shift_template': template.id},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('obsadzona', response.data['error'])
+        self.assertFalse(WorkDay.objects.filter(date=work_date).exists())
+
+    def test_approved_day_blocks_the_whole_employee_batch(self):
+        make_workday(self.employee, future_date(11))
+        self.login(self.employee)
+
+        response = self.save(self.day(10), self.day(11))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(WorkDay.objects.filter(employee=self.employee).count(), 1)
+
+    def test_employee_cannot_save_a_colleagues_day(self):
+        self.login(self.employee)
+
+        response = self.save(self.day(10, employee=self.other.id))
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(WorkDay.objects.filter(employee=self.other).exists())
+
+    def test_manager_days_are_approved_and_default_to_the_manager(self):
+        self.login(self.manager)
+
+        response = self.save(self.day(10, employee=self.employee.id), self.day(10))
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(WorkDay.objects.get(employee=self.employee).status, 'approved')
+        self.assertTrue(WorkDay.objects.filter(employee=self.manager).exists())
+
+    def test_closed_declaration_window_blocks_employee_batch(self):
+        ScheduleSettings.objects.create(organization=self.org, declaration_close_weekday=5)
+        self.login(self.employee)
+
+        with patch('core.utils.timezone.localtime', return_value=DeclarationDeadlineApiTests.SUNDAY_NOON):
+            response = self.save(self.day(10))
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_malformed_batches_are_bad_requests(self):
+        self.login(self.employee)
+        cases = [
+            {'entries': []},
+            {'entries': 'nie-lista'},
+            {'entries': ['nie-obiekt']},
+            {'entries': [{'date': '20-11-2026', 'start_time': '09:00', 'end_time': '17:00'}]},
+            {'entries': [self.day(10, employee='abc')]},
+            {'entries': [self.day(10)] * 101},
+        ]
+        for body in cases:
+            with self.subTest(body=str(body)[:60]):
+                self.assertEqual(self.client.post(self.URL, body, format='json').status_code, 400)
+
+
 class DeclarationDeadlineRuleTests(SimpleTestCase):
     """The weekly window: open until Saturday 23:59, closed until Monday 00:00."""
 

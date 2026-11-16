@@ -7,7 +7,7 @@ from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import APIException, PermissionDenied, ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
@@ -21,6 +21,18 @@ from ..serializers import WorkDaySerializer
 from ..tenancy import OrganizationScopedMixin, organization_users
 from ..utils import DECLARATION_DEADLINE_MESSAGE, declaration_deadline_passed, remember_rejection_reason
 from .common import INVALID_MONTH_MESSAGE, clean_rejection_reason, error_response, parse_month
+
+# Two full months for one person; more in a single request is almost certainly a mistake or abuse.
+MAX_BATCH_ENTRIES = 100
+
+
+def first_error_message(detail):
+    """First human-readable message from a DRF error (a string, list or nested dict)."""
+    if isinstance(detail, dict):
+        detail = next(iter(detail.values()), '')
+    if isinstance(detail, list):
+        return first_error_message(detail[0]) if detail else ''
+    return str(detail)
 
 
 class WorkDayViewSet(OrganizationScopedMixin, viewsets.ModelViewSet):
@@ -196,6 +208,63 @@ class WorkDayViewSet(OrganizationScopedMixin, viewsets.ModelViewSet):
         except ValueError as exc:
             return error_response(str(exc))
         return Response(result)
+
+    def _save_batch_entry(self, entry):
+        """Create or update one day of a batch with the same rules as a single save."""
+        if not isinstance(entry, dict):
+            raise ValidationError('Każdy wpis musi być obiektem z datą.')
+        try:
+            work_date = date.fromisoformat(str(entry.get('date')))
+        except ValueError:
+            raise ValidationError({'date': 'Nieprawidłowa data. Użyj formatu YYYY-MM-DD.'})
+        # Without "employee" a manager schedules themselves, like the serializer's default.
+        employee_id = entry.get('employee') or self.request.user.pk
+        if not str(employee_id).isdigit():
+            raise ValidationError({'employee': 'Id pracownika musi być liczbą.'})
+
+        # The server, not the browser, decides create vs update, so a stale page can't create a duplicate.
+        existing = self.get_queryset().filter(employee_id=int(employee_id), date=work_date).first()
+        serializer = self.get_serializer(existing, data=entry, partial=existing is not None)
+        serializer.is_valid(raise_exception=True)
+        if existing is None:
+            self.perform_create(serializer)
+        else:
+            self.perform_update(serializer)
+        return serializer.instance
+
+    @action(detail=False, methods=['post'])
+    def batch(self, request):
+        """
+        Save many days at once, all or nothing. Body: {"entries": [{"date": ..., ...}, ...]}.
+
+        Days are saved one by one inside one transaction, so each check (e.g. a shift's free
+        slots) sees the days saved before it; the first error rolls the whole batch back.
+        """
+        entries = request.data.get('entries')
+        if not isinstance(entries, list) or not entries:
+            return error_response('Podaj entries: niepustą listę dni do zapisania.')
+        if len(entries) > MAX_BATCH_ENTRIES:
+            return error_response(f'Jednorazowo można zapisać najwyżej {MAX_BATCH_ENTRIES} dni.')
+
+        saved, entry = [], None
+        try:
+            with transaction.atomic():
+                for entry in entries:
+                    saved.append(self._save_batch_entry(entry))
+        except APIException as exc:
+            day = entry.get('date') if isinstance(entry, dict) else None
+            prefix = f'{day}: ' if day else ''
+            reason = first_error_message(exc.detail).rstrip('.')
+            return Response(
+                {
+                    'error': f'{prefix}{reason}. Nic nie zostało zapisane.',
+                    'date': day,
+                    'details': exc.detail,
+                },
+                status=exc.status_code,
+            )
+
+        return Response({'saved': self.get_serializer(saved, many=True).data, 'saved_count': len(saved)})
 
     @action(detail=False, methods=['post'], url_path='bulk-approve', permission_classes=[IsAuthenticated, IsManager])
     def bulk_approve(self, request):
