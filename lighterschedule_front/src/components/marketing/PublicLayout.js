@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import Auth from '../Auth';
 import { useTheme } from '../../hooks/useTheme';
 import styles from './PublicLayout.module.css';
 
@@ -7,6 +8,8 @@ const PublicLayout = () => {
   const { darkMode, toggleTheme } = useTheme();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  // Read on every render (cheap): the layout re-renders on navigation, so it stays current.
+  const signedIn = Auth.isAuthenticated();
 
   useEffect(() => {
     setMenuOpen(false);
@@ -45,12 +48,21 @@ const PublicLayout = () => {
             <a href="/#jak-dziala">Jak działa</a>
             <a href="/#funkcje">Funkcje</a>
             <a href="/#bezpieczenstwo">Bezpieczeństwo</a>
-            <NavLink to="/login" className={({ isActive }) => (isActive ? styles.navActive : undefined)}>
-              Zaloguj
-            </NavLink>
-            <Link to="/register" className={styles.navCta}>
-              Załóż konto firmy
-            </Link>
+            {signedIn ? (
+              // /app sends a manager to /manager and an employee to /dashboard.
+              <Link to="/app" className={styles.navCta}>
+                Mój panel
+              </Link>
+            ) : (
+              <>
+                <NavLink to="/login" className={({ isActive }) => (isActive ? styles.navActive : undefined)}>
+                  Zaloguj
+                </NavLink>
+                <Link to="/register" className={styles.navCta}>
+                  Załóż konto firmy
+                </Link>
+              </>
+            )}
             <button
               type="button"
               className={styles.themeBtn}

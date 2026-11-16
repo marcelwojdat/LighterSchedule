@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Auth from './Auth';
 import styles from './Login.module.css';
@@ -11,11 +11,27 @@ const loginErrorMessage = (err) => {
   return getErrorMessage(err, 'Nie udało się zalogować. Spróbuj ponownie.');
 };
 
+const panelPath = (user) => (user.is_manager ? '/manager' : '/dashboard');
+
 const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  // Someone already signed in goes straight to their panel. The server confirms the session first:
+  // redirecting on a stored token alone would loop with /app while the API is unreachable.
+  const [checkingSession, setCheckingSession] = useState(Auth.isAuthenticated);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!checkingSession) return undefined;
+    let active = true;
+    Auth.fetchCurrentUser()
+      .then((user) => active && navigate(panelPath(user), { replace: true }))
+      .catch(() => active && setCheckingSession(false));
+    return () => {
+      active = false;
+    };
+  }, [checkingSession, navigate]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -24,12 +40,16 @@ const Login = () => {
     try {
       await Auth.login(username, password);
       const user = await Auth.fetchCurrentUser();
-      navigate(user.is_manager ? '/manager' : '/dashboard');
+      navigate(panelPath(user));
     } catch (err) {
       clearSession(); // don't keep tokens of a half-finished login
       setError(loginErrorMessage(err));
     }
   };
+
+  if (checkingSession) {
+    return <div style={{ padding: '2rem', textAlign: 'center' }}>Ładowanie...</div>;
+  }
 
   return (
     <div className={styles.loginPage}>
