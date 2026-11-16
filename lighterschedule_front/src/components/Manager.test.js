@@ -345,6 +345,37 @@ describe('employee schedule editor', () => {
     expect(workdaysApi.approveWorkday).not.toHaveBeenCalled();
   });
 
+  describe('switching to another employee', () => {
+    const PIOTR = { ...EMPLOYEE, id: 3, username: 'piotr', first_name: 'Piotr', last_name: 'Lis', email: 'piotr@example.com' };
+    const openPiotr = () => {
+      const row = within(card('Zarządzanie kontami')).getByText('piotr').closest('tr');
+      fireEvent.click(within(row).getByRole('button', { name: 'Grafik' }));
+    };
+
+    beforeEach(() => usersApi.getUsers.mockResolvedValue([MANAGER, EMPLOYEE, PIOTR]));
+
+    test('with unsaved drafts it asks first, and cancelling keeps the drafts', async () => {
+      window.confirm.mockReturnValue(false);
+      const editor = await openSchedule();
+      pickDayAndAdd(editor, ['07:00', '15:00']);
+
+      openPiotr();
+
+      expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('niezapisane zmiany w grafiku: Anna Nowak'));
+      expect(workdaysApi.getWorkdays).not.toHaveBeenCalledWith({ employee: 3 });
+      expect(within(editor).getByRole('button', { name: 'Zapisz zmiany' })).toBeEnabled();
+    });
+
+    test('without drafts it switches straight away', async () => {
+      await openSchedule();
+
+      openPiotr();
+
+      await waitFor(() => expect(workdaysApi.getWorkdays).toHaveBeenCalledWith({ employee: 3 }));
+      expect(window.confirm).not.toHaveBeenCalled();
+    });
+  });
+
   test('copying the previous week', async () => {
     workdaysApi.copyWorkdays.mockResolvedValue({ created_count: 2, skipped_count: 0, updated_count: 0 });
     const editor = await openSchedule();
@@ -380,6 +411,25 @@ describe('settings: deadline and shift templates', () => {
       }),
     );
     expect(await screen.findByText('Usunięto termin deklaracji.')).toBeInTheDocument();
+  });
+
+  test('turning off the e-mail about changed hours saves it at once', async () => {
+    scheduleSettingsApi.updateScheduleSettings.mockResolvedValue({
+      declaration_close_weekday: null, declaration_close_time: null,
+      notify_hour_changes: true, email_hour_changes: false,
+    });
+    await renderManager();
+    const emailToggle = within(card('Ustawienia')).getByRole('checkbox', { name: 'Wysyłaj pracownikowi e-mail' });
+    expect(emailToggle).toBeChecked();
+
+    fireEvent.click(emailToggle);
+
+    await waitFor(() =>
+      expect(scheduleSettingsApi.updateScheduleSettings).toHaveBeenCalledWith({ email_hour_changes: false }),
+    );
+    expect(await screen.findByText('E-mail o zmianie godzin wyłączony.')).toBeInTheDocument();
+    expect(emailToggle).not.toBeChecked(); // shows what the server saved
+    expect(within(card('Ustawienia')).getByRole('checkbox', { name: 'Pokazuj pracownikowi komunikat w panelu' })).toBeChecked();
   });
 
   test('creating a shift template', async () => {

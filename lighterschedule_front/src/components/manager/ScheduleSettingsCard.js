@@ -10,11 +10,20 @@ const PANELS = [
   { key: 'taskTypes', label: 'Stanowiska', hideLabel: 'Ukryj stanowiska' },
 ];
 
-/** Organization settings: the weekly declaration deadline, shift templates and roles (task types). */
+const HOUR_CHANGE_TOGGLES = [
+  { field: 'notify_hour_changes', label: 'Pokazuj pracownikowi komunikat w panelu' },
+  { field: 'email_hour_changes', label: 'Wysyłaj pracownikowi e-mail' },
+];
+
+/**
+ * Organization settings: the weekly declaration deadline, notices about changed hours,
+ * shift templates and roles (task types).
+ */
 const ScheduleSettingsCard = ({
   settings,
   onSaveDeadline,
   onClearDeadline,
+  onSaveHourChangeSetting,
   templates,
   onSaveTemplate,
   onDeleteTemplate,
@@ -47,6 +56,28 @@ const ScheduleSettingsCard = ({
         </div>
 
         <DeclarationDeadlineForm settings={settings} onSave={onSaveDeadline} onClear={onClearDeadline} />
+
+        <div className={styles.deadlineForm}>
+          <div>
+            <span className={styles.deadlineLabel}>Zmiany godzin</span>
+            <p className={styles.statHint}>
+              Gdy zmienisz godziny czyjejś zmiany, pracownik zawsze zobaczy znacznik w kalendarzu. Tu decydujesz o
+              dodatkowych powiadomieniach.
+            </p>
+          </div>
+          {HOUR_CHANGE_TOGGLES.map(({ field, label }) => (
+            // Saved on click and shown as the server confirmed it, so there is no unsaved state.
+            <label key={field} className="checkboxRow">
+              <input
+                type="checkbox"
+                checked={settings?.[field] ?? true}
+                disabled={!settings}
+                onChange={(event) => onSaveHourChangeSetting({ [field]: event.target.checked })}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
 
         {openPanel === 'templates' ? (
           <ShiftTemplateEditor

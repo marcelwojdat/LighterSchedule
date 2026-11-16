@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Auth from './Auth';
 import ToastStack from './ToastStack';
 import UserMenu from './UserMenu';
@@ -60,6 +60,11 @@ const describeCounts = (labels, result) =>
  */
 const Manager = () => {
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  // Whether the schedule editor holds unsaved drafts; read only on click, so a ref (no re-render).
+  const editorDirtyRef = useRef(false);
+  const setEditorDirty = useCallback((dirty) => {
+    editorDirtyRef.current = dirty;
+  }, []);
   const [statsMonth, setStatsMonth] = useState(currentMonthValue);
   const [coverageMonth, setCoverageMonth] = useState(currentCalendarMonth);
   const [weekStart, setWeekStart] = useState(() => formatDateStr(getMonday()));
@@ -195,8 +200,18 @@ const Manager = () => {
   // --- Employee schedule editor ---
 
   const openSchedule = (employee) => {
-    if (employee.id === selectedEmployee?.id) reloadEmployeeWorkdays();
-    setSelectedEmployee(employee); // the editor is keyed by employee, so its drafts reset on switch
+    if (employee.id === selectedEmployee?.id) {
+      reloadEmployeeWorkdays(); // same editor stays mounted, so its drafts are kept
+      return;
+    }
+    // The editor is keyed by employee: switching drops the drafts of the previous one.
+    // Drafts exist only while the editor is open, so selectedEmployee is set here.
+    if (editorDirtyRef.current) {
+      const question = `Masz niezapisane zmiany w grafiku: ${displayName(selectedEmployee)}. `
+        + 'Przełączyć na innego pracownika i je odrzucić?';
+      if (!window.confirm(question)) return;
+    }
+    setSelectedEmployee(employee);
   };
 
   /** Saves the editor drafts ({ date: shift }) of the selected employee. */
@@ -260,6 +275,20 @@ const Manager = () => {
         after: null,
       },
     );
+
+  /** `change` is one of { notify_hour_changes } / { email_hour_changes }, saved on click. */
+  const saveHourChangeSetting = (change) => {
+    const [[field, enabled]] = Object.entries(change);
+    const what = field === 'email_hour_changes' ? 'E-mail' : 'Komunikat w panelu';
+    return runAction(
+      async () => setScheduleSettings(await updateScheduleSettings(change)),
+      {
+        success: `${what} o zmianie godzin ${enabled ? 'włączony' : 'wyłączony'}.`,
+        failure: 'Nie udało się zapisać ustawienia.',
+        after: null,
+      },
+    );
+  };
 
   const clearDeadline = () =>
     runAction(
@@ -395,6 +424,7 @@ const Manager = () => {
                 onCopy={copySchedule}
                 onSuccess={notifySuccess}
                 onError={setError}
+                onDirtyChange={setEditorDirty}
               />
             )}
           </div>
@@ -405,6 +435,7 @@ const Manager = () => {
         settings={scheduleSettings}
         onSaveDeadline={saveDeadline}
         onClearDeadline={clearDeadline}
+        onSaveHourChangeSetting={saveHourChangeSetting}
         templates={shiftTemplates}
         onSaveTemplate={saveTemplate}
         onDeleteTemplate={deleteTemplate}
