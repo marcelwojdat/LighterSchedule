@@ -66,6 +66,15 @@ class ScheduleSettings(models.Model):
         blank=True,
         help_text='Godzina zamknięcia w wybranym dniu (np. 23:59).',
     )
+    # The calendar marker for changed hours is always shown; these only control extra notices.
+    notify_hour_changes = models.BooleanField(
+        default=True,
+        help_text='Komunikat w panelu pracownika, gdy kierownik zmieni godziny jego zmiany.',
+    )
+    email_hour_changes = models.BooleanField(
+        default=True,
+        help_text='E-mail do pracownika, gdy kierownik zmieni godziny jego zmiany.',
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -229,6 +238,15 @@ class WorkDay(models.Model):
     )
     # Hourly rate frozen at creation, so later raises don't change past payroll.
     rate_at_time = models.DecimalField(max_digits=10, decimal_places=2, editable=False, null=True)
+    # Hours changed by a manager: the hours the employee knew before, and when they saw the change.
+    previous_start_time = models.TimeField(null=True, blank=True)
+    previous_end_time = models.TimeField(null=True, blank=True)
+    hours_changed_at = models.DateTimeField(null=True, blank=True)
+    hours_change_seen_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='Puste = pracownik jeszcze nie widział zmiany godzin.',
+    )
 
     class Meta:
         constraints = [
@@ -240,6 +258,29 @@ class WorkDay(models.Model):
 
     def __str__(self):
         return f'{self.date} - {self.employee.username} ({self.role}) [{self.status}]'
+
+    @property
+    def has_unseen_hours_change(self):
+        return self.hours_changed_at is not None and self.hours_change_seen_at is None
+
+    def record_hours_change(self, old_start, old_end):
+        """
+        Remember that a manager moved this day from old_start-old_end to its current hours.
+        Call before save(). Returns True when the employee should be told about it.
+
+        The "previous" hours are the ones the employee last knew: several changes before they
+        look keep the first ones, and moving back to those hours clears the marker.
+        """
+        if (old_start, old_end) == (self.start_time, self.end_time):
+            return False
+        if not self.has_unseen_hours_change:
+            self.previous_start_time, self.previous_end_time = old_start, old_end
+        if (self.previous_start_time, self.previous_end_time) == (self.start_time, self.end_time):
+            self.previous_start_time = self.previous_end_time = self.hours_changed_at = None
+            return False
+        self.hours_changed_at = timezone.now()
+        self.hours_change_seen_at = None
+        return True
 
     def save(self, *args, **kwargs):
         if self.rate_at_time is None and self.employee_id:
