@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 /**
- * Tracks which list entries were dismissed (manual or after `ms`).
+ * Tracks which list entries were dismissed (manually, or automatically one after another:
+ * the first after `ms`, each next one `stepMs` later).
  * `getKey(entry, index)` must be stable for the same logical item.
  */
-export const useDismissibleList = (entries, getKey, ms = 7000) => {
+export const useDismissibleList = (entries, getKey, ms = 7000, stepMs = 3000) => {
   const [dismissed, setDismissed] = useState(() => new Set());
 
   const dismiss = useCallback((key) => {
@@ -23,14 +24,22 @@ export const useDismissibleList = (entries, getKey, ms = 7000) => {
       .filter(({ key }) => key && !dismissed.has(key));
   }, [entries, dismissed, getKey]);
 
-  const visibleKeys = visible.map(({ key }) => key).join('\0');
+  // One timer for the whole queue, always on the first visible entry. Entries added at the end
+  // or closed in the middle don't touch it, so the countdown of the first one never restarts.
+  const headKey = visible[0]?.key;
+  const queueRunningRef = useRef(false);
 
   useEffect(() => {
-    if (!visibleKeys) return undefined;
-    const keys = visibleKeys.split('\0').filter(Boolean);
-    const timers = keys.map((key) => setTimeout(() => dismiss(key), ms));
-    return () => timers.forEach(clearTimeout);
-  }, [visibleKeys, dismiss, ms]);
+    if (!headKey) {
+      queueRunningRef.current = false; // the next batch gets the full reading time again
+      return undefined;
+    }
+    const timer = setTimeout(() => {
+      queueRunningRef.current = true;
+      dismiss(headKey);
+    }, queueRunningRef.current ? stepMs : ms);
+    return () => clearTimeout(timer);
+  }, [headKey, dismiss, ms, stepMs]);
 
   return { visible, dismiss };
 };
