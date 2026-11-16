@@ -13,7 +13,10 @@ const STATUS_LEGEND = [
   [styles.legendApprovedNote, 'Zatwierdzony z notatką'],
   [styles.legendRejected, 'Odrzucony'],
   [styles.legendSelected, 'Do wysłania'],
+  [styles.legendHoursChanged, 'Zmienione godziny'],
 ];
+
+const previousHours = (day) => `${day.previous_start_time?.slice(0, 5)}–${day.previous_end_time?.slice(0, 5)}`;
 
 const savedTileClass = (day) => {
   if (day.status === 'approved') return day.note?.trim() ? 'custom-approved-note-day' : 'custom-approved-day';
@@ -65,11 +68,22 @@ const DeclarationCalendar = ({
     const saved = savedDay(dateStr);
     const entry = draft || saved;
     if (!entry) return null;
+    // Hours moved by the manager: a clear badge until the employee opens the day, then a small dot.
+    const hoursChange = !draft && saved.hours_changed_at ? (saved.hours_change_seen_at ? 'seen' : 'unseen') : null;
+    const changeLabel = hoursChange ? `Godziny zmienione przez kierownika (było ${previousHours(saved)})` : '';
     return (
       <div className={styles.tileContent}>
         <div className={styles.tileHours}>
           {entry.start_time.slice(0, 5)} - {entry.end_time.slice(0, 5)}
+          {hoursChange === 'seen' ? (
+            <span className={styles.hoursChangedDot} role="img" aria-label={changeLabel} title={changeLabel} />
+          ) : null}
         </div>
+        {hoursChange === 'unseen' ? (
+          <div className={styles.hoursChangedBadge} title={changeLabel}>
+            zmiana godzin
+          </div>
+        ) : null}
         {!draft && saved.role_name ? <div className={styles.tileStatus}>{saved.role_name}</div> : null}
         {!draft && saved.shift_template_name ? <div className={styles.tileStatus}>{saved.shift_template_name}</div> : null}
         <div className={styles.tileStatus}>{draft ? 'Do wysłania' : WORKDAY_STATUS_LABELS[saved.status]}</div>

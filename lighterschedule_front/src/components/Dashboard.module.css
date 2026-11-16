@@ -387,6 +387,46 @@
   opacity: 0.92;
 }
 
+/* Hours changed by the manager. Slate, not amber: it must stand out on every status colour
+   (green approved, amber pending, red rejected) and on an empty white tile. */
+.hoursChangedBadge {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #1e293b;
+  color: #ffffff;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.hoursChangedDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 4px;
+  vertical-align: middle;
+  border-radius: 999px;
+  background: #1e293b;
+  box-shadow: 0 0 0 1.5px #ffffff;
+}
+
+.legendHoursChanged {
+  background: #1e293b;
+}
+
+:global([data-theme='dark']) .hoursChangedBadge {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+:global([data-theme='dark']) .hoursChangedDot,
+:global([data-theme='dark']) .legendHoursChanged {
+  background: #f8fafc;
+  box-shadow: 0 0 0 1.5px #0f172a;
+}
+
 .statusBadge {
   display: inline-block;
   margin-top: 8px;
