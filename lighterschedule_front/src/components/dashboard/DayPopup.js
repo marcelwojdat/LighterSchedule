@@ -42,6 +42,14 @@ const StatusBadge = ({ status }) => (
   <span className={`${styles.statusBadge} ${STATUS_BADGE_CLASS[status]}`}>{WORKDAY_STATUS_LABELS[status]}</span>
 );
 
+/** Hours moved by the manager. Stays after the employee has seen it (only the calendar marker shrinks). */
+const HoursChangeNote = ({ day }) => (
+  <div className={styles.hoursChangeBox}>
+    Kierownik zmienił godziny: było {day.previous_start_time.slice(0, 5)} - {day.previous_end_time.slice(0, 5)},
+    jest {day.start_time.slice(0, 5)} - {day.end_time.slice(0, 5)}.
+  </div>
+);
+
 const PopupButton = ({ label, onClick, variant }) => (
   <input
     type="button"
@@ -193,6 +201,7 @@ const DayPopup = ({
   );
   const back = <PopupButton label="Wróć" onClick={onClose} variant="popupBtnSecondary" />;
   const hoursLabel = existing ? `${existing.start_time.slice(0, 5)} - ${existing.end_time.slice(0, 5)}` : '';
+  const hoursChange = existing?.hours_changed_at && existing.previous_start_time ? <HoursChangeNote day={existing} /> : null;
 
   const views = {
     pastWarning: () => (
@@ -211,6 +220,7 @@ const DayPopup = ({
           {existing.role_name ? ` (${existing.role_name})` : ''}
         </p>
         <StatusBadge status="approved" />
+        {hoursChange}
         {existing.note?.trim() ? <div className={styles.dayNoteBox}>Notatka: {existing.note}</div> : null}
         <p className={styles.popupInfo}>Ten dzień został zatwierdzony przez kierownika. Nie możesz go edytować.</p>
         {hasActiveSwap ? <p className={styles.popupInfo}>Prośba o oddanie tej zmiany jest już w toku.</p> : null}
@@ -246,6 +256,7 @@ const DayPopup = ({
         <p className={styles.popupInfo}>{date}</p>
         <p className={styles.popupInfo}>{hoursLabel}</p>
         <StatusBadge status="proposed" />
+        {hoursChange}
         <p className={styles.popupInfo}>Deklaracja czeka na akceptację kierownika.</p>
         {isPastDate(date) ? (
           <div className={styles.popupButtons}>{back}</div>
@@ -268,6 +279,7 @@ const DayPopup = ({
           {date}: {hoursLabel}
         </p>
         <StatusBadge status={existing.status} />
+        {hoursChange}
         <p className={styles.popupInfo}>Przeszłych deklaracji nie można już edytować ani usuwać.</p>
         <div className={styles.popupButtons}>{back}</div>
       </>

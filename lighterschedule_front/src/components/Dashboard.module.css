@@ -416,6 +416,25 @@
   background: #1e293b;
 }
 
+.hoursChangeBox {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-left: 4px solid #1e293b;
+  color: #0f172a;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+:global([data-theme='dark']) .hoursChangeBox {
+  background: #1e293b;
+  border-color: #475569;
+  border-left-color: #f8fafc;
+  color: #f1f5f9;
+}
+
 :global([data-theme='dark']) .hoursChangedBadge {
   background: #f8fafc;
   color: #0f172a;
