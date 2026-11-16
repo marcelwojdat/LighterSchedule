@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { User, Settings2, SunMoon, LogOut, ChevronDown, LayoutDashboard, Shield } from 'lucide-react';
+import { User, Settings2, SunMoon, LogOut, ChevronDown, LayoutDashboard, Shield, House } from 'lucide-react';
 import styles from './UserMenu.module.css';
 
 const UserMenu = ({ user, isManager, darkMode, onToggleTheme, onLogout, notificationCount = 0 }) => {
@@ -68,6 +68,12 @@ const UserMenu = ({ user, isManager, darkMode, onToggleTheme, onLogout, notifica
             Panel pracownika
           </Link>
         )}
+
+        {/* Leaving for the public site keeps the session; "Mój panel" there leads back. */}
+        <Link to="/" className={styles.menuLink} onClick={closeMenu}>
+          <House size={16} className={styles.linkIcon} />
+          Strona główna
+        </Link>
 
         <Link to="/profile" className={styles.menuLink} onClick={closeMenu}>
           <Settings2 size={16} className={styles.linkIcon} />
