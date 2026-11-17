@@ -9,6 +9,10 @@ export const createUser = (data) =>
 export const updateUserProfile = (userId, data) =>
   apiClient.patch(`/users/${userId}/profile/`, data).then((response) => response.data);
 
+/** A new set-password link for an account without a password; returns { invite_link, invite_email_sent }. */
+export const resendInvite = (userId) =>
+  apiClient.post(`/users/${userId}/invite/`).then((response) => response.data);
+
 /** Soft-delete (is_active=False) by default; pass { permanent: true } for hard delete when allowed. */
 export const deleteUser = (userId, { permanent = false } = {}) =>
   apiClient

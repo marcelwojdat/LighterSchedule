@@ -1838,3 +1838,59 @@
 :global([data-theme='dark']) .scheduleNote {
   color: #5eead4;
 }
+
+/* Invite link after creating an account / resending; stays until closed. */
+.inviteNotice {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+  color: #0f172a;
+}
+
+.inviteNotice p {
+  margin: 0 0 8px;
+}
+
+.inviteLinkRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.inviteLinkRow input {
+  flex: 1 1 240px;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+}
+
+.invitePending {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.invitePendingBadge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+:global([data-theme='dark']) .inviteNotice {
+  background: #1e3a8a;
+  border-color: #3b82f6;
+  color: #f1f5f9;
+}
+
+:global([data-theme='dark']) .invitePendingBadge {
+  background: #78350f;
+  color: #fde68a;
+}

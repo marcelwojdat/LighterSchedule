@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import Auth from './Auth';
 import styles from './Register.module.css';
 import { getErrorMessage } from '../api/client';
+import { normalizeLogin } from '../utils/people';
 
 const MIN_PASSWORD_LENGTH = 8;
 const REDIRECT_DELAY_MS = 2000;
@@ -16,9 +17,6 @@ const EMPTY_FORM = {
   password: '',
   passwordConfirm: '',
 };
-
-/** Logins are lowercase without spaces (the server stores them the same way). */
-const normalizeLogin = (value) => value.toLowerCase().replace(/\s/g, '');
 
 /** Returns an error message, or null when the form can be sent. */
 const validate = (form) => {

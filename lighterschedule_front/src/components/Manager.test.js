@@ -206,26 +206,78 @@ test('approving a proposal after editing its hours and role', async () => {
   );
 });
 
-test('adding an employee', async () => {
-  await renderManager();
-  const accounts = card('Zarządzanie kontami');
+describe('accounts and invites', () => {
+  const LINK = 'https://prostygrafik.com/set-password/MTI/abc-123';
 
-  fireEvent.click(within(accounts).getByRole('button', { name: 'Dodaj pracownika' }));
-  const fields = {
-    Login: 'ewa', 'Imię': 'Ewa', Nazwisko: 'Lis', 'E-mail': 'ewa@example.com',
-    'Hasło (min. 8 znaków)': 'Bezpieczne#1', 'Stawka zł/h': '25',
+  const addEwa = async () => {
+    await renderManager();
+    const accounts = card('Zarządzanie kontami');
+    fireEvent.click(within(accounts).getByRole('button', { name: 'Dodaj pracownika' }));
+    const fields = { Login: ' Ewa.Lis ', 'Imię': 'Ewa', Nazwisko: 'Lis', 'E-mail': 'ewa@example.com', 'Stawka zł/h': '25' };
+    Object.entries(fields).forEach(([placeholder, value]) => {
+      fireEvent.change(within(accounts).getByPlaceholderText(placeholder), { target: { value } });
+    });
+    fireEvent.click(within(accounts).getByRole('button', { name: 'Dodaj osobę' }));
+    return accounts;
   };
-  Object.entries(fields).forEach(([placeholder, value]) => {
-    fireEvent.change(within(accounts).getByPlaceholderText(placeholder), { target: { value } });
-  });
-  fireEvent.click(within(accounts).getByRole('button', { name: 'Dodaj osobę' }));
 
-  await waitFor(() =>
-    expect(usersApi.createUser).toHaveBeenCalledWith({
-      username: 'ewa', first_name: 'Ewa', last_name: 'Lis', email: 'ewa@example.com',
-      password: 'Bezpieczne#1', is_manager: false, hourly_rate: 25,
-    }),
-  );
+  test('a new account has no password field, a lowercase login and shows the invite link', async () => {
+    usersApi.createUser.mockResolvedValue({
+      id: 9, username: 'ewa.lis', first_name: 'Ewa', last_name: 'Lis', invite_link: LINK, invite_email_sent: true,
+    });
+    Object.assign(navigator, { clipboard: { writeText: jest.fn().mockResolvedValue() } });
+
+    const accounts = await addEwa();
+
+    await waitFor(() =>
+      expect(usersApi.createUser).toHaveBeenCalledWith({
+        username: 'ewa.lis', first_name: 'Ewa', last_name: 'Lis', email: 'ewa@example.com',
+        is_manager: false, hourly_rate: 25,
+      }),
+    );
+    expect(await screen.findByText('Dodano pracownika i wysłano zaproszenie e-mailem.')).toBeInTheDocument();
+    const notice = within(accounts).getByRole('status', { name: 'Zaproszenie' });
+    expect(notice).toHaveTextContent('Wysłano e-mail z zaproszeniem do: Ewa Lis.');
+    expect(within(notice).getByRole('textbox', { name: 'Link zaproszenia' })).toHaveValue(LINK);
+
+    fireEvent.click(within(notice).getByRole('button', { name: 'Kopiuj link' }));
+    expect(await within(notice).findByRole('button', { name: 'Skopiowano' })).toBeInTheDocument();
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(LINK);
+
+    fireEvent.click(within(notice).getByRole('button', { name: 'Zamknij' }));
+    expect(within(accounts).queryByRole('status', { name: 'Zaproszenie' })).not.toBeInTheDocument();
+  });
+
+  test('when the e-mail fails, the manager is told to pass the link on', async () => {
+    usersApi.createUser.mockResolvedValue({
+      id: 9, username: 'ewa.lis', first_name: 'Ewa', last_name: 'Lis', invite_link: LINK, invite_email_sent: false,
+    });
+
+    const accounts = await addEwa();
+
+    expect(await screen.findByText('Dodano pracownika. E-mail nie wyszedł, skopiuj link zaproszenia.')).toBeInTheDocument();
+    expect(within(accounts).getByRole('status', { name: 'Zaproszenie' })).toHaveTextContent('Przekaż tej osobie link poniżej.');
+  });
+
+  test('an account waiting for its password can get a new invite', async () => {
+    usersApi.getUsers.mockResolvedValue([MANAGER, { ...EMPLOYEE, invite_pending: true }]);
+    usersApi.resendInvite.mockResolvedValue({ invite_link: LINK, invite_email_sent: true });
+    await renderManager();
+    const accounts = card('Zarządzanie kontami');
+    expect(within(accounts).getByText('Czeka na hasło')).toBeInTheDocument();
+
+    fireEvent.click(within(accounts).getByRole('button', { name: 'Wyślij zaproszenie ponownie: anna' }));
+
+    await waitFor(() => expect(usersApi.resendInvite).toHaveBeenCalledWith(2));
+    expect(await screen.findByText('Wysłano nowe zaproszenie do: Anna Nowak. Poprzedni link przestał działać.')).toBeInTheDocument();
+    expect(within(accounts).getByRole('textbox', { name: 'Link zaproszenia' })).toHaveValue(LINK);
+  });
+
+  test('accounts with a password have no invite button', async () => {
+    await renderManager();
+
+    expect(within(card('Zarządzanie kontami')).queryByText('Czeka na hasło')).not.toBeInTheDocument();
+  });
 });
 
 test('changing an hourly rate saves it on blur', async () => {

@@ -12,6 +12,43 @@ const REMOVE_CONFIRM = {
 };
 
 /**
+ * Result of creating an account or resending its invite: whether the e-mail went out, and the link to pass on.
+ * Stays until closed (unlike a toast), so there is time to copy the link.
+ */
+const InviteNotice = ({ invite, onDismiss, onError }) => {
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(invite.link);
+      setCopied(true);
+    } catch {
+      onError('Nie udało się skopiować. Zaznacz link i skopiuj go ręcznie.');
+    }
+  };
+
+  return (
+    <div className={styles.inviteNotice} role="status" aria-label="Zaproszenie">
+      <p>
+        {invite.emailSent
+          ? `Wysłano e-mail z zaproszeniem do: ${invite.name}.`
+          : `Nie udało się wysłać e-maila do: ${invite.name}. Przekaż tej osobie link poniżej.`}{' '}
+        Link działa jeden raz i wygasa po 7 dniach.
+      </p>
+      <div className={styles.inviteLinkRow}>
+        <input type="text" readOnly value={invite.link} aria-label="Link zaproszenia" onFocus={(e) => e.target.select()} />
+        <button type="button" className={styles.btnPrimary} onClick={copy}>
+          {copied ? 'Skopiowano' : 'Kopiuj link'}
+        </button>
+        <button type="button" className={styles.btnSecondary} onClick={onDismiss}>
+          Zamknij
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/**
  * Team accounts: role, hourly rate, active flag, schedule shortcut, deactivation and deletion.
  * Own account controls are disabled — the API refuses to demote or remove yourself anyway.
  */
@@ -22,6 +59,9 @@ const AccountsCard = ({
   onUpdate,
   onRemove,
   onOpenSchedule,
+  invite,
+  onDismissInvite,
+  onResendInvite,
   onError,
 }) => {
   const [formOpen, setFormOpen] = useState(false);
@@ -62,6 +102,10 @@ const AccountsCard = ({
       </div>
 
       {formOpen ? <AddUserForm onSubmit={create} onCancel={() => setFormOpen(false)} onError={onError} /> : null}
+      {invite ? (
+        // key: a new invite starts with a fresh "Kopiuj link" button
+        <InviteNotice key={invite.link} invite={invite} onDismiss={onDismissInvite} onError={onError} />
+      ) : null}
 
       <div className={styles.tableWrap}>
         <table className={styles.empTable}>
@@ -89,6 +133,21 @@ const AccountsCard = ({
                       {user.first_name} {user.last_name}
                     </div>
                     <small>{user.username}</small>
+                    {user.invite_pending ? (
+                      <div className={styles.invitePending}>
+                        <span className={styles.invitePendingBadge}>Czeka na hasło</span>
+                        {isActive ? (
+                          <button
+                            type="button"
+                            className={styles.btnSecondary}
+                            onClick={() => onResendInvite(user)}
+                            aria-label={`Wyślij zaproszenie ponownie: ${user.username}`}
+                          >
+                            Wyślij zaproszenie ponownie
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </td>
                   <td data-label="Rola">
                     <select

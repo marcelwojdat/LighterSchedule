@@ -1,14 +1,12 @@
 import React, { useState } from 'react';
 import styles from '../Manager.module.css';
-
-const MIN_PASSWORD_LENGTH = 8;
+import { normalizeLogin } from '../../utils/people';
 
 const EMPTY_FORM = {
   username: '',
   first_name: '',
   last_name: '',
   email: '',
-  password: '',
   is_manager: false,
   hourly_rate: '20',
 };
@@ -18,25 +16,24 @@ const TEXT_FIELDS = [
   ['first_name', 'text', 'Imię'],
   ['last_name', 'text', 'Nazwisko'],
   ['email', 'email', 'E-mail'],
-  ['password', 'password', `Hasło (min. ${MIN_PASSWORD_LENGTH} znaków)`],
 ];
 
 /** Returns an error message, or null when the form can be sent. */
 const validate = (form) => {
   const requiredFilled = ['username', 'first_name', 'last_name', 'email'].every((name) => form[name].trim());
-  if (!requiredFilled || !form.password) return 'Uzupełnij wszystkie pola formularza nowej osoby.';
-  if (form.password.length < MIN_PASSWORD_LENGTH) return `Hasło musi mieć co najmniej ${MIN_PASSWORD_LENGTH} znaków.`;
-  return null;
+  return requiredFilled ? null : 'Uzupełnij wszystkie pola formularza nowej osoby.';
 };
 
 /**
- * New employee or manager account. `onSubmit(payload)` resolves to true on success.
+ * New employee or manager account, without a password: the person sets it from the e-mailed invite link.
+ * `onSubmit(payload)` resolves to true on success.
  * The form is unmounted when closed, so its fields reset by themselves.
  */
 const AddUserForm = ({ onSubmit, onCancel, onError }) => {
   const [form, setForm] = useState(EMPTY_FORM);
 
-  const update = (name, value) => setForm((prev) => ({ ...prev, [name]: value }));
+  const update = (name, value) =>
+    setForm((prev) => ({ ...prev, [name]: name === 'username' ? normalizeLogin(value) : value }));
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -50,7 +47,6 @@ const AddUserForm = ({ onSubmit, onCancel, onError }) => {
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
       email: form.email.trim(),
-      password: form.password,
       is_manager: form.is_manager,
       hourly_rate: form.hourly_rate === '' ? 0 : Number(form.hourly_rate),
     });
@@ -66,7 +62,8 @@ const AddUserForm = ({ onSubmit, onCancel, onError }) => {
             placeholder={placeholder}
             value={form[name]}
             onChange={(event) => update(name, event.target.value)}
-            minLength={name === 'password' ? MIN_PASSWORD_LENGTH : undefined}
+            autoCapitalize={name === 'username' ? 'none' : undefined}
+            spellCheck={name === 'username' ? false : undefined}
             required
           />
         ))}
@@ -86,6 +83,9 @@ const AddUserForm = ({ onSubmit, onCancel, onError }) => {
         />
         Konto kierownika
       </label>
+      <p className={styles.statHint}>
+        Osoba dostanie e-mail z loginem i linkiem do ustawienia hasła. Link zobaczysz też tutaj, gdyby e-mail nie dotarł.
+      </p>
       <div className={styles.queueActions}>
         <button type="submit" className={styles.btnPrimary}>
           Dodaj osobę

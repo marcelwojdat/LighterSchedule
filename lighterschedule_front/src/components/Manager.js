@@ -16,7 +16,7 @@ import { createShiftTemplate, deleteShiftTemplate, updateShiftTemplate } from '.
 import { downloadPayrollPdf } from '../api/stats';
 import { approveSwap as approveSwapRequest, rejectSwap as rejectSwapRequest } from '../api/swaps';
 import { createTaskType, deleteTaskType, updateTaskType } from '../api/taskTypes';
-import { createUser, deleteUser, updateUserProfile } from '../api/users';
+import { createUser, deleteUser, resendInvite, updateUserProfile } from '../api/users';
 import {
   approveWorkday,
   bulkApproveWorkdays,
@@ -77,6 +77,7 @@ const Manager = () => {
   const [weekStart, setWeekStart] = useState(() => formatDateStr(getMonday()));
   const [holesDays, setHolesDays] = useState(7);
   const [currentUser, setCurrentUser] = useState(null);
+  const [invite, setInvite] = useState(null); // { name, link, emailSent } after creating an account or resending
   const { error, success, setError, setSuccess, notifySuccess, runAction: run } = useMessages();
   const { darkMode, toggleTheme } = useTheme();
 
@@ -164,12 +165,42 @@ const Manager = () => {
 
   // --- Accounts ---
 
+  /** The invite link stays on the accounts card until closed, in case the e-mail does not arrive. */
+  const showInvite = (user, result) =>
+    setInvite({ name: displayName(user), link: result.invite_link, emailSent: result.invite_email_sent });
+
   const createAccount = (payload) =>
-    runAction(() => createUser(payload), {
-      success: payload.is_manager ? 'Dodano kierownika.' : 'Dodano pracownika.',
-      failure: 'Nie udało się dodać użytkownika.',
-      after: reloadUsers,
-    });
+    runAction(
+      async () => {
+        const created = await createUser(payload);
+        showInvite(created, created);
+        return created;
+      },
+      {
+        success: (created) =>
+          `${payload.is_manager ? 'Dodano kierownika' : 'Dodano pracownika'}` +
+          (created.invite_email_sent ? ' i wysłano zaproszenie e-mailem.' : '. E-mail nie wyszedł, skopiuj link zaproszenia.'),
+        failure: 'Nie udało się dodać użytkownika.',
+        after: reloadUsers,
+      },
+    );
+
+  const resendAccountInvite = (user) =>
+    runAction(
+      async () => {
+        const result = await resendInvite(user.id);
+        showInvite(user, result);
+        return result;
+      },
+      {
+        success: (result) =>
+          result.invite_email_sent
+            ? `Wysłano nowe zaproszenie do: ${displayName(user)}. Poprzedni link przestał działać.`
+            : 'E-mail nie wyszedł. Skopiuj nowy link zaproszenia, poprzedni przestał działać.',
+        failure: 'Nie udało się wysłać zaproszenia.',
+        after: null,
+      },
+    );
 
   const updateAccount = (user, patch) => {
     const isRate = 'hourly_rate' in patch;
@@ -405,6 +436,9 @@ const Manager = () => {
             onUpdate={updateAccount}
             onRemove={removeAccount}
             onOpenSchedule={openSchedule}
+            invite={invite}
+            onDismissInvite={() => setInvite(null)}
+            onResendInvite={resendAccountInvite}
             onError={setError}
           />
         </div>
