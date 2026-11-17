@@ -67,3 +67,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Image builds
         run: docker build --tag prostygrafik:ci .
+      # A typo in the nginx config would otherwise only show up when the release starts in production.
+      - name: Frontend image builds and its nginx config is valid
+        run: |
+          docker build --target frontend-runtime --tag prostygrafik-frontend:ci .
+          docker run --rm prostygrafik-frontend:ci nginx -t

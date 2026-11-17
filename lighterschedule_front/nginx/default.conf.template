@@ -1,0 +1,72 @@
+# Gateway of the frontend container: serves the React build and forwards the Django paths to the backend,
+# so whatever sits in front (Coolify's Traefik, or the host nginx) only has to route the domain here.
+#
+# Rendered at container start by the nginx image (envsubst). Only the names in NGINX_ENVSUBST_FILTER
+# (see Dockerfile) are replaced; nginx's own $variables are left alone.
+#   ${BACKEND_URL}       where Django listens, e.g. http://web:8000
+#   ${ADMIN_ALLOW_CIDR}  who may open /admin/ (Django admin has no login rate limit), e.g. 203.0.113.10/32
+
+# Real client IP: requests come only through a proxy on a private Docker network, and that proxy puts the
+# client in X-Forwarded-For. Without this, every user would share the proxy's IP in Django's login limits.
+set_real_ip_from 10.0.0.0/8;
+set_real_ip_from 172.16.0.0/12;
+set_real_ip_from 192.168.0.0/16;
+real_ip_header X-Forwarded-For;
+real_ip_recursive on;
+
+# HTTPS ends at the proxy in front, so pass on the scheme it saw; our own $scheme would be "http"
+# and Django (SECURE_SSL_REDIRECT) would redirect forever.
+map $http_x_forwarded_proto $forwarded_proto {
+    default $http_x_forwarded_proto;
+    ''      $scheme;
+}
+
+server {
+    listen 3000;
+    server_name _;
+    server_tokens off;
+    root /usr/share/nginx/html;
+    client_max_body_size 5m;
+
+    # Docker's DNS, asked again at runtime: every deployment gives the backend container a new IP.
+    resolver 127.0.0.11 valid=10s ipv6=off;
+    set $backend ${BACKEND_URL};
+
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $forwarded_proto;
+
+    location /api/ {
+        proxy_pass $backend;
+    }
+
+    location /admin/ {
+        allow ${ADMIN_ALLOW_CIDR};
+        deny all;
+        proxy_pass $backend;
+    }
+
+    location /static/admin/ {
+        proxy_pass $backend;
+    }
+
+    # Hashed build assets (main.3f2a1c.js): safe to cache for a year.
+    location /static/ {
+        try_files $uri =404;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+    }
+
+    # The app itself; unknown paths fall back to index.html for the React router.
+    # Same headers as public/serve.json had (Django sets its own for /api/ and /admin/).
+    location / {
+        try_files $uri $uri/ /index.html;
+        add_header Cache-Control "no-cache" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    }
+}

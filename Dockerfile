@@ -11,17 +11,16 @@ ENV REACT_APP_API_URL=$REACT_APP_API_URL
 ENV INLINE_RUNTIME_CHUNK=false
 RUN npm run build
 
-# ---- Frontend runtime: the static build served on :3000, where nginx proxies "/" ----
+# ---- Frontend runtime: nginx on :3000 serves the build and forwards /api/, /admin/, /static/admin/ to Django ----
 # Kept before the backend stage, so a plain `docker build .` still builds the backend (the last stage).
-FROM node:24-alpine AS frontend-runtime
-ENV NO_UPDATE_CHECK=1
-RUN npm install --global serve@14.2.4
-WORKDIR /srv
-# build/serve.json comes from public/ and sets the CSP and other security headers.
-COPY --from=frontend /frontend/build ./build
-USER node
+# The unprivileged variant runs nginx without root; templates are rendered at start (see the .template file).
+FROM nginxinc/nginx-unprivileged:1.28-alpine AS frontend-runtime
+ENV BACKEND_URL=http://web:8000 \
+    ADMIN_ALLOW_CIDR=127.0.0.1/32 \
+    NGINX_ENVSUBST_FILTER='^(BACKEND_URL|ADMIN_ALLOW_CIDR)$'
+COPY lighterschedule_front/nginx/default.conf.template /etc/nginx/templates/default.conf.template
+COPY --from=frontend /frontend/build /usr/share/nginx/html
 EXPOSE 3000
-CMD ["serve", "--single", "--no-port-switching", "--listen", "tcp://0.0.0.0:3000", "build"]
 
 # ---- Backend ----
 FROM python:3.12-slim AS backend
