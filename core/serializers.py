@@ -26,6 +26,7 @@ from .utils import (
     assert_shift_slot_available,
     declaration_close_label,
     declaration_deadline_passed,
+    employee_display_name,
     get_shift_slots_info,
 )
 
@@ -234,6 +235,7 @@ class ScheduleSettingsSerializer(serializers.ModelSerializer):
             'declarations_closed',
             'notify_hour_changes',
             'email_hour_changes',
+            'team_schedule_visible',
             'updated_at',
         ]
         read_only_fields = ['updated_at']
@@ -372,6 +374,27 @@ class ShiftTemplateSerializer(OrganizationUniqueFieldMixin, serializers.ModelSer
 
 
 # --- Schedule ----------------------------------------------------------------
+
+class TeamShiftSerializer(serializers.ModelSerializer):
+    """
+    One approved shift in the team schedule that colleagues see.
+
+    An allow-list of public fields, not WorkDaySerializer with fields removed: a field added
+    to WorkDay later can't leak to colleagues by accident (pay, notes, hour-change details).
+    """
+
+    employee_name = serializers.SerializerMethodField()
+    shift_template_name = serializers.ReadOnlyField(source='shift_template.name', default=None)
+    role_name = serializers.ReadOnlyField(source='role.name', default=None)
+
+    class Meta:
+        model = WorkDay
+        fields = ['id', 'employee', 'employee_name', 'date', 'start_time', 'end_time', 'shift_template_name', 'role_name']
+        read_only_fields = fields
+
+    def get_employee_name(self, obj):
+        return employee_display_name(obj.employee)
+
 
 class WorkDaySerializer(serializers.ModelSerializer):
     employee = OrganizationPrimaryKeyRelatedField(

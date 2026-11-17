@@ -693,6 +693,76 @@ class HourChangeTests(ScheduleTestCase):
         self.assertEqual((workday.previous_start_time, workday.hours_changed_at), (None, None))
 
 
+class TeamScheduleTests(ScheduleTestCase):
+    """GET /api/workdays/team/: the approved schedule of the whole team, read-only."""
+
+    PUBLIC_FIELDS = {'id', 'employee', 'employee_name', 'date', 'start_time', 'end_time', 'shift_template_name', 'role_name'}
+
+    def team(self, days=(0, 14)):
+        start, end = (future_date(day).isoformat() for day in days)
+        return self.client.get('/api/workdays/team/', {'date_from': start, 'date_to': end})
+
+    def test_employee_sees_approved_shifts_of_colleagues(self):
+        make_workday(self.other, future_date(3), start=time(6), end=time(14), note='Prywatna notatka')
+        make_workday(self.other, future_date(4), status=WorkDay.Status.PROPOSED)
+        make_workday(self.other, future_date(5), status=WorkDay.Status.REJECTED)
+        make_workday(self.employee, future_date(3))
+        self.login(self.employee)
+
+        response = self.team()
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(len(response.data), 2)  # both approved, no proposal or rejection
+        names = {row['employee_name'] for row in response.data}
+        self.assertEqual(names, {'other', 'Jan Kowalski'})
+
+    def test_only_public_fields_are_shared(self):
+        make_workday(self.other, future_date(3), note='Prywatna notatka')
+        self.login(self.employee)
+
+        row = self.team().data[0]
+
+        self.assertEqual(set(row), self.PUBLIC_FIELDS)
+
+    def test_other_organizations_and_inactive_accounts_are_left_out(self):
+        stranger = make_user(make_organization('Inna firma'), 'stranger')
+        make_workday(stranger, future_date(3))
+        self.other.is_active = False
+        self.other.save()
+        make_workday(self.other, future_date(3))
+        self.login(self.employee)
+
+        self.assertEqual(self.team().data, [])
+
+    def test_manager_can_hide_it_from_employees_but_still_sees_it(self):
+        make_workday(self.other, future_date(3))
+        self.login(self.manager)
+        self.client.patch('/api/schedule-settings/', {'team_schedule_visible': False}, format='json')
+
+        self.assertEqual(len(self.team().data), 1)
+        self.login(self.employee)
+        self.assertEqual(self.team().status_code, 403)
+
+    def test_visible_by_default(self):
+        self.login(self.employee)
+
+        self.assertTrue(self.client.get('/api/schedule-settings/').data['team_schedule_visible'])
+        self.assertEqual(self.team().status_code, 200)
+
+    def test_date_range_is_required_and_limited(self):
+        self.login(self.employee)
+        cases = [
+            {},
+            {'date_from': future_date(0).isoformat()},
+            {'date_from': future_date(5).isoformat(), 'date_to': future_date(1).isoformat()},
+            {'date_from': future_date(0).isoformat(), 'date_to': future_date(62).isoformat()},
+            {'date_from': 'wczoraj', 'date_to': future_date(1).isoformat()},
+        ]
+        for params in cases:
+            with self.subTest(params=params):
+                self.assertEqual(self.client.get('/api/workdays/team/', params).status_code, 400)
+
+
 class DeclarationDeadlineRuleTests(SimpleTestCase):
     """The weekly window: open until Saturday 23:59, closed until Monday 00:00."""
 

@@ -75,6 +75,10 @@ class ScheduleSettings(models.Model):
         default=True,
         help_text='E-mail do pracownika, gdy kierownik zmieni godziny jego zmiany.',
     )
+    team_schedule_visible = models.BooleanField(
+        default=True,
+        help_text='Pracownicy widzą zatwierdzony grafik całego zespołu (tylko podgląd, bez stawek i notatek).',
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

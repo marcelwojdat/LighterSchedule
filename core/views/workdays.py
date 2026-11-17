@@ -17,13 +17,15 @@ from ..ical import build_workdays_ics, make_calendar_token, resolve_calendar_tok
 from ..models import ScheduleSettings, WorkDay
 from ..permissions import IsManager, is_manager
 from ..schedule_copy import copy_workdays, parse_iso_date
-from ..serializers import WorkDaySerializer
+from ..serializers import TeamShiftSerializer, WorkDaySerializer
 from ..tenancy import OrganizationScopedMixin, organization_users
 from ..utils import DECLARATION_DEADLINE_MESSAGE, declaration_deadline_passed, remember_rejection_reason
 from .common import INVALID_MONTH_MESSAGE, clean_rejection_reason, error_response, parse_month
 
 # Two full months for one person; more in a single request is almost certainly a mistake or abuse.
 MAX_BATCH_ENTRIES = 100
+# Team schedule: about two months at once, enough for any calendar view, not the whole history.
+MAX_TEAM_RANGE_DAYS = 62
 
 
 def first_error_message(detail):
@@ -131,6 +133,34 @@ class WorkDayViewSet(OrganizationScopedMixin, viewsets.ModelViewSet):
             if instance.status == WorkDay.Status.APPROVED:
                 raise PermissionDenied('Nie możesz usuwać zatwierdzonego grafiku.')
         instance.delete()
+
+    @action(detail=False, methods=['get'])
+    def team(self, request):
+        """
+        The final schedule of the whole team: approved shifts only, read-only, without pay or notes.
+        Query: ?date_from=YYYY-MM-DD&date_to=YYYY-MM-DD (at most MAX_TEAM_RANGE_DAYS days).
+
+        Deliberately not get_queryset(), which limits an employee to their own days; the scope
+        is still the user's organization. Employees need the manager's team_schedule_visible.
+        """
+        organization = self.get_organization()
+        visible = ScheduleSettings.for_organization(organization).team_schedule_visible
+        if not (visible or is_manager(request.user)):
+            raise PermissionDenied('Kierownik nie udostępnił grafiku zespołu.')
+
+        date_from, date_to = self._date_param('date_from'), self._date_param('date_to')
+        if date_from is None or date_to is None:
+            return error_response('Podaj date_from i date_to.')
+        if date_to < date_from or (date_to - date_from).days >= MAX_TEAM_RANGE_DAYS:
+            return error_response(f'Zakres dat musi być poprawny i nie dłuższy niż {MAX_TEAM_RANGE_DAYS} dni.')
+
+        shifts = WorkDay.objects.filter(
+            employee__profile__organization=organization,
+            employee__is_active=True,
+            status=WorkDay.Status.APPROVED,
+            date__range=(date_from, date_to),
+        ).select_related('employee', 'shift_template', 'role').order_by('date', 'start_time', 'employee__last_name')
+        return Response(TeamShiftSerializer(shifts, many=True).data)
 
     @action(detail=False, methods=['get'], url_path='export.ics', permission_classes=[AllowAny])
     def export_ics(self, request):
