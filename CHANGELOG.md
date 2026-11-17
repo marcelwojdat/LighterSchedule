@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.0](https://github.com/marcelwojdat/LighterSchedule/compare/v1.1.0...v1.2.0) (2026-11-17)
+
+
+### Nowe funkcje
+
+* **api:** manager-created accounts get an invite link instead of a password ([d8a424e](https://github.com/marcelwojdat/LighterSchedule/commit/d8a424e456d0d3ed5735ee6bdc192532351abc58))
+* **auth:** page for setting the password from an invite link ([913d008](https://github.com/marcelwojdat/LighterSchedule/commit/913d0088110436df96fac006d244c180702530f6))
+* **manager:** invite new accounts by link, resend invites ([22b336c](https://github.com/marcelwojdat/LighterSchedule/commit/22b336c831416c59dac3e9b9b82c3dffdfd02db2))
+
 ## [1.1.0](https://github.com/marcelwojdat/LighterSchedule/compare/v1.0.0...v1.1.0) (2026-11-17)
 
 
