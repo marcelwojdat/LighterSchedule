@@ -453,6 +453,24 @@ describe('settings: deadline and shift templates', () => {
     expect(within(card('Ustawienia')).getByRole('checkbox', { name: 'Pokazuj pracownikowi komunikat w panelu' })).toBeChecked();
   });
 
+  test('hiding the team schedule from employees saves it at once', async () => {
+    scheduleSettingsApi.updateScheduleSettings.mockResolvedValue({
+      declaration_close_weekday: null, declaration_close_time: null,
+      notify_hour_changes: true, email_hour_changes: true, team_schedule_visible: false,
+    });
+    await renderManager();
+    const teamToggle = within(card('Ustawienia')).getByRole('checkbox', { name: 'Pracownicy widzą grafik zespołu' });
+    expect(teamToggle).toBeChecked(); // visible by default
+
+    fireEvent.click(teamToggle);
+
+    await waitFor(() =>
+      expect(scheduleSettingsApi.updateScheduleSettings).toHaveBeenCalledWith({ team_schedule_visible: false }),
+    );
+    expect(await screen.findByText('Grafik zespołu jest ukryty przed pracownikami.')).toBeInTheDocument();
+    expect(teamToggle).not.toBeChecked();
+  });
+
   test('creating a shift template', async () => {
     shiftTemplatesApi.createShiftTemplate.mockResolvedValue({});
     const settings = await openTemplates();

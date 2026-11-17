@@ -36,6 +36,13 @@ import { buildWorkdayPayload } from '../utils/time';
 
 const NOTICE_TIMEOUT_MS = 7000;
 
+// Notice after an on/off setting is saved: [when turned on, when turned off].
+const SETTING_TOGGLE_MESSAGES = {
+  notify_hour_changes: ['Komunikat w panelu o zmianie godzin włączony.', 'Komunikat w panelu o zmianie godzin wyłączony.'],
+  email_hour_changes: ['E-mail o zmianie godzin włączony.', 'E-mail o zmianie godzin wyłączony.'],
+  team_schedule_visible: ['Pracownicy widzą teraz grafik zespołu.', 'Grafik zespołu jest ukryty przed pracownikami.'],
+};
+
 const currentMonthValue = () => formatDateStr(new Date()).slice(0, 7);
 
 const currentCalendarMonth = () => {
@@ -276,14 +283,13 @@ const Manager = () => {
       },
     );
 
-  /** `change` is one of { notify_hour_changes } / { email_hour_changes }, saved on click. */
-  const saveHourChangeSetting = (change) => {
+  /** `change` is a single on/off setting, e.g. { email_hour_changes: false }, saved on click. */
+  const saveSettingToggle = (change) => {
     const [[field, enabled]] = Object.entries(change);
-    const what = field === 'email_hour_changes' ? 'E-mail' : 'Komunikat w panelu';
     return runAction(
       async () => setScheduleSettings(await updateScheduleSettings(change)),
       {
-        success: `${what} o zmianie godzin ${enabled ? 'włączony' : 'wyłączony'}.`,
+        success: SETTING_TOGGLE_MESSAGES[field][enabled ? 0 : 1],
         failure: 'Nie udało się zapisać ustawienia.',
         after: null,
       },
@@ -436,7 +442,7 @@ const Manager = () => {
         settings={scheduleSettings}
         onSaveDeadline={saveDeadline}
         onClearDeadline={clearDeadline}
-        onSaveHourChangeSetting={saveHourChangeSetting}
+        onSaveToggle={saveSettingToggle}
         templates={shiftTemplates}
         onSaveTemplate={saveTemplate}
         onDeleteTemplate={deleteTemplate}

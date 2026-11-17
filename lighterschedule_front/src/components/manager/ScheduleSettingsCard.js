@@ -15,15 +15,29 @@ const HOUR_CHANGE_TOGGLES = [
   { field: 'email_hour_changes', label: 'Wysyłaj pracownikowi e-mail' },
 ];
 
+// Saved on click and shown as the server confirmed it, so there is no unsaved state.
+// Unknown values (settings still loading) show the server default: on.
+const SettingToggle = ({ settings, field, label, onSave }) => (
+  <label className="checkboxRow">
+    <input
+      type="checkbox"
+      checked={settings?.[field] ?? true}
+      disabled={!settings}
+      onChange={(event) => onSave({ [field]: event.target.checked })}
+    />
+    {label}
+  </label>
+);
+
 /**
  * Organization settings: the weekly declaration deadline, notices about changed hours,
- * shift templates and roles (task types).
+ * team schedule visibility, shift templates and roles (task types).
  */
 const ScheduleSettingsCard = ({
   settings,
   onSaveDeadline,
   onClearDeadline,
-  onSaveHourChangeSetting,
+  onSaveToggle,
   templates,
   onSaveTemplate,
   onDeleteTemplate,
@@ -66,17 +80,23 @@ const ScheduleSettingsCard = ({
             </p>
           </div>
           {HOUR_CHANGE_TOGGLES.map(({ field, label }) => (
-            // Saved on click and shown as the server confirmed it, so there is no unsaved state.
-            <label key={field} className="checkboxRow">
-              <input
-                type="checkbox"
-                checked={settings?.[field] ?? true}
-                disabled={!settings}
-                onChange={(event) => onSaveHourChangeSetting({ [field]: event.target.checked })}
-              />
-              {label}
-            </label>
+            <SettingToggle key={field} settings={settings} field={field} label={label} onSave={onSaveToggle} />
           ))}
+        </div>
+
+        <div className={styles.deadlineForm}>
+          <div>
+            <span className={styles.deadlineLabel}>Widoczność grafiku</span>
+            <p className={styles.statHint}>
+              Pracownicy widzą tylko zatwierdzone zmiany kolegów: kto, kiedy i na jakiej zmianie. Bez stawek i notatek.
+            </p>
+          </div>
+          <SettingToggle
+            settings={settings}
+            field="team_schedule_visible"
+            label="Pracownicy widzą grafik zespołu"
+            onSave={onSaveToggle}
+          />
         </div>
 
         {openPanel === 'templates' ? (
