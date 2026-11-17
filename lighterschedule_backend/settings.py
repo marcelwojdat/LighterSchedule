@@ -147,6 +147,7 @@ REST_FRAMEWORK = {
         'login': '20/min',
         'register': '10/hour',
         'password_change': '10/hour',
+        'set_password': '10/hour',
     },
     # Client IP = the last X-Forwarded-For entry, i.e. the one appended by our nginx.
     # Without it the whole (spoofable) header would identify the client.
@@ -165,6 +166,12 @@ SIMPLE_JWT = {
 
 CORS_ALLOWED_ORIGINS = _env_list('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000')
 CSRF_TRUSTED_ORIGINS = _env_list('CSRF_TRUSTED_ORIGINS')
+
+# Where the React app lives; links in e-mails (e.g. set-password invites) point here.
+# Without FRONTEND_URL: the first CORS origin, which in production is the app's own domain.
+FRONTEND_URL = (os.environ.get('FRONTEND_URL') or (CORS_ALLOWED_ORIGINS or ['http://localhost:3000'])[0]).rstrip('/')
+# Set-password (invite) links stay valid for a week.
+PASSWORD_RESET_TIMEOUT = 7 * 24 * 60 * 60
 
 
 # --- Internationalization ----------------------------------------------------

@@ -40,6 +40,7 @@ services:
       DB_PORT: "5432"
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
+      FRONTEND_URL: ${FRONTEND_URL:-}
     # Only nginx on this host may reach the app. A bare "8000:8000" listens on every interface,
     # and Docker's iptables rules bypass UFW, so the API would be open without HTTPS.
     ports:

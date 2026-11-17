@@ -32,6 +32,12 @@ class PasswordChangeRateThrottle(UserRateThrottle):
     scope = 'password_change'
 
 
+class SetPasswordRateThrottle(AnonRateThrottle):
+    """Guessing set-password links is limited per IP."""
+
+    scope = 'set_password'
+
+
 def _failed_logins_key(username):
     digest = hashlib.sha256(username.strip().lower().encode()).hexdigest()
     return f'failed-logins:{digest}'

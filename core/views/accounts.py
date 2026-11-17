@@ -8,9 +8,17 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from ..invites import user_for_token
 from ..serializers import RegistrationSerializer, UserProfileUpdateSerializer, UserSerializer
-from ..throttling import PasswordChangeRateThrottle, RegisterRateThrottle
+from ..throttling import PasswordChangeRateThrottle, RegisterRateThrottle, SetPasswordRateThrottle
 from .common import error_response
+
+INVALID_LINK_MESSAGE = 'Link jest nieprawidłowy, został już użyty albo wygasł. Poproś kierownika o nowy.'
+
+
+def _revoke_sessions(user):
+    for token in OutstandingToken.objects.filter(user=user):
+        BlacklistedToken.objects.get_or_create(token=token)
 
 
 @api_view(['POST'])
@@ -55,11 +63,36 @@ def change_password(request):
 
     # Sign out every other device (a stolen session dies with the old password),
     # and hand this device a fresh pair so it stays signed in.
-    for token in OutstandingToken.objects.filter(user=request.user):
-        BlacklistedToken.objects.get_or_create(token=token)
+    _revoke_sessions(request.user)
     refresh = RefreshToken.for_user(request.user)
     return Response({
         'message': 'Hasło zostało zmienione. Wylogowano Cię na pozostałych urządzeniach.',
         'access': str(refresh.access_token),
         'refresh': str(refresh),
+    })
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@throttle_classes([SetPasswordRateThrottle])
+def set_password(request):
+    """Set the password from a one-time link ({uid, token, password}); the link dies with it."""
+    user = user_for_token(request.data.get('uid'), request.data.get('token'))
+    if user is None:
+        return error_response(INVALID_LINK_MESSAGE)
+    password = request.data.get('password')
+    if not isinstance(password, str) or not password:
+        return error_response('Podaj nowe hasło.')
+    try:
+        validate_password(password, user=user)
+    except DjangoValidationError as exc:
+        return error_response(' '.join(exc.messages))
+
+    user.set_password(password)
+    user.save(update_fields=['password'])
+    # Whoever held a session before (e.g. a forgotten password case) is signed out.
+    _revoke_sessions(user)
+    return Response({
+        'message': 'Hasło zostało ustawione. Możesz się zalogować.',
+        'username': user.username,
     })

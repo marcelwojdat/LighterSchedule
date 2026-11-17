@@ -20,6 +20,7 @@ from core.views import (
     register_user,
     schedule_holes,
     schedule_settings,
+    set_password,
     team_stats,
 )
 
@@ -40,6 +41,7 @@ urlpatterns = [
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/token/blacklist/', TokenBlacklistView.as_view(), name='token_blacklist'),
     path('api/register/', register_user, name='register'),
+    path('api/set-password/', set_password, name='set_password'),
 
     # Current user
     path('api/me/', current_user, name='current_user'),

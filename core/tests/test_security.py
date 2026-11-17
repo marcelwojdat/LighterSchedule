@@ -4,9 +4,11 @@ from django.contrib.auth.models import User
 from django.core.cache import cache
 from rest_framework.test import APITestCase
 
+from core.invites import make_set_password_link
 from core.models import WorkDay
 from core.tests.factories import PASSWORD, future_date, make_organization, make_user, make_workday
 from core.throttling import MAX_FAILED_LOGINS
+from core.views.accounts import INVALID_LINK_MESSAGE
 
 NEW_PASSWORD = 'Inne#Haslo2025'
 
@@ -259,3 +261,92 @@ class InputValidationTests(SecurityTestCase):
         }, format='json')
 
         self.assertEqual(response.status_code, 400)
+
+
+class SetPasswordLinkTests(SecurityTestCase):
+    """One-time set-password links (invites for accounts created by a manager)."""
+
+    def setUp(self):
+        super().setUp()
+        self.invited = make_user(self.org, 'invited')
+        self.invited.set_unusable_password()
+        self.invited.save(update_fields=['password'])
+
+    def link_parts(self, user):
+        uid, token = make_set_password_link(user).rsplit('/', 2)[-2:]
+        return uid, token
+
+    def set_password(self, uid, token, password=NEW_PASSWORD):
+        return self.client.post('/api/set-password/', {'uid': uid, 'token': token, 'password': password}, format='json')
+
+    def test_link_points_to_the_frontend(self):
+        with self.settings(FRONTEND_URL='https://prostygrafik.com'):
+            link = make_set_password_link(self.invited)
+
+        self.assertTrue(link.startswith('https://prostygrafik.com/set-password/'))
+
+    def test_account_without_password_cannot_sign_in(self):
+        self.assertEqual(self.obtain_tokens('invited').status_code, 401)
+
+    def test_link_sets_the_password_once(self):
+        uid, token = self.link_parts(self.invited)
+
+        response = self.set_password(uid, token)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['username'], 'invited')
+        self.assertEqual(self.obtain_tokens('invited', NEW_PASSWORD).status_code, 200)
+        # The new password hash invalidates the same link.
+        reuse = self.set_password(uid, token, 'Jeszcze#Inne3')
+        self.assertEqual(reuse.status_code, 400)
+        self.assertEqual(reuse.data['error'], INVALID_LINK_MESSAGE)
+
+    def test_expired_link_is_rejected(self):
+        uid, token = self.link_parts(self.invited)
+
+        with self.settings(PASSWORD_RESET_TIMEOUT=-1):
+            response = self.set_password(uid, token)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data['error'], INVALID_LINK_MESSAGE)
+
+    def test_forged_or_malformed_link_is_rejected(self):
+        uid, token = self.link_parts(self.invited)
+        other_uid, _ = self.link_parts(self.colleague)
+
+        for bad_uid, bad_token in [(uid, 'abc-123'), (other_uid, token), ('!!!', token), (['x'], token), (uid, None)]:
+            with self.subTest(uid=bad_uid, token=bad_token):
+                self.assertEqual(self.set_password(bad_uid, bad_token).status_code, 400)
+        self.assertFalse(User.objects.get(pk=self.invited.pk).has_usable_password())
+
+    def test_deactivated_account_link_is_rejected(self):
+        uid, token = self.link_parts(self.invited)
+        self.invited.is_active = False
+        self.invited.save(update_fields=['is_active'])
+
+        self.assertEqual(self.set_password(uid, token).status_code, 400)
+
+    def test_weak_password_is_rejected_and_link_still_works(self):
+        uid, token = self.link_parts(self.invited)
+
+        weak = self.set_password(uid, token, 'invited')
+
+        self.assertEqual(weak.status_code, 400)
+        self.assertNotEqual(weak.data['error'], INVALID_LINK_MESSAGE)
+        self.assertEqual(self.set_password(uid, token).status_code, 200)
+
+    def test_setting_password_signs_out_existing_sessions(self):
+        refresh = self.obtain_tokens('employee').data['refresh']
+        uid, token = self.link_parts(self.employee)
+
+        self.assertEqual(self.set_password(uid, token).status_code, 200)
+
+        self.assertEqual(self.client.post('/api/token/refresh/', {'refresh': refresh}, format='json').status_code, 401)
+
+    def test_guessing_links_is_rate_limited(self):
+        uid, _ = self.link_parts(self.invited)
+
+        statuses = [self.set_password(uid, f'guess-{n}').status_code for n in range(11)]
+
+        self.assertEqual(statuses[:10], [400] * 10)
+        self.assertEqual(statuses[10], 429)

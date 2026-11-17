@@ -1,5 +1,5 @@
 """API views, one module per area. Everything urls.py needs is re-exported here."""
-from .accounts import change_password, current_user, register_user
+from .accounts import change_password, current_user, register_user, set_password
 from .configuration import RejectionReasonTemplateViewSet, ShiftTemplateViewSet, TaskTypeViewSet, schedule_settings
 from .notifications import notifications
 from .reports import payroll_report, schedule_holes, team_stats
@@ -21,5 +21,6 @@ __all__ = [
     'register_user',
     'schedule_holes',
     'schedule_settings',
+    'set_password',
     'team_stats',
 ]
