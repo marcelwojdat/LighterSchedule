@@ -60,7 +60,7 @@ class OrganizationUniqueFieldMixin:
 # --- Visibility --------------------------------------------------------------
 
 # Colleagues are visible to employees (swaps need them), but not their pay, contact or notes.
-USER_PRIVATE_FIELDS = ('email', 'hourly_rate')
+USER_PRIVATE_FIELDS = ('email', 'hourly_rate', 'invite_pending')
 WORKDAY_PRIVATE_FIELDS = ('rate_at_time', 'earnings', 'note', 'rejection_reason')
 
 
@@ -80,13 +80,18 @@ class UserSerializer(serializers.ModelSerializer):
     )
     is_manager = serializers.BooleanField(source='profile.is_manager', read_only=True)
     email = serializers.EmailField(read_only=True)
+    # Created by a manager and the set-password link not used yet.
+    invite_pending = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'username', 'first_name', 'last_name', 'email',
-            'hourly_rate', 'is_manager', 'is_active',
+            'hourly_rate', 'is_manager', 'is_active', 'invite_pending',
         ]
+
+    def get_invite_pending(self, user):
+        return not user.has_usable_password()
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -97,10 +102,9 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class AccountCreateSerializer(serializers.Serializer):
-    """Shared fields and validation for creating a user account."""
+    """Shared fields and validation for creating a user account (the password is up to subclasses)."""
 
     username = serializers.CharField(max_length=150)
-    password = serializers.CharField(write_only=True)
     first_name = serializers.CharField(max_length=150)
     last_name = serializers.CharField(max_length=150)
     email = serializers.EmailField()
@@ -121,27 +125,17 @@ class AccountCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError('Konto z tym adresem e-mail już istnieje.')
         return email
 
-    def validate(self, attrs):
-        attrs = super().validate(attrs)
-        # An unsaved user lets the similarity validator compare the password with login, name and e-mail.
-        candidate = User(
-            username=attrs['username'],
-            email=attrs['email'],
-            first_name=attrs['first_name'],
-            last_name=attrs['last_name'],
-        )
-        try:
-            validate_password(attrs['password'], user=candidate)
-        except DjangoValidationError as exc:
-            raise serializers.ValidationError({'password': list(exc.messages)})
-        return attrs
-
     def to_representation(self, instance):
         return UserSerializer(instance, context=self.context).data
 
 
 class ManagerUserCreateSerializer(AccountCreateSerializer):
-    """Manager adds an employee (or another manager) to their own organization."""
+    """
+    Manager adds an employee (or another manager) to their own organization.
+
+    The account gets no password: the person sets one from an invite link (core.invites),
+    so the manager never knows it.
+    """
 
     is_manager = serializers.BooleanField(default=False)
     hourly_rate = serializers.DecimalField(
@@ -154,7 +148,8 @@ class ManagerUserCreateSerializer(AccountCreateSerializer):
         is_manager_flag = validated_data.pop('is_manager')
         hourly_rate = validated_data.pop('hourly_rate')
 
-        user = User.objects.create_user(**validated_data)
+        # password=None stores an unusable hash: nobody can sign in until the link is used.
+        user = User.objects.create_user(password=None, **validated_data)
         EmployeeProfile.objects.create(
             user=user,
             organization=organization,
@@ -175,7 +170,23 @@ class RegistrationSerializer(AccountCreateSerializer):
         'Proszę wybrać inne godziny',
     )
 
+    password = serializers.CharField(write_only=True)
     organization_name = serializers.CharField(max_length=120)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        # An unsaved user lets the similarity validator compare the password with login, name and e-mail.
+        candidate = User(
+            username=attrs['username'],
+            email=attrs['email'],
+            first_name=attrs['first_name'],
+            last_name=attrs['last_name'],
+        )
+        try:
+            validate_password(attrs['password'], user=candidate)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({'password': list(exc.messages)})
+        return attrs
 
     @transaction.atomic
     def create(self, validated_data):

@@ -61,6 +61,24 @@ def _fmt_previous_hours(workday):
     return f'{_fmt_time(workday.previous_start_time)}-{_fmt_time(workday.previous_end_time)}'
 
 
+def notify_account_invite(user, link, invited_by):
+    """A manager created this account: login and a one-time link to set the password."""
+    organization = user.profile.organization.name
+    valid_days = max(1, settings.PASSWORD_RESET_TIMEOUT // (24 * 60 * 60))
+    subject = f'Zaproszenie do grafiku — {organization}'
+    body = (
+        f'Cześć {employee_display_name(user)},\n\n'
+        f'W firmie {organization} założono Ci konto w ProstyGrafik '
+        f'(zaprasza: {employee_display_name(invited_by)}).\n\n'
+        f'Twój login: {user.username}\n\n'
+        f'Ustaw hasło, otwierając ten link:\n{link}\n\n'
+        f'Link działa jeden raz i jest ważny {valid_days} dni. '
+        f'Jeśli wygaśnie, poproś kierownika o nowe zaproszenie.\n\n'
+        f'— ProstyGrafik\n'
+    )
+    return send_notification_email(user, subject, body)
+
+
 def notify_workday_approved(workday):
     name = employee_display_name(workday.employee)
     subject = f'Grafik zatwierdzony — {workday.date}'

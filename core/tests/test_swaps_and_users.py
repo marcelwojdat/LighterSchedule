@@ -247,7 +247,7 @@ class UserManagementTests(APITestCase):
 
     def new_user_payload(self, **extra):
         return {
-            'username': 'nowy', 'password': PASSWORD, 'first_name': 'Ola',
+            'username': 'nowy', 'first_name': 'Ola',
             'last_name': 'Nowak', 'email': 'ola@example.com', **extra,
         }
 
@@ -263,10 +263,85 @@ class UserManagementTests(APITestCase):
 
     def test_new_user_validation(self):
         duplicate_email = self.client.post('/api/users/', self.new_user_payload(email='employee@example.com'))
-        weak_password = self.client.post('/api/users/', self.new_user_payload(password='12345678'))
 
         self.assertIn('email', duplicate_email.data)
-        self.assertIn('password', weak_password.data)
+
+    def test_new_account_has_no_password_and_gets_an_invite(self):
+        # A password sent by an older frontend is ignored: the manager never sets it.
+        response = self.client.post('/api/users/', self.new_user_payload(password=PASSWORD), format='json')
+
+        self.assertEqual(response.status_code, 201, response.data)
+        user = User.objects.get(username='nowy')
+        self.assertFalse(user.has_usable_password())
+        self.assertTrue(response.data['invite_pending'])
+        self.assertTrue(response.data['invite_email_sent'])
+        self.assertIn('/set-password/', response.data['invite_link'])
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['ola@example.com'])
+        self.assertIn('Twój login: nowy', mail.outbox[0].body)
+        self.assertIn(response.data['invite_link'], mail.outbox[0].body)
+        self.assertEqual(self.client.post('/api/token/', {'username': 'nowy', 'password': PASSWORD}).status_code, 401)
+
+    def test_invite_link_lets_the_new_person_sign_in(self):
+        link = self.client.post('/api/users/', self.new_user_payload(), format='json').data['invite_link']
+        uid, token = link.rsplit('/', 2)[-2:]
+        self.client.force_authenticate(None)
+
+        self.assertEqual(self.client.post('/api/set-password/', {
+            'uid': uid, 'token': token, 'password': 'Moje#Nowe#Haslo9',
+        }, format='json').status_code, 200)
+        self.assertEqual(self.client.post('/api/token/', {
+            'username': 'nowy', 'password': 'Moje#Nowe#Haslo9',
+        }).status_code, 200)
+
+    def test_resending_invite_keeps_only_the_newest_link(self):
+        first = self.client.post('/api/users/', self.new_user_payload(), format='json').data
+        user_id = first['id']
+
+        again = self.client.post(f'/api/users/{user_id}/invite/')
+
+        self.assertEqual(again.status_code, 200, again.data)
+        self.assertNotEqual(again.data['invite_link'], first['invite_link'])
+        self.assertEqual(len(mail.outbox), 2)
+        self.client.force_authenticate(None)
+        for link, expected in ((first['invite_link'], 400), (again.data['invite_link'], 200)):
+            uid, token = link.rsplit('/', 2)[-2:]
+            response = self.client.post('/api/set-password/', {
+                'uid': uid, 'token': token, 'password': 'Moje#Nowe#Haslo9',
+            }, format='json')
+            self.assertEqual(response.status_code, expected)
+
+    def test_no_invite_for_account_that_already_has_a_password(self):
+        response = self.client.post(f'/api/users/{self.employee.id}/invite/')
+
+        self.assertEqual(response.status_code, 400)
+        self.employee.refresh_from_db()
+        self.assertTrue(self.employee.check_password(PASSWORD))
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_no_invite_for_inactive_account(self):
+        user_id = self.client.post('/api/users/', self.new_user_payload(), format='json').data['id']
+        self.client.patch(f'/api/users/{user_id}/profile/', {'is_active': False}, format='json')
+
+        self.assertEqual(self.client.post(f'/api/users/{user_id}/invite/').status_code, 400)
+
+    def test_invite_is_for_managers_of_the_same_organization(self):
+        user_id = self.client.post('/api/users/', self.new_user_payload(), format='json').data['id']
+        other_manager = make_user(make_organization('Inna firma'), 'obcy', manager=True)
+
+        self.client.force_authenticate(self.employee)
+        self.assertEqual(self.client.post(f'/api/users/{user_id}/invite/').status_code, 403)
+        self.client.force_authenticate(other_manager)
+        self.assertEqual(self.client.post(f'/api/users/{user_id}/invite/').status_code, 404)
+
+    def test_invite_pending_is_private(self):
+        self.client.post('/api/users/', self.new_user_payload(), format='json')
+        self.client.force_authenticate(self.employee)
+
+        rows = {row['username']: row for row in self.client.get('/api/users/').data}
+
+        self.assertNotIn('invite_pending', rows['nowy'])
+        self.assertFalse(rows['employee']['invite_pending'])
 
     def test_employee_cannot_manage_users(self):
         self.client.force_authenticate(self.employee)

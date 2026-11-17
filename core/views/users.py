@@ -8,6 +8,8 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from ..email_notify import notify_account_invite
+from ..invites import make_set_password_link
 from ..models import SwapRequest, WorkDay
 from ..permissions import IsManager
 from ..serializers import ManagerUserCreateSerializer, ProfileUpdateSerializer, UserSerializer, WorkDaySerializer
@@ -27,7 +29,7 @@ class UserViewSet(
     organization_lookup = 'profile__organization'
 
     def get_permissions(self):
-        if self.action in ('create', 'destroy', 'profile'):
+        if self.action in ('create', 'destroy', 'profile', 'invite'):
             return [IsAuthenticated(), IsManager()]
         return super().get_permissions()
 
@@ -35,6 +37,32 @@ class UserViewSet(
         if self.action == 'create':
             return ManagerUserCreateSerializer
         return UserSerializer
+
+    def _send_invite(self, user):
+        """E-mail a set-password link; the manager also gets it to pass on if the e-mail goes astray."""
+        link = make_set_password_link(user)
+        sent = notify_account_invite(user, link, invited_by=self.request.user)
+        return {'invite_link': link, 'invite_email_sent': sent}
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()  # its own transaction, so the account exists before the e-mail goes out
+        return Response({**serializer.data, **self._send_invite(user)}, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def invite(self, request, pk=None):
+        """A new invite for an account that has no password yet; earlier links stop working."""
+        user = self.get_object()
+        if user.has_usable_password():
+            # Otherwise a manager could set a password on someone's working account.
+            return error_response('To konto ma już hasło. Pracownik może je zmienić po zalogowaniu.')
+        if not user.is_active:
+            return error_response('Konto jest nieaktywne. Najpierw je aktywuj.')
+        # A fresh unusable hash changes the token input, so only the newest link is valid.
+        user.set_unusable_password()
+        user.save(update_fields=['password'])
+        return Response(self._send_invite(user))
 
     @staticmethod
     def _is_last_active_manager(user):
