@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import RoleRedirect from './components/RoleRedirect';
 import Login from './components/Login';
 import Register from './components/Register';
+import SetPassword from './components/SetPassword';
 import Dashboard from './components/Dashboard';
 import Manager from './components/Manager';
 import Profile from './components/Profile';
@@ -22,6 +23,8 @@ function App() {
 
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      {/* The invite link from the e-mail; see core/invites.py. */}
+      <Route path="/set-password/:uid/:token" element={<SetPassword />} />
       <Route path="/app" element={<RoleRedirect />} />
 
       <Route

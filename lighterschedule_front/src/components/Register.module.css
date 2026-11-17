@@ -90,6 +90,13 @@
   box-shadow: 0 8px 18px rgba(59, 130, 246, 0.25);
 }
 
+/* The same button look on a link (e.g. "Przejdź do logowania" after setting a password). */
+a.registerButton {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+}
+
 .registerButton:hover {
   transform: translateY(-2px);
   box-shadow: 0 12px 28px rgba(59, 130, 246, 0.35);
