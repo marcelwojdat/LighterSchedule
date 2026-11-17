@@ -1,0 +1,87 @@
+# ProstyGrafik on Coolify (Docker Compose resource pointed at this file).
+#
+# Routing: in the resource's Domains, https://prostygrafik.com,https://www.prostygrafik.com go to the
+# "frontend" service on port 3000. Its nginx forwards /api/, /admin/ and /static/admin/ to "web".
+# Nothing publishes host ports: a published port would bypass Coolify's proxy (and Docker bypasses UFW).
+#
+# Variables: ${VAR:?} blocks the deployment until the value is set in Coolify's Environment Variables;
+# ${VAR:-default} can be left alone. APP_VERSION is the release tag, e.g. v1.1.0 (images from GHCR).
+# The plain docker-compose.yml stays for local builds and the old server layout.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: lighterschedule_db
+      POSTGRES_USER: ls_app
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ls_app -d lighterschedule_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    image: ghcr.io/marcelwojdat/lighterschedule-web:${APP_VERSION:?}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    # No deploy.sh here: migrations run before gunicorn starts. They must stay backward compatible
+    # (expand/contract), because the old container serves until the new one is healthy.
+    command: >-
+      sh -c "python manage.py migrate --noinput &&
+      exec gunicorn lighterschedule_backend.wsgi:application --bind 0.0.0.0:8000 --workers 3"
+    environment:
+      DJANGO_DEBUG: "False"
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-prostygrafik.com,www.prostygrafik.com}
+      # Traefik already redirects http -> https; Django's redirect stays as a second line of defence.
+      DJANGO_SECURE_SSL_REDIRECT: ${DJANGO_SECURE_SSL_REDIRECT:-True}
+      DB_NAME: lighterschedule_db
+      DB_USER: ls_app
+      DB_PASSWORD: ${DB_PASSWORD:?}
+      DB_HOST: db
+      DB_PORT: "5432"
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://prostygrafik.com,https://www.prostygrafik.com}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-https://prostygrafik.com,https://www.prostygrafik.com}
+      FRONTEND_URL: ${FRONTEND_URL:-https://prostygrafik.com}
+      # Copy these from the old server's .env; without them e-mails fail (logged, the app keeps working).
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-True}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-ProstyGrafik <noreply@prostygrafik.com>}
+    healthcheck:
+      # Host and proto as the proxy sends them; otherwise Django answers 400 (unknown host) or 301 (to https).
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request as u; u.urlopen(u.Request('http://127.0.0.1:8000/api/health/', headers={'Host': 'prostygrafik.com', 'X-Forwarded-Proto': 'https'}), timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  frontend:
+    image: ghcr.io/marcelwojdat/lighterschedule-frontend:${APP_VERSION:?}
+    restart: unless-stopped
+    depends_on:
+      - web
+    environment:
+      BACKEND_URL: http://web:8000
+      # Who may open /admin/, e.g. your IP as 203.0.113.10/32. The default lets nobody in.
+      ADMIN_ALLOW_CIDR: ${ADMIN_ALLOW_CIDR:-127.0.0.1/32}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+volumes:
+  pgdata:
