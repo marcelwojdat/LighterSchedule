@@ -17,6 +17,10 @@ export const saveWorkdaysBatch = (entries) =>
 export const markHoursChangeSeen = (id) =>
   apiClient.post(`/workdays/${id}/seen-hours-change/`).then((response) => response.data);
 
+/** Approved shifts of the whole team ({ date_from, date_to }); 403 when the manager hid the team schedule. */
+export const getTeamSchedule = (params) =>
+  apiClient.get('/workdays/team/', { params }).then((response) => response.data);
+
 export const deleteWorkday = (id) =>
   apiClient.delete(`/workdays/${id}/`).then((response) => response.data);
 
