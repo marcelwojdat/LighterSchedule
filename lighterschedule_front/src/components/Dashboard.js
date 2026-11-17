@@ -7,6 +7,7 @@ import DayPopup from './dashboard/DayPopup';
 import DeclarationCalendar from './dashboard/DeclarationCalendar';
 import MonthStatsCard from './dashboard/MonthStatsCard';
 import SwapsSection, { isActiveSwap } from './dashboard/SwapsSection';
+import TeamSchedule from './dashboard/TeamSchedule';
 import WeekSummaryCard from './dashboard/WeekSummaryCard';
 import styles from './Dashboard.module.css';
 import { getErrorMessage } from '../api/client';
@@ -327,6 +328,8 @@ const Dashboard = () => {
           />
         </div>
       </div>
+
+      {currentUser ? <TeamSchedule currentUserId={currentUser.id} /> : null}
 
       <div ref={swapsRef}>
         <SwapsSection

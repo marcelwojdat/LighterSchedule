@@ -72,6 +72,7 @@ beforeEach(() => {
   workdaysApi.getWorkdays.mockResolvedValue([APPROVED, PROPOSED, THIS_MONTH]);
   workdaysApi.saveWorkdaysBatch.mockResolvedValue({ saved: [], saved_count: 1 });
   workdaysApi.deleteWorkday.mockResolvedValue({});
+  workdaysApi.getTeamSchedule.mockResolvedValue([]);
   workdaysApi.copyWorkdays.mockResolvedValue({ created_count: 3, skipped_count: 0, updated_count: 0 });
   workdaysApi.getCalendarFeedInfo.mockResolvedValue({ url: 'https://example.com/feed.ics', webcal_url: 'webcal://example.com/feed.ics' });
   workdaysApi.downloadWorkdaysIcs.mockResolvedValue();
@@ -108,6 +109,17 @@ test('shows month stats and received swaps', async () => {
   expect(screen.getByText('8.00')).toBeInTheDocument();
   expect(screen.getByText('160,00 zł')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Akceptuję' })).toBeInTheDocument();
+});
+
+test('shows the team schedule, or nothing when the manager hid it', async () => {
+  const { unmount } = render(<MemoryRouter><Dashboard /></MemoryRouter>);
+  expect(await screen.findByRole('region', { name: 'Grafik zespołu' })).toBeInTheDocument();
+  unmount();
+
+  workdaysApi.getTeamSchedule.mockRejectedValue({ response: { status: 403 } });
+  await renderDashboard();
+  await waitFor(() => expect(screen.queryByRole('region', { name: 'Grafik zespołu' })).not.toBeInTheDocument());
+  expect(screen.queryByText('Nie udało się pobrać grafiku zespołu.')).not.toBeInTheDocument();
 });
 
 test('declaring a new day with a shift template and sending it', async () => {
