@@ -285,13 +285,15 @@ describe('employee schedule editor', () => {
     return card('Szczegóły pracownika');
   };
 
+  /** Clicks the day, sets the hours in the day popup and adds the shift to the drafts. */
   const pickDayAndAdd = (editor, times) => {
     fireEvent.click(within(editor).getByRole('button', { name: 'Wybierz 2030-01-10' }));
+    const popup = within(editor).getByRole('dialog', { name: 'Zmiana: 2030-01-10' });
     if (times) {
-      setTime(editor, 'Początek zmiany', times[0]);
-      setTime(editor, 'Koniec zmiany', times[1]);
+      setTime(popup, 'Początek zmiany', times[0]);
+      setTime(popup, 'Koniec zmiany', times[1]);
     }
-    fireEvent.click(within(editor).getByRole('button', { name: 'Dodaj zmianę' }));
+    fireEvent.click(within(popup).getByRole('button', { name: 'Dodaj do zapisu' }));
   };
 
   test('a new day is saved in one batch request', async () => {
@@ -299,9 +301,10 @@ describe('employee schedule editor', () => {
     const editor = await openSchedule();
 
     pickDayAndAdd(editor, ['07:00', '15:00']);
-    expect(within(editor).getByText('Wybrany dzień: 2030-01-10')).toBeInTheDocument();
     expect(await screen.findByText('Zmiana dodana do zapisu.')).toBeInTheDocument();
-    fireEvent.click(within(editor).getByRole('button', { name: 'Zapisz zmiany' }));
+    expect(within(editor).queryByRole('dialog')).not.toBeInTheDocument(); // the popup closes
+    expect(within(editor).getByRole('button', { name: 'Zapisz zmiany (1)' })).toBeEnabled();
+    fireEvent.click(within(editor).getByRole('button', { name: /Zapisz zmiany/ }));
 
     await waitFor(() =>
       expect(workdaysApi.saveWorkdaysBatch).toHaveBeenCalledWith([
@@ -318,7 +321,7 @@ describe('employee schedule editor', () => {
     const editor = await openSchedule();
 
     pickDayAndAdd(editor, ['07:00', '15:00']);
-    fireEvent.click(within(editor).getByRole('button', { name: 'Zapisz zmiany' }));
+    fireEvent.click(within(editor).getByRole('button', { name: /Zapisz zmiany/ }));
 
     expect(await screen.findByText(/2030-01-10: Zmiana Poranna jest już obsadzona/)).toBeInTheDocument();
     expect(screen.queryByText('Grafik pracownika zapisany.')).not.toBeInTheDocument();
@@ -334,7 +337,7 @@ describe('employee schedule editor', () => {
     expect(await within(editor).findByText(/2030-01-10 — 10:00 - 18:00/)).toBeInTheDocument();
 
     pickDayAndAdd(editor);
-    fireEvent.click(within(editor).getByRole('button', { name: 'Zapisz zmiany' }));
+    fireEvent.click(within(editor).getByRole('button', { name: /Zapisz zmiany/ }));
 
     // Approving a pending day (and replacing a rejected one) is the server's job now.
     await waitFor(() =>
@@ -354,7 +357,7 @@ describe('employee schedule editor', () => {
     await waitFor(() => expect(workdaysApi.getWorkdays).toHaveBeenCalledWith({ employee: 1 }));
     const editor = card('Szczegóły pracownika');
     pickDayAndAdd(editor, ['07:00', '15:00']);
-    fireEvent.click(within(editor).getByRole('button', { name: 'Zapisz zmiany' }));
+    fireEvent.click(within(editor).getByRole('button', { name: /Zapisz zmiany/ }));
 
     await waitFor(() =>
       expect(workdaysApi.saveWorkdaysBatch).toHaveBeenCalledWith([
@@ -381,7 +384,7 @@ describe('employee schedule editor', () => {
 
       expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('niezapisane zmiany w grafiku: Anna Nowak'));
       expect(workdaysApi.getWorkdays).not.toHaveBeenCalledWith({ employee: 3 });
-      expect(within(editor).getByRole('button', { name: 'Zapisz zmiany' })).toBeEnabled();
+      expect(within(editor).getByRole('button', { name: /Zapisz zmiany/ })).toBeEnabled();
     });
 
     test('without drafts it switches straight away', async () => {

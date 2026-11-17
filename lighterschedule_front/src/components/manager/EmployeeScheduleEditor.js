@@ -1,30 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import CoverageLegend from './CoverageLegend';
-import RoleSelect from '../common/RoleSelect';
-import TimeSelect from '../common/TimeSelect';
+import ManagerDayPopup from './ManagerDayPopup';
 import styles from '../Manager.module.css';
 import { WORKDAY_STATUS_LABELS } from '../../constants/statusLabels';
 import { useUnsavedChangesWarning } from '../../hooks/useUnsavedChangesWarning';
 import { formatDateStr } from '../../utils/dates';
 import { formatMonthYearPl } from '../../utils/locale';
 import { getDayShiftCoverage } from '../../utils/shiftCoverage';
-import { resolveTemplateHours, toApiTime, toDisplayTime } from '../../utils/time';
-
-const DEFAULT_FORM = { timeFrom: '12:00', timeTo: '20:00', roleId: '', shiftId: '', note: '' };
-
-/** Day form prefilled from a draft or a saved entry; defaults when the day is empty. */
-const formFrom = (entry) =>
-  entry
-    ? {
-        timeFrom: entry.start_time.slice(0, 5),
-        timeTo: entry.end_time.slice(0, 5),
-        roleId: entry.role ? String(entry.role) : '',
-        shiftId: entry.shift_template ? String(entry.shift_template) : '',
-        note: entry.note || '',
-      }
-    : DEFAULT_FORM;
 
 const STATUS_LEGEND = [
   [styles.legendProposed, 'Oczekuje'],
@@ -49,10 +33,12 @@ const statusBadgeClass = (day) => {
 };
 
 /**
- * Calendar of one employee: pick days, queue shifts as drafts, then save them all at once.
+ * Calendar of one person: a click on a day opens the day popup, the shift goes to the drafts,
+ * and "Zapisz zmiany" saves all drafts at once.
  *
  * Mount it with `key={employee.id}`, so switching employees starts with an empty draft.
  * `onSave(drafts)` and `onCopy(mode)` resolve to true on success.
+ * `onDirtyChange(hasDrafts)` (optional, keep it stable) reports whether there are unsaved drafts.
  */
 const EmployeeScheduleEditor = ({
   employee,
@@ -66,70 +52,38 @@ const EmployeeScheduleEditor = ({
   onCopy,
   onSuccess,
   onError,
+  onDirtyChange,
 }) => {
   const [selectedDate, setSelectedDate] = useState('');
   const [drafts, setDrafts] = useState({}); // { 'YYYY-MM-DD': { start_time, end_time, role, note, shift_template } }
-  useUnsavedChangesWarning(Object.keys(drafts).length > 0);
-  const [form, setForm] = useState(DEFAULT_FORM);
+  const hasDrafts = Object.keys(drafts).length > 0;
+  useUnsavedChangesWarning(hasDrafts);
+  // Tells the panel about unsaved drafts, so switching to another employee can ask first.
+  useEffect(() => {
+    onDirtyChange?.(hasDrafts);
+    return () => onDirtyChange?.(false);
+  }, [hasDrafts, onDirtyChange]);
   const [copyBusy, setCopyBusy] = useState(false);
+  const draftCount = Object.keys(drafts).length;
 
   const savedDay = (date) => workdays.find((day) => day.date === date);
   const coverageOf = (date) => getDayShiftCoverage(date, shiftTemplates, coverageWorkdays);
-  const updateForm = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
 
-  const templatesForDay = selectedDate
-    ? shiftTemplates.filter((template) => resolveTemplateHours(template, selectedDate))
-    : [];
-
-  const selectDate = (date) => {
-    const dateStr = formatDateStr(date);
-    setSelectedDate(dateStr);
-    setForm(formFrom(drafts[dateStr] || savedDay(dateStr)));
-  };
-
-  const pickTemplate = (templateId) => {
-    const template = shiftTemplates.find((candidate) => String(candidate.id) === String(templateId));
-    const hours = resolveTemplateHours(template, selectedDate);
-    setForm((prev) => ({
-      ...prev,
-      shiftId: templateId,
-      ...(hours ? { timeFrom: toDisplayTime(hours.start_time), timeTo: toDisplayTime(hours.end_time) } : {}),
-    }));
-  };
-
-  const addDraft = () => {
-    if (!selectedDate) return;
-    let start = toApiTime(form.timeFrom);
-    let end = toApiTime(form.timeTo);
-    if (form.shiftId) {
-      const template = shiftTemplates.find((candidate) => String(candidate.id) === String(form.shiftId));
-      const hours = resolveTemplateHours(template, selectedDate);
-      if (!hours) {
-        onError('Wybrana zmiana nie ma godzin na ten dzień tygodnia.');
-        return;
-      }
-      start = toApiTime(hours.start_time);
-      end = toApiTime(hours.end_time);
-    }
-    setDrafts((prev) => ({
-      ...prev,
-      [selectedDate]: {
-        start_time: start,
-        end_time: end,
-        role: form.roleId ? Number(form.roleId) : null,
-        note: form.note.trim(),
-        shift_template: form.shiftId ? Number(form.shiftId) : null,
-      },
-    }));
+  /** Shift from the day popup; replaces an earlier draft of the same day. */
+  const addDraft = (date, draft) => {
+    setDrafts((prev) => ({ ...prev, [date]: draft }));
+    setSelectedDate('');
     onSuccess('Zmiana dodana do zapisu.');
   };
 
+  const removeDraft = (date) => {
+    setDrafts(({ [date]: _removed, ...rest }) => rest);
+    setSelectedDate('');
+  };
+
   const saveDrafts = async () => {
-    if (Object.keys(drafts).length === 0) return;
-    if (await onSave(drafts)) {
-      setDrafts({});
-      setSelectedDate('');
-    }
+    if (draftCount === 0) return;
+    if (await onSave(drafts)) setDrafts({});
   };
 
   const copy = async (mode) => {
@@ -200,7 +154,7 @@ const EmployeeScheduleEditor = ({
       <div className={`${styles.calendarContainer} calendarScroll`}>
         <Calendar
           locale="pl-PL"
-          onChange={selectDate}
+          onChange={(date) => setSelectedDate(formatDateStr(date))}
           value={null}
           tileClassName={tileClassName}
           tileContent={tileContent}
@@ -237,47 +191,26 @@ const EmployeeScheduleEditor = ({
       </div>
 
       <div className={styles.shiftControls}>
-        <div>Wybrany dzień: {selectedDate || '—'}</div>
-        <select
-          className={styles.roleSelect}
-          value={form.shiftId}
-          onChange={(event) => pickTemplate(event.target.value)}
-          disabled={!selectedDate}
-        >
-          <option value="">Szablon zmiany (opcjonalnie)</option>
-          {templatesForDay.map((template) => {
-            const hours = resolveTemplateHours(template, selectedDate);
-            return (
-              <option key={template.id} value={template.id}>
-                {template.name}
-                {hours ? ` (${toDisplayTime(hours.start_time)}-${toDisplayTime(hours.end_time)})` : ''}
-              </option>
-            );
-          })}
-        </select>
-        <TimeSelect label="Początek zmiany" value={form.timeFrom} onChange={(value) => updateForm('timeFrom', value)} />
-        <TimeSelect label="Koniec zmiany" value={form.timeTo} onChange={(value) => updateForm('timeTo', value)} />
-        <RoleSelect
-          taskTypes={taskTypes}
-          value={form.roleId}
-          onChange={(value) => updateForm('roleId', value)}
-          className={styles.roleSelect}
-        />
-        <textarea
-          className={styles.noteInput}
-          rows={2}
-          maxLength={500}
-          placeholder="Notatka (opcjonalnie)"
-          value={form.note}
-          onChange={(event) => updateForm('note', event.target.value)}
-        />
-        <button type="button" className={styles.btnPrimary} onClick={addDraft}>
-          Dodaj zmianę
-        </button>
-        <button type="button" className={styles.btnPrimary} onClick={saveDrafts}>
-          Zapisz zmiany
+        <p className={styles.statHint}>Kliknij dzień w kalendarzu, aby dodać lub zmienić zmianę.</p>
+        <button type="button" className={styles.btnPrimary} onClick={saveDrafts} disabled={draftCount === 0}>
+          {draftCount ? `Zapisz zmiany (${draftCount})` : 'Zapisz zmiany'}
         </button>
       </div>
+
+      {selectedDate ? (
+        <ManagerDayPopup
+          key={selectedDate}
+          date={selectedDate}
+          existing={savedDay(selectedDate)}
+          draft={drafts[selectedDate]}
+          shiftTemplates={shiftTemplates}
+          taskTypes={taskTypes}
+          onAddDraft={addDraft}
+          onRemoveDraft={removeDraft}
+          onClose={() => setSelectedDate('')}
+          onError={onError}
+        />
+      ) : null}
 
       <div className={styles.scheduleSection}>
         <h4>Aktualny grafik</h4>
